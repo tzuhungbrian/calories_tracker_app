@@ -1,0 +1,91 @@
+# Calories Tracker App
+
+Personal nutrition tracker for Brian. The app uses Next.js, TypeScript, Tailwind CSS, and Google Sheets as the backend database.
+
+## MVP features
+
+- Dashboard for today's calories, protein, fat, carbs, targets, and remaining values
+- Add daily food log records
+- Common foods selector powered by Google Sheets
+- Daily status editor for goal type, steps, strength session, creatine, and basketball minutes
+- Recent 14 days summary table
+
+## Google Sheets setup
+
+1. Open the existing spreadsheet named `diet_tracker_dynamic_tdee`.
+2. Copy the spreadsheet ID from the URL.
+3. Create a Google Cloud service account.
+4. Enable the Google Sheets API for the Google Cloud project.
+5. Create a JSON key for the service account.
+6. Share the spreadsheet with the service account email as an editor.
+7. Fill in `.env.local`.
+
+```bash
+GOOGLE_SHEET_ID=your_spreadsheet_id
+GOOGLE_SERVICE_ACCOUNT_EMAIL=your_service_account@project.iam.gserviceaccount.com
+GOOGLE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
+```
+
+## Expected sheet tabs
+
+The app is configured for these tabs by default:
+
+- `DailyLog`
+- `DailyStatus`
+- `CommonFoods`
+- `Targets`
+
+You can change tab names in `.env.local`:
+
+```bash
+GOOGLE_SHEET_DAILY_LOG_TAB=DailyLog
+GOOGLE_SHEET_DAILY_STATUS_TAB=DailyStatus
+GOOGLE_SHEET_COMMON_FOODS_TAB=CommonFoods
+GOOGLE_SHEET_TARGETS_TAB=Targets
+```
+
+## Suggested columns
+
+`DailyLog`:
+
+```text
+id, createdAt, date, meal, foodName, amount, calories, protein, fat, carbs, notes
+```
+
+`DailyStatus`:
+
+```text
+date, goalType, steps, strengthSession, creatineTaken, basketballMinutes
+```
+
+`CommonFoods`:
+
+```text
+name, serving, calories, protein, fat, carbs
+```
+
+The parser accepts a few common variations such as `Date`, `Food`, `Calories`, and `Protein` to stay compatible with existing sheets.
+
+## Local development
+
+```bash
+npm install
+npm run dev
+```
+
+Then open `http://localhost:3000`.
+
+## Verification
+
+Run these before finishing a task:
+
+```bash
+npm run lint
+npm run build
+```
+
+## Security notes
+
+- Google credentials are only read in server-side route handlers.
+- No Google credentials use `NEXT_PUBLIC_`.
+- Browser code calls only internal `/api/*` endpoints.
