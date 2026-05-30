@@ -4,6 +4,7 @@ import type {
   FoodLog,
   FoodLogInput,
   GoalType,
+  NutritionSettings,
   NutritionTargets,
   NutritionTotals,
   SheetRow
@@ -25,6 +26,20 @@ export const defaultTargets: NutritionTargets = {
   protein: 160,
   fat: 70,
   carbs: 230
+};
+
+export const defaultSettings: NutritionSettings = {
+  weightKg: 63.7,
+  bmr: 1528.5,
+  baseActivityFactor: 1.2,
+  caloriesPerStep: 0.04,
+  strengthTrainingKcal: 250,
+  basketballKcalPerMinute: 8,
+  proteinTargetPerKg: 2,
+  fatTargetPerKg: 0.9,
+  cutAdjustmentKcal: -300,
+  maintainAdjustmentKcal: 0,
+  bulkAdjustmentKcal: 250
 };
 
 export function todayKey(): string {
@@ -83,6 +98,7 @@ export function normalizeFoodLog(input: FoodLogInput): FoodLog {
     createdAt: new Date().toISOString(),
     date: input.date || todayKey(),
     meal: input.meal.trim(),
+    foodId: input.foodId ?? "",
     foodName: input.foodName.trim(),
     amount: input.amount.trim(),
     calories: Number(input.calories) || 0,
@@ -99,34 +115,41 @@ export function rowToFoodLog(row: SheetRow): FoodLog {
     createdAt: valueOf(row, ["createdAt", "CreatedAt", "created_at"]) || "",
     date: valueOf(row, ["date", "Date"]) || "",
     meal: valueOf(row, ["meal", "Meal"]) || "",
-    foodName: valueOf(row, ["foodName", "FoodName", "Food / Item", "food", "Food"]) || "",
-    amount: valueOf(row, ["amount", "Amount", "Servings", "serving", "Serving"]) || "",
-    calories: parseNumber(valueOf(row, ["Final kcal", "calories", "Calories", "kcal"])),
-    protein: parseNumber(valueOf(row, ["Final P", "protein", "Protein"])),
-    fat: parseNumber(valueOf(row, ["Final F", "fat", "Fat"])),
-    carbs: parseNumber(valueOf(row, ["Final C", "carbs", "Carbs", "carbohydrates"]))
+    foodId: valueOf(row, ["food_id", "foodId"]) || "",
+    foodName: valueOf(row, ["food_name", "foodName", "FoodName", "Food / Item", "food", "Food"]) || "",
+    amount: valueOf(row, ["servings", "amount", "Amount", "Servings", "serving", "Serving"]) || "",
+    calories: parseNumber(valueOf(row, ["calories", "Final kcal", "Calories", "kcal"])),
+    protein: parseNumber(valueOf(row, ["protein", "Final P", "Protein"])),
+    fat: parseNumber(valueOf(row, ["fat", "Final F", "Fat"])),
+    carbs: parseNumber(valueOf(row, ["carbs", "Final C", "Carbs", "carbohydrates"])),
+    notes: valueOf(row, ["notes", "Notes"]) || ""
   };
 }
 
 export function rowToCommonFood(row: SheetRow): CommonFood {
   return {
-    name: valueOf(row, ["Food name", "name", "Name", "food", "Food"]) || "",
-    serving: valueOf(row, ["Serving label", "Serving size", "serving", "Serving", "amount", "Amount"]) || "",
-    calories: parseNumber(valueOf(row, ["Calories / serving", "calories", "Calories", "kcal"])),
-    protein: parseNumber(valueOf(row, ["Protein (g)", "protein", "Protein"])),
-    fat: parseNumber(valueOf(row, ["Fat (g)", "fat", "Fat"])),
-    carbs: parseNumber(valueOf(row, ["Carbs (g)", "carbs", "Carbs", "carbohydrates"]))
+    id: valueOf(row, ["id"]) || "",
+    name: valueOf(row, ["name", "Food name", "Name", "food", "Food"]) || "",
+    category: valueOf(row, ["category", "Category"]) || "",
+    serving: valueOf(row, ["serving_label", "Serving label", "Serving size", "serving", "Serving", "amount", "Amount"]) || "",
+    servingSize: valueOf(row, ["serving_size", "Serving size"]) || "",
+    calories: parseNumber(valueOf(row, ["calories", "Calories / serving", "Calories", "kcal"])),
+    protein: parseNumber(valueOf(row, ["protein", "Protein (g)", "Protein"])),
+    fat: parseNumber(valueOf(row, ["fat", "Fat (g)", "Fat"])),
+    carbs: parseNumber(valueOf(row, ["carbs", "Carbs (g)", "Carbs", "carbohydrates"])),
+    notes: valueOf(row, ["notes", "Notes"]) || ""
   };
 }
 
 export function rowToDailyStatus(row: SheetRow): DailyStatus {
   return {
+    id: valueOf(row, ["id"]) || "",
     date: valueOf(row, ["date", "Date"]) || "",
-    goalType: parseGoalType(valueOf(row, ["Goal Type", "goalType", "GoalType", "goal", "Goal"])),
+    goalType: parseGoalType(valueOf(row, ["goal_type", "Goal Type", "goalType", "GoalType", "goal", "Goal"])),
     steps: parseNumber(valueOf(row, ["steps", "Steps"])),
-    strengthSession: parseBoolean(valueOf(row, ["Strength session", "strengthSession", "StrengthSession", "strength", "Strength"])),
-    creatineTaken: parseBoolean(valueOf(row, ["Creatine Taken", "creatineTaken", "CreatineTaken", "creatine", "Creatine"])),
-    basketballMinutes: parseNumber(valueOf(row, ["Basketball minutes", "basketballMinutes", "BasketballMinutes", "basketball", "Basketball"]))
+    strengthSession: parseBoolean(valueOf(row, ["strength_session", "Strength session", "strengthSession", "StrengthSession", "strength", "Strength"])),
+    creatineTaken: parseBoolean(valueOf(row, ["creatine_taken", "Creatine Taken", "creatineTaken", "CreatineTaken", "creatine", "Creatine"])),
+    basketballMinutes: parseNumber(valueOf(row, ["basketball_minutes", "Basketball minutes", "basketballMinutes", "BasketballMinutes", "basketball", "Basketball"]))
   };
 }
 
@@ -152,32 +175,79 @@ export function rowToDynamicTdee(row: SheetRow): number {
   return parseNumber(valueOf(row, ["Dynamic TDEE", "dynamicTdee", "tdee", "TDEE"]));
 }
 
+export function rowsToSettings(rows: SheetRow[]): NutritionSettings {
+  const values = new Map(rows.map((row) => [valueOf(row, ["key"]) || "", valueOf(row, ["value"]) || ""]));
+
+  return {
+    weightKg: parseNumber(values.get("weight_kg")) || defaultSettings.weightKg,
+    bmr: parseNumber(values.get("bmr")) || defaultSettings.bmr,
+    baseActivityFactor: parseNumber(values.get("base_activity_factor")) || defaultSettings.baseActivityFactor,
+    caloriesPerStep: parseNumber(values.get("calories_per_step")) || defaultSettings.caloriesPerStep,
+    strengthTrainingKcal: parseNumber(values.get("strength_training_kcal")) || defaultSettings.strengthTrainingKcal,
+    basketballKcalPerMinute: parseNumber(values.get("basketball_kcal_per_minute")) || defaultSettings.basketballKcalPerMinute,
+    proteinTargetPerKg: parseNumber(values.get("protein_target_per_kg")) || defaultSettings.proteinTargetPerKg,
+    fatTargetPerKg: parseNumber(values.get("fat_target_per_kg")) || defaultSettings.fatTargetPerKg,
+    cutAdjustmentKcal: parseNumber(values.get("cut_adjustment_kcal")) || defaultSettings.cutAdjustmentKcal,
+    maintainAdjustmentKcal: parseNumber(values.get("maintain_adjustment_kcal")),
+    bulkAdjustmentKcal: parseNumber(values.get("bulk_adjustment_kcal")) || defaultSettings.bulkAdjustmentKcal
+  };
+}
+
+export function calculateDynamicTdee(status: DailyStatus | null, settings: NutritionSettings): number {
+  const steps = status?.steps ?? 0;
+  const strengthCalories = status?.strengthSession ? settings.strengthTrainingKcal : 0;
+  const basketballCalories = (status?.basketballMinutes ?? 0) * settings.basketballKcalPerMinute;
+
+  return Math.round(settings.bmr * settings.baseActivityFactor + steps * settings.caloriesPerStep + strengthCalories + basketballCalories);
+}
+
+export function calculateTargets(status: DailyStatus | null, settings: NutritionSettings): NutritionTargets {
+  const goalType = status?.goalType ?? "maintain";
+  const adjustment =
+    goalType === "cut"
+      ? settings.cutAdjustmentKcal
+      : goalType === "bulk"
+        ? settings.bulkAdjustmentKcal
+        : settings.maintainAdjustmentKcal;
+  const calories = Math.round(calculateDynamicTdee(status, settings) + adjustment);
+  const protein = Math.round(settings.weightKg * settings.proteinTargetPerKg);
+  const fat = Math.round(settings.weightKg * settings.fatTargetPerKg);
+  const carbs = Math.max(0, Math.round((calories - protein * 4 - fat * 9) / 4));
+
+  return { calories, protein, fat, carbs };
+}
+
 export function statusToSheetRow(status: DailyStatus): string[] {
+  const now = new Date().toISOString();
   return [
+    status.id || crypto.randomUUID(),
     status.date,
     status.goalType,
     String(status.steps),
-    status.strengthSession ? "Yes" : "No",
-    status.creatineTaken ? "Yes" : "No",
-    String(status.basketballMinutes)
+    String(status.strengthSession),
+    String(status.creatineTaken),
+    String(status.basketballMinutes),
+    "",
+    "",
+    now
   ];
 }
 
 export function foodLogToSheetRow(log: FoodLog): string[] {
+  const now = new Date().toISOString();
   return [
+    log.id,
     log.date,
     log.meal,
-    "Manual",
+    log.foodId || "",
     log.foodName,
-    log.amount || "1.00",
+    log.amount || "1",
     String(log.calories),
     String(log.protein),
     String(log.fat),
     String(log.carbs),
-    String(log.calories),
-    String(log.protein),
-    String(log.fat),
-    String(log.carbs),
-    log.notes ?? ""
+    log.notes ?? "",
+    log.createdAt || now,
+    now
   ];
 }

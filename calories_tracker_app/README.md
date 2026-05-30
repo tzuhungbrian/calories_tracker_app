@@ -28,45 +28,53 @@ GOOGLE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\
 
 ## Expected sheet tabs
 
-The app is configured for the existing `diet_tracker_dynamic_tdee` tabs by default:
+The app is configured for app-first database tabs by default:
 
-- `Daily_Log`
-- `Daily_Status`
-- `Common_Foods`
-- `Summary_Data`
-- `Settings`
+- `foods`
+- `food_logs`
+- `daily_status`
+- `meal_preps`
+- `meal_prep_items`
+- `settings`
 
 You can change tab names in `.env.local`:
 
 ```bash
-GOOGLE_SHEET_DAILY_LOG_TAB=Daily_Log
-GOOGLE_SHEET_DAILY_STATUS_TAB=Daily_Status
-GOOGLE_SHEET_COMMON_FOODS_TAB=Common_Foods
-GOOGLE_SHEET_SUMMARY_DATA_TAB=Summary_Data
-GOOGLE_SHEET_SETTINGS_TAB=Settings
+GOOGLE_SHEET_DAILY_LOG_TAB=food_logs
+GOOGLE_SHEET_DAILY_STATUS_TAB=daily_status
+GOOGLE_SHEET_COMMON_FOODS_TAB=foods
+GOOGLE_SHEET_MEAL_PREPS_TAB=meal_preps
+GOOGLE_SHEET_MEAL_PREP_ITEMS_TAB=meal_prep_items
+GOOGLE_SHEET_SETTINGS_TAB=settings
 ```
 
 ## Suggested columns
 
-`Daily_Log`:
+`food_logs`:
 
 ```text
-Date, Meal, Entry Type, Food / Item, Servings, Manual kcal, Manual P, Manual F, Manual C, Final kcal, Final P, Final F, Final C, Notes
+id, date, meal, food_id, food_name, servings, calories, protein, fat, carbs, notes, created_at, updated_at
 ```
 
-`Daily_Status`:
+`daily_status`:
 
 ```text
-Date, Goal Type, Steps, Strength session, Creatine Taken, Basketball minutes, Dynamic TDEE, Calorie target, Protein goal, Fat goal, Carb goal
+id, date, goal_type, steps, strength_session, creatine_taken, basketball_minutes, body_weight, notes, updated_at
 ```
 
-`Common_Foods`:
+`foods`:
 
 ```text
-Food name, Category, Serving label, Serving size, Calories / serving, Protein (g), Fat (g), Carbs (g), Notes
+id, name, category, serving_label, serving_size, calories, protein, fat, carbs, notes, created_at, updated_at
 ```
 
-The parser automatically skips intro rows and uses the header row, so the existing explanatory rows at the top of each tab can stay in place.
+`settings`:
+
+```text
+key, value, notes, updated_at
+```
+
+The legacy tabs are no longer used by the app. They can remain in the spreadsheet as archived reference data.
 
 ## Local development
 
@@ -76,6 +84,27 @@ npm run dev
 ```
 
 Then open `http://localhost:3000`.
+
+## Sheet migration
+
+The current app uses app-first database tabs:
+
+```text
+foods
+food_logs
+daily_status
+meal_preps
+meal_prep_items
+settings
+```
+
+To rebuild those tabs from the legacy spreadsheet tabs, run:
+
+```bash
+npm run migrate:sheet
+```
+
+The migration renames the old manual spreadsheet tabs to `legacy_*` names and rewrites the app database tabs.
 
 ## Verification
 

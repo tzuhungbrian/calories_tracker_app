@@ -20,6 +20,7 @@ export function CommonFoodSelector({ foods, onSelect }: CommonFoodSelectorProps)
             const food = foods.find((item) => item.name === event.target.value);
             if (food) {
               onSelect({
+                foodId: food.id,
                 foodName: food.name,
                 amount: food.serving,
                 calories: food.calories,

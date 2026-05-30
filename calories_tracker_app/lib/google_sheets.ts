@@ -10,11 +10,12 @@ const SCOPES = ["https://www.googleapis.com/auth/spreadsheets"];
 const spreadsheetId = process.env.GOOGLE_SHEET_ID;
 
 export const sheetTabs = {
-  dailyLog: process.env.GOOGLE_SHEET_DAILY_LOG_TAB || "Daily_Log",
-  dailyStatus: process.env.GOOGLE_SHEET_DAILY_STATUS_TAB || "Daily_Status",
-  commonFoods: process.env.GOOGLE_SHEET_COMMON_FOODS_TAB || "Common_Foods",
-  summaryData: process.env.GOOGLE_SHEET_SUMMARY_DATA_TAB || "Summary_Data",
-  settings: process.env.GOOGLE_SHEET_SETTINGS_TAB || "Settings"
+  dailyLog: process.env.GOOGLE_SHEET_DAILY_LOG_TAB || "food_logs",
+  dailyStatus: process.env.GOOGLE_SHEET_DAILY_STATUS_TAB || "daily_status",
+  commonFoods: process.env.GOOGLE_SHEET_COMMON_FOODS_TAB || "foods",
+  mealPreps: process.env.GOOGLE_SHEET_MEAL_PREPS_TAB || "meal_preps",
+  mealPrepItems: process.env.GOOGLE_SHEET_MEAL_PREP_ITEMS_TAB || "meal_prep_items",
+  settings: process.env.GOOGLE_SHEET_SETTINGS_TAB || "settings"
 };
 
 function getPrivateKey(): string {
@@ -47,7 +48,9 @@ function rowsToObjects(rows: string[][]): SheetRow[] {
     "food / item",
     "goal type",
     "calories",
-    "metric"
+    "metric",
+    "key",
+    "name"
   ]);
   const headerIndex = rows.findIndex((row) =>
     row.filter(Boolean).some((cell) => knownHeaders.has(cell.trim().toLowerCase()))
@@ -99,16 +102,17 @@ export async function upsertDailyStatus(status: DailyStatus): Promise<void> {
   const sheets = getSheetsClient();
   const response = await sheets.spreadsheets.values.get({
     spreadsheetId,
-    range: `${sheetTabs.dailyStatus}!A:F`
+    range: `${sheetTabs.dailyStatus}!A:J`
   });
   const rows = asRows(response.data.values);
-  const rowIndex = rows.findIndex((row, index) => index > 0 && row[0] === status.date);
-  const values = statusToSheetRow(status);
+  const rowIndex = rows.findIndex((row, index) => index > 0 && row[1] === status.date);
+  const existingId = rowIndex >= 0 ? rows[rowIndex][0] : "";
+  const values = statusToSheetRow({ ...status, id: existingId || status.id });
 
   if (rowIndex >= 0) {
     await sheets.spreadsheets.values.update({
       spreadsheetId,
-      range: `${sheetTabs.dailyStatus}!A${rowIndex + 1}:F${rowIndex + 1}`,
+      range: `${sheetTabs.dailyStatus}!A${rowIndex + 1}:J${rowIndex + 1}`,
       valueInputOption: "USER_ENTERED",
       requestBody: { values: [values] }
     });

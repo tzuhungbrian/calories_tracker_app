@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { readSheetObjects, sheetTabs } from "@/lib/google_sheets";
-import { addTotals, rowToDailyStatus, rowToDynamicTdee, rowToFoodLog, rowToSummaryTotals, rowToTargets } from "@/lib/nutrition";
+import { addTotals, calculateDynamicTdee, calculateTargets, rowToDailyStatus, rowToFoodLog, rowsToSettings } from "@/lib/nutrition";
 import type { DailySummary } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -17,25 +17,25 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const days = Number(searchParams.get("days") || "14");
   const recentDates = getRecentDates(Number.isFinite(days) ? days : 14);
-  const [foodRows, statusRows, summaryRows] = await Promise.all([
+  const [foodRows, statusRows, settingRows] = await Promise.all([
     readSheetObjects(sheetTabs.dailyLog),
     readSheetObjects(sheetTabs.dailyStatus),
-    readSheetObjects(sheetTabs.summaryData)
+    readSheetObjects(sheetTabs.settings)
   ]);
   const logs = foodRows.map(rowToFoodLog);
   const statuses = statusRows.map(rowToDailyStatus);
+  const settings = rowsToSettings(settingRows);
 
   const summary: DailySummary[] = recentDates.map((date) => {
-    const summaryRow = summaryRows.find((row) => row.date === date || row.Date === date);
-    const totals = summaryRow ? rowToSummaryTotals(summaryRow) : addTotals(logs.filter((log) => log.date === date));
-    const targets = summaryRow ? rowToTargets(summaryRow) : { calories: 0, protein: 0, fat: 0, carbs: 0 };
+    const totals = addTotals(logs.filter((log) => log.date === date));
     const status = statuses.find((row) => row.date === date);
+    const targets = calculateTargets(status ?? null, settings);
 
     return {
       date,
       calories: totals.calories,
       calorieTarget: targets.calories,
-      dynamicTdee: summaryRow ? rowToDynamicTdee(summaryRow) : 0,
+      dynamicTdee: calculateDynamicTdee(status ?? null, settings),
       protein: totals.protein,
       proteinGoal: targets.protein,
       fat: totals.fat,

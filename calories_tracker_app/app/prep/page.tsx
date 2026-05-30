@@ -32,8 +32,10 @@ export default function PrepCalculatorPage() {
   const [selectedFoodName, setSelectedFoodName] = useState("");
   const [ingredients, setIngredients] = useState<PrepIngredient[]>([]);
   const [mealName, setMealName] = useState("");
+  const [outputFoodId, setOutputFoodId] = useState(() => crypto.randomUUID());
   const [category, setCategory] = useState("Meal prep");
   const [servingLabel, setServingLabel] = useState("1 portion");
+  const [servingSize, setServingSize] = useState("");
   const [servingCount, setServingCount] = useState(4);
   const [copyStatus, setCopyStatus] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -77,21 +79,25 @@ export default function PrepCalculatorPage() {
   }, [servingCount, totals]);
 
   const commonFoodRow = useMemo(() => {
+    const now = new Date().toISOString();
     const notes = ingredients
       .map((ingredient) => `${ingredient.food.name} x ${ingredient.servings}`)
       .join("; ");
     return [
+      outputFoodId,
       mealName,
       category,
       servingLabel,
-      `${servingCount} portions total`,
+      servingSize || `${servingCount} portions total`,
       perServing.calories,
       perServing.protein,
       perServing.fat,
       perServing.carbs,
-      notes
+      notes,
+      now,
+      now
     ].join("\t");
-  }, [category, ingredients, mealName, perServing, servingCount, servingLabel]);
+  }, [category, ingredients, mealName, outputFoodId, perServing, servingCount, servingLabel, servingSize]);
 
   function addSelectedFood() {
     const food = foods.find((item) => item.name === selectedFoodName);
@@ -223,7 +229,15 @@ export default function PrepCalculatorPage() {
             <div className="mt-4 grid gap-3">
               <label className="grid gap-1 text-sm font-medium text-slate-700">
                 Meal name
-                <input className="rounded-md border border-slate-300 px-3 py-2 font-normal" placeholder="e.g. 0601 chicken rice prep" value={mealName} onChange={(event) => setMealName(event.target.value)} />
+                <input
+                  className="rounded-md border border-slate-300 px-3 py-2 font-normal"
+                  placeholder="e.g. 0601 chicken rice prep"
+                  value={mealName}
+                  onChange={(event) => {
+                    setMealName(event.target.value);
+                    setOutputFoodId((current) => current || crypto.randomUUID());
+                  }}
+                />
               </label>
               <label className="grid gap-1 text-sm font-medium text-slate-700">
                 Category
@@ -232,6 +246,10 @@ export default function PrepCalculatorPage() {
               <label className="grid gap-1 text-sm font-medium text-slate-700">
                 Serving label
                 <input className="rounded-md border border-slate-300 px-3 py-2 font-normal" value={servingLabel} onChange={(event) => setServingLabel(event.target.value)} />
+              </label>
+              <label className="grid gap-1 text-sm font-medium text-slate-700">
+                Serving size
+                <input className="rounded-md border border-slate-300 px-3 py-2 font-normal" placeholder="Optional, e.g. 420 g" value={servingSize} onChange={(event) => setServingSize(event.target.value)} />
               </label>
               <label className="grid gap-1 text-sm font-medium text-slate-700">
                 Number of portions
@@ -255,7 +273,7 @@ export default function PrepCalculatorPage() {
 
           <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
             <h2 className="text-lg font-semibold">Paste row</h2>
-            <p className="mt-1 text-sm text-slate-500">Copy this row and paste it under the `Common_Foods` header row.</p>
+            <p className="mt-1 text-sm text-slate-500">Copy this row and paste it under the `foods` header row.</p>
             <textarea className="mt-3 h-28 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" readOnly value={commonFoodRow} />
             <button className="mt-3 rounded-md bg-ink px-4 py-2 font-medium text-white disabled:opacity-60" disabled={!mealName || ingredients.length === 0} onClick={copyRow}>
               Copy row

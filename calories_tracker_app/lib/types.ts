@@ -3,6 +3,7 @@ export type GoalType = "cut" | "maintain" | "bulk";
 export type FoodLogInput = {
   date: string;
   meal: string;
+  foodId?: string;
   foodName: string;
   amount: string;
   calories: number;
@@ -18,15 +19,20 @@ export type FoodLog = FoodLogInput & {
 };
 
 export type CommonFood = {
+  id: string;
   name: string;
+  category: string;
   serving: string;
+  servingSize: string;
   calories: number;
   protein: number;
   fat: number;
   carbs: number;
+  notes: string;
 };
 
 export type DailyStatus = {
+  id?: string;
   date: string;
   goalType: GoalType;
   steps: number;
@@ -43,6 +49,20 @@ export type NutritionTotals = {
 };
 
 export type NutritionTargets = NutritionTotals;
+
+export type NutritionSettings = {
+  weightKg: number;
+  bmr: number;
+  baseActivityFactor: number;
+  caloriesPerStep: number;
+  strengthTrainingKcal: number;
+  basketballKcalPerMinute: number;
+  proteinTargetPerKg: number;
+  fatTargetPerKg: number;
+  cutAdjustmentKcal: number;
+  maintainAdjustmentKcal: number;
+  bulkAdjustmentKcal: number;
+};
 
 export type DashboardData = {
   date: string;
