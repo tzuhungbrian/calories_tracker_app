@@ -23,6 +23,8 @@ const macroLabels: Record<(typeof macroFields)[number], string> = {
   carbs: "Carbs (g)"
 };
 
+const mealOptions = ["Breakfast", "Lunch", "Dinner", "Snack", "Supplements", "Drinks"];
+
 export function FoodLogForm({ value, isSaving, onChange, onSubmit }: FoodLogFormProps) {
   function updateField(field: keyof FoodLogInput, fieldValue: string) {
     onChange({
@@ -47,7 +49,14 @@ export function FoodLogForm({ value, isSaving, onChange, onSubmit }: FoodLogForm
         </label>
         <label className="grid gap-1 text-sm font-medium text-slate-700">
           Meal
-          <input className="rounded-md border border-slate-300 px-3 py-2 font-normal" placeholder="Breakfast, lunch, dinner..." value={value.meal} onChange={(event) => updateField("meal", event.target.value)} />
+          <select className="rounded-md border border-slate-300 px-3 py-2 font-normal" value={value.meal} onChange={(event) => updateField("meal", event.target.value)}>
+            <option value="">Select meal</option>
+            {mealOptions.map((meal) => (
+              <option key={meal} value={meal}>
+                {meal}
+              </option>
+            ))}
+          </select>
         </label>
         <label className="grid gap-1 text-sm font-medium text-slate-700 sm:col-span-2">
           Food name
