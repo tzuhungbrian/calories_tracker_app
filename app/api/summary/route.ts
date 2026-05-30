@@ -1,22 +1,15 @@
 import { NextResponse } from "next/server";
 import { readSheetObjects, sheetTabs } from "@/lib/google_sheets";
 import { addTotals, calculateDynamicTdee, calculateTargets, rowToDailyStatus, rowToFoodLog, rowsToSettings } from "@/lib/nutrition";
+import { recentDateKeys } from "@/lib/date";
 import type { DailySummary } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
-function getRecentDates(days: number): string[] {
-  return Array.from({ length: days }, (_, index) => {
-    const date = new Date();
-    date.setDate(date.getDate() - index);
-    return date.toISOString().slice(0, 10);
-  });
-}
-
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const days = Number(searchParams.get("days") || "14");
-  const recentDates = getRecentDates(Number.isFinite(days) ? days : 14);
+  const recentDates = recentDateKeys(Number.isFinite(days) ? days : 14);
   const [foodRows, statusRows, settingRows] = await Promise.all([
     readSheetObjects(sheetTabs.dailyLog),
     readSheetObjects(sheetTabs.dailyStatus),

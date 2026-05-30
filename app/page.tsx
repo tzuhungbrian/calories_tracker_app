@@ -1,7 +1,7 @@
 "use client";
 
 import { BarChart3, Database, Utensils } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { DailyStatusEditor } from "@/components/daily_status_editor";
 import { DashboardCards } from "@/components/dashboard_cards";
 import { FoodDatabaseManager } from "@/components/food_database_manager";
@@ -10,10 +10,11 @@ import { MealPrepCalculator } from "@/components/meal_prep_calculator";
 import { SummaryTable } from "@/components/summary_table";
 import { ThemeToggle } from "@/components/theme_toggle";
 import { TrendCharts } from "@/components/trend_charts";
+import { dateKey } from "@/lib/date";
 import type { CommonFood, DailyStatus, DailySummary, DashboardData, FoodLogInput } from "@/lib/types";
 
 function getTodayKey(): string {
-  return new Date().toISOString().slice(0, 10);
+  return dateKey();
 }
 
 function createEmptyFoodLog(date: string): FoodLogInput {
@@ -42,7 +43,7 @@ function createEmptyStatus(date: string): DailyStatus {
 }
 
 export default function HomePage() {
-  const today = useMemo(() => getTodayKey(), []);
+  const [today, setToday] = useState(() => getTodayKey());
   const [activeTab, setActiveTab] = useState<"dashboard" | "prep" | "foods">("dashboard");
   const [dashboard, setDashboard] = useState<DashboardData | null>(null);
   const [commonFoods, setCommonFoods] = useState<CommonFood[]>([]);
@@ -84,6 +85,23 @@ export default function HomePage() {
       setError(loadError instanceof Error ? loadError.message : "Failed to load app data.");
     });
   }, [refreshData]);
+
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      const nextToday = getTodayKey();
+      setToday((currentToday) => {
+        if (currentToday === nextToday) {
+          return currentToday;
+        }
+
+        setFoodLog((current) => (current.date === currentToday ? createEmptyFoodLog(nextToday) : current));
+        setDailyStatus((current) => (current.date === currentToday ? createEmptyStatus(nextToday) : current));
+        return nextToday;
+      });
+    }, 60_000);
+
+    return () => window.clearInterval(intervalId);
+  }, []);
 
   async function saveFoodLog() {
     setIsSavingFood(true);

@@ -9,6 +9,7 @@ import type {
   NutritionTotals,
   SheetRow
 } from "./types";
+import { dateKey } from "./date";
 
 function valueOf(row: SheetRow, keys: string[]): string | undefined {
   for (const key of keys) {
@@ -43,7 +44,7 @@ export const defaultSettings: NutritionSettings = {
 };
 
 export function todayKey(): string {
-  return new Date().toISOString().slice(0, 10);
+  return dateKey();
 }
 
 export function emptyTotals(): NutritionTotals {
