@@ -141,6 +141,40 @@ export function rowToCommonFood(row: SheetRow): CommonFood {
   };
 }
 
+export function normalizeCommonFood(input: Partial<CommonFood>): CommonFood {
+  const now = new Date().toISOString();
+  return {
+    id: input.id || crypto.randomUUID(),
+    name: input.name?.trim() ?? "",
+    category: input.category?.trim() || "Uncategorized",
+    serving: input.serving?.trim() || "1 serving",
+    servingSize: input.servingSize?.trim() ?? "",
+    calories: Number(input.calories) || 0,
+    protein: Number(input.protein) || 0,
+    fat: Number(input.fat) || 0,
+    carbs: Number(input.carbs) || 0,
+    notes: input.notes?.trim() ?? ""
+  };
+}
+
+export function commonFoodToSheetRow(food: CommonFood, existingCreatedAt?: string): string[] {
+  const now = new Date().toISOString();
+  return [
+    food.id,
+    food.name,
+    food.category,
+    food.serving,
+    food.servingSize,
+    String(food.calories),
+    String(food.protein),
+    String(food.fat),
+    String(food.carbs),
+    food.notes,
+    existingCreatedAt || now,
+    now
+  ];
+}
+
 export function rowToDailyStatus(row: SheetRow): DailyStatus {
   return {
     id: valueOf(row, ["id"]) || "",

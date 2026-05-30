@@ -48,8 +48,7 @@ export function FoodLogComposer({ foods, value, isSaving, onChange, onSubmit }: 
     const normalizedQuery = query.trim().toLowerCase();
     return foods
       .filter((food) => !selectedCategory || (food.category || "Uncategorized") === selectedCategory)
-      .filter((food) => !normalizedQuery || food.name.toLowerCase().includes(normalizedQuery))
-      .slice(0, 12);
+      .filter((food) => !normalizedQuery || food.name.toLowerCase().includes(normalizedQuery));
   }, [foods, query, selectedCategory]);
 
   function applyFood(food: CommonFood, nextServings = servings) {

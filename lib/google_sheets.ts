@@ -98,6 +98,75 @@ export async function appendSheetRow(tabName: string, values: string[]): Promise
   });
 }
 
+async function getSheetId(tabName: string): Promise<number> {
+  const sheets = getSheetsClient();
+  const response = await sheets.spreadsheets.get({
+    spreadsheetId,
+    fields: "sheets.properties.sheetId,sheets.properties.title"
+  });
+  const sheet = response.data.sheets?.find((item) => item.properties?.title === tabName);
+  const sheetId = sheet?.properties?.sheetId;
+
+  if (sheetId === undefined || sheetId === null) {
+    throw new Error(`Sheet tab "${tabName}" was not found.`);
+  }
+
+  return sheetId;
+}
+
+export async function updateSheetRowById(tabName: string, id: string, values: string[]): Promise<void> {
+  const sheets = getSheetsClient();
+  const response = await sheets.spreadsheets.values.get({
+    spreadsheetId,
+    range: `${tabName}!A:Z`
+  });
+  const rows = asRows(response.data.values);
+  const rowIndex = rows.findIndex((row, index) => index > 0 && row[0] === id);
+
+  if (rowIndex < 0) {
+    throw new Error(`Row with id "${id}" was not found.`);
+  }
+
+  await sheets.spreadsheets.values.update({
+    spreadsheetId,
+    range: `${tabName}!A${rowIndex + 1}:L${rowIndex + 1}`,
+    valueInputOption: "USER_ENTERED",
+    requestBody: { values: [values] }
+  });
+}
+
+export async function deleteSheetRowById(tabName: string, id: string): Promise<void> {
+  const sheets = getSheetsClient();
+  const response = await sheets.spreadsheets.values.get({
+    spreadsheetId,
+    range: `${tabName}!A:Z`
+  });
+  const rows = asRows(response.data.values);
+  const rowIndex = rows.findIndex((row, index) => index > 0 && row[0] === id);
+
+  if (rowIndex < 0) {
+    throw new Error(`Row with id "${id}" was not found.`);
+  }
+
+  await sheets.spreadsheets.batchUpdate({
+    spreadsheetId,
+    requestBody: {
+      requests: [
+        {
+          deleteDimension: {
+            range: {
+              sheetId: await getSheetId(tabName),
+              dimension: "ROWS",
+              startIndex: rowIndex,
+              endIndex: rowIndex + 1
+            }
+          }
+        }
+      ]
+    }
+  });
+}
+
 export async function upsertDailyStatus(status: DailyStatus): Promise<void> {
   const sheets = getSheetsClient();
   const response = await sheets.spreadsheets.values.get({

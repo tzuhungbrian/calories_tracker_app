@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { DailyStatusEditor } from "@/components/daily_status_editor";
 import { DashboardCards } from "@/components/dashboard_cards";
+import { FoodDatabaseManager } from "@/components/food_database_manager";
 import { FoodLogComposer } from "@/components/food_log_composer";
 import { MealPrepCalculator } from "@/components/meal_prep_calculator";
 import { SummaryTable } from "@/components/summary_table";
@@ -41,7 +42,7 @@ function createEmptyStatus(date: string): DailyStatus {
 
 export default function HomePage() {
   const today = useMemo(() => getTodayKey(), []);
-  const [activeTab, setActiveTab] = useState<"dashboard" | "prep">("dashboard");
+  const [activeTab, setActiveTab] = useState<"dashboard" | "prep" | "foods">("dashboard");
   const [dashboard, setDashboard] = useState<DashboardData | null>(null);
   const [commonFoods, setCommonFoods] = useState<CommonFood[]>([]);
   const [summary, setSummary] = useState<DailySummary[]>([]);
@@ -136,13 +137,20 @@ export default function HomePage() {
           <h1 className="mt-1 text-3xl font-semibold tracking-tight">Brian&apos;s nutrition tracker</h1>
         </div>
         <div className="flex flex-wrap gap-2">
-          <div className="inline-grid rounded-lg border border-slate-200 bg-white p-1 shadow-sm sm:grid-cols-2">
+          <div className="inline-grid rounded-lg border border-slate-200 bg-white p-1 shadow-sm sm:grid-cols-3">
             <button
               className={`rounded-md px-4 py-2 text-sm font-semibold ${activeTab === "dashboard" ? "bg-ink text-white" : "text-slate-600"}`}
               type="button"
               onClick={() => setActiveTab("dashboard")}
             >
               Dashboard
+            </button>
+            <button
+              className={`rounded-md px-4 py-2 text-sm font-semibold ${activeTab === "foods" ? "bg-ink text-white" : "text-slate-600"}`}
+              type="button"
+              onClick={() => setActiveTab("foods")}
+            >
+              Foods
             </button>
             <button
               className={`rounded-md px-4 py-2 text-sm font-semibold ${activeTab === "prep" ? "bg-ink text-white" : "text-slate-600"}`}
@@ -173,6 +181,8 @@ export default function HomePage() {
 
           <SummaryTable rows={summary} />
         </>
+      ) : activeTab === "foods" ? (
+        <FoodDatabaseManager foods={commonFoods} onChanged={refreshData} />
       ) : (
         <MealPrepCalculator foods={commonFoods} />
       )}
