@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { CommonFoodSelector } from "@/components/common_food_selector";
 import { DailyStatusEditor } from "@/components/daily_status_editor";
@@ -128,9 +129,14 @@ export default function HomePage() {
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-6xl flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8">
-      <header>
-        <p className="text-sm font-medium text-blue-700">{today}</p>
-        <h1 className="mt-1 text-3xl font-semibold tracking-tight">Brian&apos;s nutrition tracker</h1>
+      <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <p className="text-sm font-medium text-blue-700">{today}</p>
+          <h1 className="mt-1 text-3xl font-semibold tracking-tight">Brian&apos;s nutrition tracker</h1>
+        </div>
+        <Link className="text-sm font-medium text-blue-700 hover:underline" href="/prep">
+          Open prep calculator
+        </Link>
       </header>
 
       {error ? (
