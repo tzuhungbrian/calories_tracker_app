@@ -7,8 +7,50 @@ body {
   color: #172033;
 }
 
+.dark body {
+  background: #0f172a;
+  color: #e5e7eb;
+}
+
 input,
 select,
 textarea {
   color: #172033;
+}
+
+.dark input,
+.dark select,
+.dark textarea {
+  background: #111827;
+  border-color: #334155;
+  color: #e5e7eb;
+}
+
+.dark .bg-white {
+  background-color: #111827;
+}
+
+.dark .bg-slate-50 {
+  background-color: #1e293b;
+}
+
+.dark .bg-blue-50 {
+  background-color: #172554;
+}
+
+.dark .border-slate-100,
+.dark .border-slate-200,
+.dark .border-slate-300 {
+  border-color: #334155;
+}
+
+.dark .text-slate-500,
+.dark .text-slate-600,
+.dark .text-slate-700 {
+  color: #cbd5e1;
+}
+
+.dark .text-slate-900,
+.dark .text-ink {
+  color: #f8fafc;
 }

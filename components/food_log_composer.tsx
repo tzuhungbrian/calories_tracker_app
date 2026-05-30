@@ -19,6 +19,13 @@ const macroFields: Array<keyof Pick<FoodLogInput, "calories" | "protein" | "fat"
   "carbs"
 ];
 
+const macroLabels: Record<(typeof macroFields)[number], string> = {
+  calories: "Calories",
+  protein: "Protein",
+  fat: "Fat",
+  carbs: "Carbs"
+};
+
 function roundMacro(value: number): number {
   return Math.round(value * 10) / 10;
 }
@@ -68,10 +75,6 @@ export function FoodLogComposer({ foods, value, isSaving, onChange, onSubmit }: 
     } else {
       onChange({ ...value, amount: String(safeServings) });
     }
-  }
-
-  function updateMacro(field: (typeof macroFields)[number], nextValue: string) {
-    onChange({ ...value, [field]: Number(nextValue) || 0 });
   }
 
   async function submitLog() {
@@ -165,7 +168,7 @@ export function FoodLogComposer({ foods, value, isSaving, onChange, onSubmit }: 
         </div>
       </div>
 
-      <div className="mt-5 grid gap-3 lg:grid-cols-[220px_1fr_auto] lg:items-end">
+      <div className="mt-5 grid gap-3 xl:grid-cols-[180px_minmax(0,1fr)_auto] xl:items-end">
         <label className="grid gap-1 text-sm font-medium text-slate-700">
           Servings
           <input
@@ -177,19 +180,14 @@ export function FoodLogComposer({ foods, value, isSaving, onChange, onSubmit }: 
             onChange={(event) => updateServings(Number(event.target.value))}
           />
         </label>
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <div className="grid min-w-0 grid-cols-2 gap-2 md:grid-cols-4">
           {macroFields.map((field) => (
-            <label key={field} className="grid gap-1 text-xs font-medium uppercase tracking-wide text-slate-500">
-              {field === "calories" ? "kcal" : field}
-              <input
-                className="rounded-md border border-slate-300 px-3 py-2 text-base font-semibold text-slate-900"
-                min="0"
-                step="0.1"
-                type="number"
-                value={value[field]}
-                onChange={(event) => updateMacro(field, event.target.value)}
-              />
-            </label>
+            <div key={field} className="min-w-0 rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
+              <p className="truncate text-xs font-medium uppercase tracking-wide text-slate-500">{macroLabels[field]}</p>
+              <p className="mt-1 truncate text-lg font-semibold text-slate-900">
+                {value[field]} <span className="text-xs font-normal text-slate-500">{field === "calories" ? "kcal" : "g"}</span>
+              </p>
+            </div>
           ))}
         </div>
         <button

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { MealPrepCalculator } from "@/components/meal_prep_calculator";
+import { ThemeToggle } from "@/components/theme_toggle";
 
 export default function PrepCalculatorPage() {
   return (
@@ -9,9 +10,12 @@ export default function PrepCalculatorPage() {
           <p className="text-sm font-medium text-blue-700">Meal prep calculator</p>
           <h1 className="mt-1 text-3xl font-semibold tracking-tight">Build a reusable meal</h1>
         </div>
-        <Link className="text-sm font-medium text-blue-700 hover:underline" href="/">
-          Back to dashboard
-        </Link>
+        <div className="flex flex-wrap gap-2">
+          <Link className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-blue-700 shadow-sm hover:border-accent dark:border-slate-700 dark:bg-slate-900" href="/">
+            Back to dashboard
+          </Link>
+          <ThemeToggle />
+        </div>
       </header>
       <MealPrepCalculator />
     </main>

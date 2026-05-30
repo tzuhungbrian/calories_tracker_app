@@ -6,6 +6,7 @@ import { DashboardCards } from "@/components/dashboard_cards";
 import { FoodLogComposer } from "@/components/food_log_composer";
 import { MealPrepCalculator } from "@/components/meal_prep_calculator";
 import { SummaryTable } from "@/components/summary_table";
+import { ThemeToggle } from "@/components/theme_toggle";
 import { TrendCharts } from "@/components/trend_charts";
 import type { CommonFood, DailyStatus, DailySummary, DashboardData, FoodLogInput } from "@/lib/types";
 
@@ -134,21 +135,24 @@ export default function HomePage() {
           <p className="text-sm font-medium text-blue-700">{today}</p>
           <h1 className="mt-1 text-3xl font-semibold tracking-tight">Brian&apos;s nutrition tracker</h1>
         </div>
-        <div className="inline-grid rounded-lg border border-slate-200 bg-white p-1 shadow-sm sm:grid-cols-2">
-          <button
-            className={`rounded-md px-4 py-2 text-sm font-semibold ${activeTab === "dashboard" ? "bg-ink text-white" : "text-slate-600"}`}
-            type="button"
-            onClick={() => setActiveTab("dashboard")}
-          >
-            Dashboard
-          </button>
-          <button
-            className={`rounded-md px-4 py-2 text-sm font-semibold ${activeTab === "prep" ? "bg-ink text-white" : "text-slate-600"}`}
-            type="button"
-            onClick={() => setActiveTab("prep")}
-          >
-            Meal prep
-          </button>
+        <div className="flex flex-wrap gap-2">
+          <div className="inline-grid rounded-lg border border-slate-200 bg-white p-1 shadow-sm sm:grid-cols-2">
+            <button
+              className={`rounded-md px-4 py-2 text-sm font-semibold ${activeTab === "dashboard" ? "bg-ink text-white" : "text-slate-600"}`}
+              type="button"
+              onClick={() => setActiveTab("dashboard")}
+            >
+              Dashboard
+            </button>
+            <button
+              className={`rounded-md px-4 py-2 text-sm font-semibold ${activeTab === "prep" ? "bg-ink text-white" : "text-slate-600"}`}
+              type="button"
+              onClick={() => setActiveTab("prep")}
+            >
+              Meal prep
+            </button>
+          </div>
+          <ThemeToggle />
         </div>
       </header>
 
