@@ -1,5 +1,6 @@
 "use client";
 
+import { Moon, Sun } from "lucide-react";
 import { useEffect, useState } from "react";
 
 export function ThemeToggle() {
@@ -27,7 +28,10 @@ export function ThemeToggle() {
       type="button"
       onClick={toggleTheme}
     >
-      {isDark ? "Light mode" : "Dark mode"}
+      <span className="inline-flex items-center gap-2">
+        {isDark ? <Sun size={16} /> : <Moon size={16} />}
+        {isDark ? "Light mode" : "Dark mode"}
+      </span>
     </button>
   );
 }

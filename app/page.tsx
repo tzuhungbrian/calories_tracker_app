@@ -1,5 +1,6 @@
 "use client";
 
+import { BarChart3, Database, Utensils } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { DailyStatusEditor } from "@/components/daily_status_editor";
 import { DashboardCards } from "@/components/dashboard_cards";
@@ -143,21 +144,30 @@ export default function HomePage() {
               type="button"
               onClick={() => setActiveTab("dashboard")}
             >
-              Dashboard
+              <span className="inline-flex items-center gap-2">
+                <BarChart3 size={16} />
+                Dashboard
+              </span>
             </button>
             <button
               className={`rounded-md px-4 py-2 text-sm font-semibold ${activeTab === "foods" ? "bg-ink text-white" : "text-slate-600"}`}
               type="button"
               onClick={() => setActiveTab("foods")}
             >
-              Foods
+              <span className="inline-flex items-center gap-2">
+                <Database size={16} />
+                Foods
+              </span>
             </button>
             <button
               className={`rounded-md px-4 py-2 text-sm font-semibold ${activeTab === "prep" ? "bg-ink text-white" : "text-slate-600"}`}
               type="button"
               onClick={() => setActiveTab("prep")}
             >
-              Meal prep
+              <span className="inline-flex items-center gap-2">
+                <Utensils size={16} />
+                Meal prep
+              </span>
             </button>
           </div>
           <ThemeToggle />

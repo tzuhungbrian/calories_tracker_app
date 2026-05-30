@@ -1,5 +1,6 @@
 "use client";
 
+import { Plus, Search, Utensils } from "lucide-react";
 import { useMemo, useState } from "react";
 import type { CommonFood, FoodLogInput } from "@/lib/types";
 
@@ -87,7 +88,10 @@ export function FoodLogComposer({ foods, value, isSaving, onChange, onSubmit }: 
     <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-lg font-semibold">Add food</h2>
+          <h2 className="inline-flex items-center gap-2 text-lg font-semibold">
+            <Utensils size={20} />
+            Add food
+          </h2>
           <p className="mt-1 text-sm text-slate-500">Pick the meal, choose a saved food, adjust servings, then add it.</p>
         </div>
         <input
@@ -140,7 +144,10 @@ export function FoodLogComposer({ foods, value, isSaving, onChange, onSubmit }: 
 
         <div>
           <label className="grid gap-1 text-sm font-medium text-slate-700">
-            Find food
+            <span className="inline-flex items-center gap-1.5">
+              <Search size={16} />
+              Find food
+            </span>
             <input
               className="rounded-md border border-slate-300 px-3 py-2 font-normal"
               placeholder="Search saved foods"
@@ -195,7 +202,10 @@ export function FoodLogComposer({ foods, value, isSaving, onChange, onSubmit }: 
           type="button"
           onClick={submitLog}
         >
-          {isSaving ? "Adding..." : "Add food"}
+          <span className="inline-flex items-center justify-center gap-2">
+            <Plus size={18} />
+            {isSaving ? "Adding..." : "Add food"}
+          </span>
         </button>
       </div>
 

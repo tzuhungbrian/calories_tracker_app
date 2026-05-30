@@ -1,5 +1,6 @@
 "use client";
 
+import { Activity, Dumbbell } from "lucide-react";
 import type { DailyStatus, GoalType } from "@/lib/types";
 
 type DailyStatusEditorProps = {
@@ -18,7 +19,10 @@ export function DailyStatusEditor({ value, isSaving, onChange, onSubmit }: Daily
         await onSubmit();
       }}
     >
-      <h2 className="text-lg font-semibold">Daily status</h2>
+      <h2 className="inline-flex items-center gap-2 text-lg font-semibold">
+        <Activity size={20} />
+        Daily status
+      </h2>
       <div className="mt-4 grid gap-3">
         <label className="grid gap-1 text-sm font-medium text-slate-700">
           Date
@@ -38,7 +42,10 @@ export function DailyStatusEditor({ value, isSaving, onChange, onSubmit }: Daily
         </label>
         <label className="flex items-center gap-2 text-sm">
           <input type="checkbox" checked={value.strengthSession} onChange={(event) => onChange({ ...value, strengthSession: event.target.checked })} />
-          Strength session
+          <span className="inline-flex items-center gap-1.5">
+            <Dumbbell size={16} />
+            Strength session
+          </span>
         </label>
         <label className="flex items-center gap-2 text-sm">
           <input type="checkbox" checked={value.creatineTaken} onChange={(event) => onChange({ ...value, creatineTaken: event.target.checked })} />

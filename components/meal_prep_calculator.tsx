@@ -1,5 +1,6 @@
 "use client";
 
+import { ClipboardCopy, CookingPot, Plus, Scale, Trash2, Utensils } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import type { CommonFood, NutritionTotals } from "@/lib/types";
 
@@ -158,7 +159,10 @@ export function MealPrepCalculator({ foods: providedFoods }: MealPrepCalculatorP
       <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h2 className="text-lg font-semibold">Meal prep builder</h2>
+            <h2 className="inline-flex items-center gap-2 text-lg font-semibold">
+              <CookingPot size={20} />
+              Meal prep builder
+            </h2>
             <p className="mt-1 text-sm text-slate-500">Build a batch from saved foods, then copy one per-portion food row.</p>
           </div>
           <label className="grid gap-1 text-sm font-medium text-slate-700 sm:w-56">
@@ -198,7 +202,10 @@ export function MealPrepCalculator({ foods: providedFoods }: MealPrepCalculatorP
             </select>
           </label>
           <button className="self-end rounded-md bg-accent px-4 py-2 font-medium text-white disabled:opacity-60" disabled={!selectedFoodName} onClick={addSelectedFood}>
-            Add
+            <span className="inline-flex items-center gap-2">
+              <Plus size={16} />
+              Add
+            </span>
           </button>
         </div>
 
@@ -230,7 +237,10 @@ export function MealPrepCalculator({ foods: providedFoods }: MealPrepCalculatorP
                   />
                 </label>
                 <button className="text-sm font-medium text-red-600" onClick={() => setIngredients((current) => current.filter((item) => item.id !== ingredient.id))}>
-                  Remove
+                  <span className="inline-flex items-center gap-1.5">
+                    <Trash2 size={15} />
+                    Remove
+                  </span>
                 </button>
               </div>
             );
@@ -240,7 +250,10 @@ export function MealPrepCalculator({ foods: providedFoods }: MealPrepCalculatorP
 
       <aside className="flex flex-col gap-4">
         <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-          <h2 className="text-lg font-semibold">Output food</h2>
+          <h2 className="inline-flex items-center gap-2 text-lg font-semibold">
+            <Utensils size={20} />
+            Output food
+          </h2>
           <div className="mt-4 grid gap-3">
             <label className="grid gap-1 text-sm font-medium text-slate-700">
               Meal name
@@ -274,7 +287,10 @@ export function MealPrepCalculator({ foods: providedFoods }: MealPrepCalculatorP
         </div>
 
         <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-          <h2 className="text-lg font-semibold">Per portion</h2>
+          <h2 className="inline-flex items-center gap-2 text-lg font-semibold">
+            <Scale size={20} />
+            Per portion
+          </h2>
           <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
             <MacroCard label="Calories" value={perServing.calories} unit="kcal" />
             <MacroCard label="Protein" value={perServing.protein} unit="g" />
@@ -287,11 +303,17 @@ export function MealPrepCalculator({ foods: providedFoods }: MealPrepCalculatorP
         </div>
 
         <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-          <h2 className="text-lg font-semibold">Paste row</h2>
+          <h2 className="inline-flex items-center gap-2 text-lg font-semibold">
+            <ClipboardCopy size={20} />
+            Paste row
+          </h2>
           <p className="mt-1 text-sm text-slate-500">Copy this row and paste it under the `foods` header row.</p>
           <textarea className="mt-3 h-28 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" readOnly value={commonFoodRow} />
           <button className="mt-3 rounded-md bg-ink px-4 py-2 font-medium text-white disabled:opacity-60" disabled={!mealName || ingredients.length === 0} onClick={copyRow}>
-            Copy row
+            <span className="inline-flex items-center gap-2">
+              <ClipboardCopy size={16} />
+              Copy row
+            </span>
           </button>
           {copyStatus ? <p className="mt-2 text-sm font-medium text-green-700">{copyStatus}</p> : null}
         </div>

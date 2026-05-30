@@ -1,5 +1,6 @@
 "use client";
 
+import { Database, Plus, Save, Search, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import type { CommonFood } from "@/lib/types";
 
@@ -132,11 +133,17 @@ export function FoodDatabaseManager({ foods, onChanged }: FoodDatabaseManagerPro
       <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h2 className="text-lg font-semibold">Foods database</h2>
+            <h2 className="inline-flex items-center gap-2 text-lg font-semibold">
+              <Database size={20} />
+              Foods database
+            </h2>
             <p className="mt-1 text-sm text-slate-500">Manage the saved foods used by logging and meal prep.</p>
           </div>
           <button className="rounded-md bg-ink px-4 py-2 text-sm font-semibold text-white" type="button" onClick={resetForm}>
-            New food
+            <span className="inline-flex items-center gap-2">
+              <Plus size={16} />
+              New food
+            </span>
           </button>
         </div>
 
@@ -157,7 +164,10 @@ export function FoodDatabaseManager({ foods, onChanged }: FoodDatabaseManagerPro
             </select>
           </label>
           <label className="grid gap-1 text-sm font-medium text-slate-700">
-            Search
+            <span className="inline-flex items-center gap-1.5">
+              <Search size={16} />
+              Search
+            </span>
             <input
               className="rounded-md border border-slate-300 px-3 py-2 font-normal"
               placeholder="Search foods"
@@ -189,7 +199,10 @@ export function FoodDatabaseManager({ foods, onChanged }: FoodDatabaseManagerPro
       </div>
 
       <aside className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-        <h2 className="text-lg font-semibold">{form.id ? "Edit food" : "Add food"}</h2>
+        <h2 className="inline-flex items-center gap-2 text-lg font-semibold">
+          {form.id ? <Save size={20} /> : <Plus size={20} />}
+          {form.id ? "Edit food" : "Add food"}
+        </h2>
         <div className="mt-4 grid gap-3">
           <label className="grid gap-1 text-sm font-medium text-slate-700">
             Name
@@ -231,11 +244,17 @@ export function FoodDatabaseManager({ foods, onChanged }: FoodDatabaseManagerPro
 
         <div className="mt-4 flex flex-wrap gap-2">
           <button className="rounded-md bg-accent px-4 py-2 font-semibold text-white disabled:opacity-60" disabled={isSaving || !form.name} type="button" onClick={saveFood}>
-            {isSaving ? "Saving..." : form.id ? "Save changes" : "Add food"}
+            <span className="inline-flex items-center gap-2">
+              {form.id ? <Save size={16} /> : <Plus size={16} />}
+              {isSaving ? "Saving..." : form.id ? "Save changes" : "Add food"}
+            </span>
           </button>
           {form.id ? (
             <button className="rounded-md border border-red-200 px-4 py-2 font-semibold text-red-600 disabled:opacity-60" disabled={isSaving} type="button" onClick={deleteFood}>
-              Delete
+              <span className="inline-flex items-center gap-2">
+                <Trash2 size={16} />
+                Delete
+              </span>
             </button>
           ) : null}
         </div>
