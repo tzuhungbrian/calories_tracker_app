@@ -156,7 +156,7 @@ export function MealPrepCalculator({ foods: providedFoods }: MealPrepCalculatorP
     <section className="grid gap-4 lg:grid-cols-[1fr_360px]">
       {error ? <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800 lg:col-span-2">{error}</div> : null}
 
-      <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="animate-enter rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 className="inline-flex items-center gap-2 text-lg font-semibold">
@@ -218,7 +218,7 @@ export function MealPrepCalculator({ foods: providedFoods }: MealPrepCalculatorP
           {ingredients.map((ingredient) => {
             const ingredientTotals = multiplyFood(ingredient.food, ingredient.servings);
             return (
-              <div key={ingredient.id} className="grid gap-3 rounded-lg border border-slate-200 p-3 sm:grid-cols-[1fr_110px_auto] sm:items-center">
+              <div key={ingredient.id} className="hover-lift grid gap-3 rounded-lg border border-slate-200 p-3 sm:grid-cols-[1fr_110px_auto] sm:items-center">
                 <div>
                   <p className="font-medium">{ingredient.food.name}</p>
                   <p className="mt-1 text-sm text-slate-500">
@@ -249,7 +249,7 @@ export function MealPrepCalculator({ foods: providedFoods }: MealPrepCalculatorP
       </div>
 
       <aside className="flex flex-col gap-4">
-        <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="animate-enter rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
           <h2 className="inline-flex items-center gap-2 text-lg font-semibold">
             <Utensils size={20} />
             Output food
@@ -286,7 +286,7 @@ export function MealPrepCalculator({ foods: providedFoods }: MealPrepCalculatorP
           </div>
         </div>
 
-        <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="animate-enter-soft rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
           <h2 className="inline-flex items-center gap-2 text-lg font-semibold">
             <Scale size={20} />
             Per portion
@@ -302,7 +302,7 @@ export function MealPrepCalculator({ foods: providedFoods }: MealPrepCalculatorP
           </div>
         </div>
 
-        <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="animate-enter-soft rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
           <h2 className="inline-flex items-center gap-2 text-lg font-semibold">
             <ClipboardCopy size={20} />
             Paste row

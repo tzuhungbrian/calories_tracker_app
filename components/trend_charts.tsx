@@ -61,7 +61,7 @@ function TrendChart({
   }
 
   return (
-    <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+    <section className="animate-enter-soft rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h2 className="text-lg font-semibold text-slate-700">{title}</h2>
         <div className="flex flex-wrap gap-3 text-sm text-slate-600">

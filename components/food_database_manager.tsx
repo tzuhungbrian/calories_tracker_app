@@ -130,7 +130,7 @@ export function FoodDatabaseManager({ foods, onChanged }: FoodDatabaseManagerPro
 
   return (
     <section className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_380px]">
-      <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="animate-enter rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 className="inline-flex items-center gap-2 text-lg font-semibold">
@@ -181,7 +181,7 @@ export function FoodDatabaseManager({ foods, onChanged }: FoodDatabaseManagerPro
           {filteredFoods.map((food) => (
             <button
               key={food.id}
-              className={`rounded-lg border p-3 text-left transition hover:border-accent hover:bg-blue-50 ${form.id === food.id ? "border-accent bg-blue-50" : "border-slate-200"}`}
+              className={`hover-lift rounded-lg border p-3 text-left transition hover:border-accent hover:bg-blue-50 ${form.id === food.id ? "border-accent bg-blue-50" : "border-slate-200"}`}
               type="button"
               onClick={() => editFood(food)}
             >
@@ -198,7 +198,7 @@ export function FoodDatabaseManager({ foods, onChanged }: FoodDatabaseManagerPro
         </div>
       </div>
 
-      <aside className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+      <aside className="animate-enter rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
         <h2 className="inline-flex items-center gap-2 text-lg font-semibold">
           {form.id ? <Save size={20} /> : <Plus size={20} />}
           {form.id ? "Edit food" : "Add food"}

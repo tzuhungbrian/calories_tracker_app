@@ -6,7 +6,7 @@ type SummaryTableProps = {
 
 export function SummaryTable({ rows }: SummaryTableProps) {
   return (
-    <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+    <div className="animate-enter-soft overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
       <div className="border-b border-slate-200 p-4">
         <h2 className="text-lg font-semibold">Recent 14 days</h2>
       </div>

@@ -197,7 +197,7 @@ export default function HomePage() {
       ) : null}
 
       {activeTab === "dashboard" ? (
-        <>
+        <div className="flex flex-col gap-6 animate-enter" key="dashboard-tab">
           <DashboardCards data={dashboard} />
 
           <TrendCharts rows={summary} />
@@ -208,11 +208,15 @@ export default function HomePage() {
           </section>
 
           <SummaryTable rows={summary} />
-        </>
+        </div>
       ) : activeTab === "foods" ? (
-        <FoodDatabaseManager foods={commonFoods} onChanged={refreshData} />
+        <div className="animate-enter" key="foods-tab">
+          <FoodDatabaseManager foods={commonFoods} onChanged={refreshData} />
+        </div>
       ) : (
-        <MealPrepCalculator foods={commonFoods} />
+        <div className="animate-enter" key="prep-tab">
+          <MealPrepCalculator foods={commonFoods} />
+        </div>
       )}
     </main>
   );

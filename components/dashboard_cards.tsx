@@ -21,7 +21,7 @@ export function DashboardCards({ data }: DashboardCardsProps) {
   return (
     <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
       {labels.map((label) => (
-        <div key={label} className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+        <div key={label} className="animate-enter hover-lift rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
           <div className="flex items-center justify-between gap-3">
             <p className="text-sm capitalize text-slate-500">{label}</p>
             <div className="rounded-md bg-blue-50 p-2 text-blue-700">

@@ -13,7 +13,7 @@ type DailyStatusEditorProps = {
 export function DailyStatusEditor({ value, isSaving, onChange, onSubmit }: DailyStatusEditorProps) {
   return (
     <form
-      className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm"
+      className="animate-enter rounded-lg border border-slate-200 bg-white p-4 shadow-sm"
       onSubmit={async (event) => {
         event.preventDefault();
         await onSubmit();

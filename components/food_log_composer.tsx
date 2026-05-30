@@ -85,7 +85,7 @@ export function FoodLogComposer({ foods, value, isSaving, onChange, onSubmit }: 
   }
 
   return (
-    <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+    <section className="animate-enter rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="inline-flex items-center gap-2 text-lg font-semibold">
@@ -108,7 +108,7 @@ export function FoodLogComposer({ foods, value, isSaving, onChange, onSubmit }: 
           {mealOptions.map((meal) => (
             <button
               key={meal}
-              className={`rounded-full border px-3 py-1.5 text-sm font-medium ${value.meal === meal ? "border-accent bg-blue-50 text-blue-700" : "border-slate-300 text-slate-700"}`}
+              className={`hover-lift rounded-full border px-3 py-1.5 text-sm font-medium ${value.meal === meal ? "border-accent bg-blue-50 text-blue-700" : "border-slate-300 text-slate-700"}`}
               type="button"
               onClick={() => onChange({ ...value, meal })}
             >
@@ -123,7 +123,7 @@ export function FoodLogComposer({ foods, value, isSaving, onChange, onSubmit }: 
           <p className="text-sm font-medium text-slate-700">Category</p>
           <div className="mt-2 flex gap-2 overflow-x-auto pb-1 lg:flex-col lg:overflow-visible">
             <button
-              className={`whitespace-nowrap rounded-md border px-3 py-2 text-left text-sm ${selectedCategory === "" ? "border-accent bg-blue-50 text-blue-700" : "border-slate-300"}`}
+              className={`hover-lift whitespace-nowrap rounded-md border px-3 py-2 text-left text-sm ${selectedCategory === "" ? "border-accent bg-blue-50 text-blue-700" : "border-slate-300"}`}
               type="button"
               onClick={() => setSelectedCategory("")}
             >
@@ -132,7 +132,7 @@ export function FoodLogComposer({ foods, value, isSaving, onChange, onSubmit }: 
             {categories.map((category) => (
               <button
                 key={category}
-                className={`whitespace-nowrap rounded-md border px-3 py-2 text-left text-sm ${selectedCategory === category ? "border-accent bg-blue-50 text-blue-700" : "border-slate-300"}`}
+                className={`hover-lift whitespace-nowrap rounded-md border px-3 py-2 text-left text-sm ${selectedCategory === category ? "border-accent bg-blue-50 text-blue-700" : "border-slate-300"}`}
                 type="button"
                 onClick={() => setSelectedCategory(category)}
               >
@@ -159,7 +159,7 @@ export function FoodLogComposer({ foods, value, isSaving, onChange, onSubmit }: 
             {filteredFoods.map((food) => (
               <button
                 key={food.id}
-                className={`rounded-lg border p-3 text-left transition hover:border-accent hover:bg-blue-50 ${selectedFood?.id === food.id ? "border-accent bg-blue-50" : "border-slate-200"}`}
+                className={`hover-lift rounded-lg border p-3 text-left transition hover:border-accent hover:bg-blue-50 ${selectedFood?.id === food.id ? "border-accent bg-blue-50" : "border-slate-200"}`}
                 type="button"
                 onClick={() => applyFood(food, 1)}
               >
