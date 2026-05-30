@@ -148,6 +148,10 @@ export function rowToSummaryTotals(row: SheetRow): NutritionTotals {
   };
 }
 
+export function rowToDynamicTdee(row: SheetRow): number {
+  return parseNumber(valueOf(row, ["Dynamic TDEE", "dynamicTdee", "tdee", "TDEE"]));
+}
+
 export function statusToSheetRow(status: DailyStatus): string[] {
   return [
     status.date,

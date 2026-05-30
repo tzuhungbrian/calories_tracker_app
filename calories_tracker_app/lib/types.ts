@@ -55,7 +55,10 @@ export type DashboardData = {
 export type DailySummary = {
   date: string;
   calories: number;
+  calorieTarget: number;
+  dynamicTdee: number;
   protein: number;
+  proteinGoal: number;
   fat: number;
   carbs: number;
   goalType: GoalType | "";

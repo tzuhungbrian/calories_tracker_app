@@ -6,6 +6,7 @@ import { DailyStatusEditor } from "@/components/daily_status_editor";
 import { DashboardCards } from "@/components/dashboard_cards";
 import { FoodLogForm } from "@/components/food_log_form";
 import { SummaryTable } from "@/components/summary_table";
+import { TrendCharts } from "@/components/trend_charts";
 import type { CommonFood, DailyStatus, DailySummary, DashboardData, FoodLogInput } from "@/lib/types";
 
 function getTodayKey(): string {
@@ -137,6 +138,8 @@ export default function HomePage() {
       ) : null}
 
       <DashboardCards data={dashboard} />
+
+      <TrendCharts rows={summary} />
 
       <section className="grid gap-4 lg:grid-cols-[1fr_360px]">
         <div className="flex flex-col gap-4">

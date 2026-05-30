@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { readSheetObjects, sheetTabs } from "@/lib/google_sheets";
-import { addTotals, rowToDailyStatus, rowToFoodLog, rowToSummaryTotals } from "@/lib/nutrition";
+import { addTotals, rowToDailyStatus, rowToDynamicTdee, rowToFoodLog, rowToSummaryTotals, rowToTargets } from "@/lib/nutrition";
 import type { DailySummary } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -28,12 +28,16 @@ export async function GET(request: Request) {
   const summary: DailySummary[] = recentDates.map((date) => {
     const summaryRow = summaryRows.find((row) => row.date === date || row.Date === date);
     const totals = summaryRow ? rowToSummaryTotals(summaryRow) : addTotals(logs.filter((log) => log.date === date));
+    const targets = summaryRow ? rowToTargets(summaryRow) : { calories: 0, protein: 0, fat: 0, carbs: 0 };
     const status = statuses.find((row) => row.date === date);
 
     return {
       date,
       calories: totals.calories,
+      calorieTarget: targets.calories,
+      dynamicTdee: summaryRow ? rowToDynamicTdee(summaryRow) : 0,
       protein: totals.protein,
+      proteinGoal: targets.protein,
       fat: totals.fat,
       carbs: totals.carbs,
       goalType: status?.goalType ?? "",
