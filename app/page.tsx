@@ -1,15 +1,15 @@
 "use client";
 
-import { BarChart3, Database, Utensils } from "lucide-react";
+import { BarChart3, Database, LineChart, Utensils } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { DailyStatusEditor } from "@/components/daily_status_editor";
 import { DashboardCards } from "@/components/dashboard_cards";
 import { FoodDatabaseManager } from "@/components/food_database_manager";
 import { FoodLogComposer } from "@/components/food_log_composer";
 import { MealPrepCalculator } from "@/components/meal_prep_calculator";
+import { StatsDashboard } from "@/components/stats_dashboard";
 import { SummaryTable } from "@/components/summary_table";
 import { ThemeToggle } from "@/components/theme_toggle";
-import { TrendCharts } from "@/components/trend_charts";
 import { dateKey } from "@/lib/date";
 import type { CommonFood, DailyStatus, DailySummary, DashboardData, FoodLogInput } from "@/lib/types";
 
@@ -44,7 +44,7 @@ function createEmptyStatus(date: string): DailyStatus {
 
 export default function HomePage() {
   const [today, setToday] = useState(() => getTodayKey());
-  const [activeTab, setActiveTab] = useState<"dashboard" | "prep" | "foods">("dashboard");
+  const [activeTab, setActiveTab] = useState<"dashboard" | "stats" | "prep" | "foods">("dashboard");
   const [dashboard, setDashboard] = useState<DashboardData | null>(null);
   const [commonFoods, setCommonFoods] = useState<CommonFood[]>([]);
   const [summary, setSummary] = useState<DailySummary[]>([]);
@@ -60,7 +60,7 @@ export default function HomePage() {
       fetch(`/api/dashboard?date=${today}`),
       fetch("/api/common_foods"),
       fetch(`/api/daily_status?date=${today}`),
-      fetch("/api/summary?days=14")
+      fetch("/api/summary?days=30")
     ]);
 
     if (!dashboardResponse.ok || !foodsResponse.ok || !statusResponse.ok || !summaryResponse.ok) {
@@ -156,7 +156,7 @@ export default function HomePage() {
           <h1 className="mt-1 text-3xl font-semibold tracking-tight">Brian&apos;s nutrition tracker</h1>
         </div>
         <div className="flex flex-wrap gap-2">
-          <div className="inline-grid rounded-lg border border-slate-200 bg-white p-1 shadow-sm sm:grid-cols-3">
+          <div className="inline-grid rounded-lg border border-slate-200 bg-white p-1 shadow-sm sm:grid-cols-4">
             <button
               className={`rounded-md px-4 py-2 text-sm font-semibold ${activeTab === "dashboard" ? "bg-ink text-white" : "text-slate-600"}`}
               type="button"
@@ -165,6 +165,16 @@ export default function HomePage() {
               <span className="inline-flex items-center gap-2">
                 <BarChart3 size={16} />
                 Dashboard
+              </span>
+            </button>
+            <button
+              className={`rounded-md px-4 py-2 text-sm font-semibold ${activeTab === "stats" ? "bg-ink text-white" : "text-slate-600"}`}
+              type="button"
+              onClick={() => setActiveTab("stats")}
+            >
+              <span className="inline-flex items-center gap-2">
+                <LineChart size={16} />
+                Stats
               </span>
             </button>
             <button
@@ -200,14 +210,16 @@ export default function HomePage() {
         <div className="flex flex-col gap-6 animate-enter" key="dashboard-tab">
           <DashboardCards data={dashboard} />
 
-          <TrendCharts rows={summary} />
-
           <section className="grid gap-4 lg:grid-cols-[1fr_360px]">
             <FoodLogComposer foods={commonFoods} value={foodLog} isSaving={isSavingFood} onChange={setFoodLog} onSubmit={saveFoodLog} />
             <DailyStatusEditor value={dailyStatus} isSaving={isSavingStatus} onChange={setDailyStatus} onSubmit={saveDailyStatus} />
           </section>
 
           <SummaryTable rows={summary} />
+        </div>
+      ) : activeTab === "stats" ? (
+        <div className="animate-enter" key="stats-tab">
+          <StatsDashboard rows={summary} />
         </div>
       ) : activeTab === "foods" ? (
         <div className="animate-enter" key="foods-tab">

@@ -1,3 +1,6 @@
+"use client";
+
+import { useMemo, useState } from "react";
 import type { DailySummary } from "@/lib/types";
 
 type TrendChartsProps = {
@@ -13,8 +16,8 @@ type Series = {
 };
 
 const chartWidth = 920;
-const chartHeight = 280;
-const padding = { top: 28, right: 28, bottom: 58, left: 54 };
+const chartHeight = 300;
+const padding = { top: 30, right: 30, bottom: 60, left: 56 };
 
 const calorieSeries: Series[] = [
   { key: "calories", label: "Calories", color: "#0f6a8f" },
@@ -46,11 +49,13 @@ function TrendChart({
   series: Series[];
   yMax: number;
 }) {
+  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
   const plotWidth = chartWidth - padding.left - padding.right;
   const plotHeight = chartHeight - padding.top - padding.bottom;
-  const orderedRows = [...rows].reverse();
+  const orderedRows = useMemo(() => [...rows].reverse(), [rows]);
   const xStep = orderedRows.length > 1 ? plotWidth / (orderedRows.length - 1) : plotWidth;
   const yTicks = Array.from({ length: 4 }, (_, index) => Math.round((yMax / 3) * index));
+  const hoveredRow = hoveredIndex === null ? null : orderedRows[hoveredIndex];
 
   function xFor(index: number): number {
     return padding.left + index * xStep;
@@ -62,8 +67,11 @@ function TrendChart({
 
   return (
     <section className="animate-enter-soft rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <h2 className="text-lg font-semibold text-slate-700">{title}</h2>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h2 className="text-lg font-semibold text-slate-700">{title}</h2>
+          <p className="mt-1 text-sm text-slate-500">Hover points to inspect exact daily values.</p>
+        </div>
         <div className="flex flex-wrap gap-3 text-sm text-slate-600">
           {series.map((item) => (
             <span key={item.key} className="inline-flex items-center gap-1.5">
@@ -74,7 +82,13 @@ function TrendChart({
         </div>
       </div>
       <div className="mt-3 overflow-x-auto">
-        <svg className="min-w-[760px]" viewBox={`0 0 ${chartWidth} ${chartHeight}`} role="img" aria-label={title}>
+        <svg
+          className="min-w-[760px]"
+          viewBox={`0 0 ${chartWidth} ${chartHeight}`}
+          role="img"
+          aria-label={title}
+          onMouseLeave={() => setHoveredIndex(null)}
+        >
           {yTicks.map((tick) => {
             const y = yFor(tick);
             return (
@@ -90,7 +104,7 @@ function TrendChart({
             const x = xFor(index);
             return (
               <g key={row.date}>
-                <line x1={x} x2={x} y1={padding.top} y2={padding.top + plotHeight} stroke="#e5e7eb" />
+                <line x1={x} x2={x} y1={padding.top} y2={padding.top + plotHeight} stroke={hoveredIndex === index ? "#94a3b8" : "#e5e7eb"} />
                 <text x={x} y={chartHeight - 18} textAnchor="end" transform={`rotate(-45 ${x} ${chartHeight - 18})`} className="fill-slate-600 text-xs">
                   {formatDate(row.date)}
                 </text>
@@ -108,11 +122,47 @@ function TrendChart({
               <g key={item.key}>
                 <path d={buildLinePath(points)} fill="none" stroke={item.color} strokeWidth="3" />
                 {points.map((point, index) => (
-                  <circle key={`${item.key}-${orderedRows[index].date}`} cx={point.x} cy={point.y} r="5" fill={item.color} />
+                  <circle
+                    key={`${item.key}-${orderedRows[index].date}`}
+                    cx={point.x}
+                    cy={point.y}
+                    r={hoveredIndex === index ? 7 : 5}
+                    fill={item.color}
+                    stroke={hoveredIndex === index ? "white" : item.color}
+                    strokeWidth="2"
+                  />
                 ))}
               </g>
             );
           })}
+          {orderedRows.map((row, index) => (
+            <rect
+              key={`hit-${row.date}`}
+              x={xFor(index) - Math.max(xStep / 2, 14)}
+              y={padding.top}
+              width={Math.max(xStep, 28)}
+              height={plotHeight}
+              fill="transparent"
+              onMouseEnter={() => setHoveredIndex(index)}
+              onFocus={() => setHoveredIndex(index)}
+            />
+          ))}
+          {hoveredRow ? (
+            <g>
+              <rect x={chartWidth - 218} y={padding.top} width="188" height={32 + series.length * 20} rx="8" fill="white" stroke="#cbd5e1" />
+              <text x={chartWidth - 202} y={padding.top + 22} className="fill-slate-700 text-sm font-semibold">
+                {hoveredRow.date}
+              </text>
+              {series.map((item, index) => (
+                <g key={item.key}>
+                  <circle cx={chartWidth - 202} cy={padding.top + 46 + index * 20} r="4" fill={item.color} />
+                  <text x={chartWidth - 190} y={padding.top + 50 + index * 20} className="fill-slate-600 text-xs">
+                    {item.label}: {Math.round(hoveredRow[item.key])}
+                  </text>
+                </g>
+              ))}
+            </g>
+          ) : null}
         </svg>
       </div>
     </section>

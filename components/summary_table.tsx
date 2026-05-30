@@ -5,6 +5,8 @@ type SummaryTableProps = {
 };
 
 export function SummaryTable({ rows }: SummaryTableProps) {
+  const recentRows = rows.slice(0, 14);
+
   return (
     <div className="animate-enter-soft overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
       <div className="border-b border-slate-200 p-4">
@@ -25,7 +27,7 @@ export function SummaryTable({ rows }: SummaryTableProps) {
             </tr>
           </thead>
           <tbody>
-            {rows.map((row) => (
+            {recentRows.map((row) => (
               <tr key={row.date} className="border-t border-slate-100">
                 <td className="px-4 py-3 font-medium">{row.date}</td>
                 <td className="px-4 py-3">{Math.round(row.calories)}</td>
