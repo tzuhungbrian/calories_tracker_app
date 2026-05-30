@@ -9,6 +9,17 @@ import type {
   SheetRow
 } from "./types";
 
+function valueOf(row: SheetRow, keys: string[]): string | undefined {
+  for (const key of keys) {
+    const normalized = key.toLowerCase().replace(/[^a-z0-9]/g, "");
+    const value = row[key] ?? row[normalized];
+    if (value !== undefined && value !== "") {
+      return value;
+    }
+  }
+  return undefined;
+}
+
 export const defaultTargets: NutritionTargets = {
   calories: 2200,
   protein: 160,
@@ -84,38 +95,56 @@ export function normalizeFoodLog(input: FoodLogInput): FoodLog {
 
 export function rowToFoodLog(row: SheetRow): FoodLog {
   return {
-    id: row.id || row.ID || "",
-    createdAt: row.createdAt || row.CreatedAt || row.created_at || "",
-    date: row.date || row.Date || "",
-    meal: row.meal || row.Meal || "",
-    foodName: row.foodName || row.FoodName || row.food || row.Food || "",
-    amount: row.amount || row.Amount || row.serving || row.Serving || "",
-    calories: parseNumber(row.calories || row.Calories || row.kcal),
-    protein: parseNumber(row.protein || row.Protein),
-    fat: parseNumber(row.fat || row.Fat),
-    carbs: parseNumber(row.carbs || row.Carbs || row.carbohydrates)
+    id: valueOf(row, ["id", "ID"]) || "",
+    createdAt: valueOf(row, ["createdAt", "CreatedAt", "created_at"]) || "",
+    date: valueOf(row, ["date", "Date"]) || "",
+    meal: valueOf(row, ["meal", "Meal"]) || "",
+    foodName: valueOf(row, ["foodName", "FoodName", "Food / Item", "food", "Food"]) || "",
+    amount: valueOf(row, ["amount", "Amount", "Servings", "serving", "Serving"]) || "",
+    calories: parseNumber(valueOf(row, ["Final kcal", "calories", "Calories", "kcal"])),
+    protein: parseNumber(valueOf(row, ["Final P", "protein", "Protein"])),
+    fat: parseNumber(valueOf(row, ["Final F", "fat", "Fat"])),
+    carbs: parseNumber(valueOf(row, ["Final C", "carbs", "Carbs", "carbohydrates"]))
   };
 }
 
 export function rowToCommonFood(row: SheetRow): CommonFood {
   return {
-    name: row.name || row.Name || row.food || row.Food || "",
-    serving: row.serving || row.Serving || row.amount || row.Amount || "",
-    calories: parseNumber(row.calories || row.Calories || row.kcal),
-    protein: parseNumber(row.protein || row.Protein),
-    fat: parseNumber(row.fat || row.Fat),
-    carbs: parseNumber(row.carbs || row.Carbs || row.carbohydrates)
+    name: valueOf(row, ["Food name", "name", "Name", "food", "Food"]) || "",
+    serving: valueOf(row, ["Serving label", "Serving size", "serving", "Serving", "amount", "Amount"]) || "",
+    calories: parseNumber(valueOf(row, ["Calories / serving", "calories", "Calories", "kcal"])),
+    protein: parseNumber(valueOf(row, ["Protein (g)", "protein", "Protein"])),
+    fat: parseNumber(valueOf(row, ["Fat (g)", "fat", "Fat"])),
+    carbs: parseNumber(valueOf(row, ["Carbs (g)", "carbs", "Carbs", "carbohydrates"]))
   };
 }
 
 export function rowToDailyStatus(row: SheetRow): DailyStatus {
   return {
-    date: row.date || row.Date || "",
-    goalType: parseGoalType(row.goalType || row.GoalType || row.goal || row.Goal),
-    steps: parseNumber(row.steps || row.Steps),
-    strengthSession: parseBoolean(row.strengthSession || row.StrengthSession || row.strength || row.Strength),
-    creatineTaken: parseBoolean(row.creatineTaken || row.CreatineTaken || row.creatine || row.Creatine),
-    basketballMinutes: parseNumber(row.basketballMinutes || row.BasketballMinutes || row.basketball || row.Basketball)
+    date: valueOf(row, ["date", "Date"]) || "",
+    goalType: parseGoalType(valueOf(row, ["Goal Type", "goalType", "GoalType", "goal", "Goal"])),
+    steps: parseNumber(valueOf(row, ["steps", "Steps"])),
+    strengthSession: parseBoolean(valueOf(row, ["Strength session", "strengthSession", "StrengthSession", "strength", "Strength"])),
+    creatineTaken: parseBoolean(valueOf(row, ["Creatine Taken", "creatineTaken", "CreatineTaken", "creatine", "Creatine"])),
+    basketballMinutes: parseNumber(valueOf(row, ["Basketball minutes", "basketballMinutes", "BasketballMinutes", "basketball", "Basketball"]))
+  };
+}
+
+export function rowToTargets(row: SheetRow): NutritionTargets {
+  return {
+    calories: parseNumber(valueOf(row, ["Calorie target", "calorieTarget", "calories", "Calories"])),
+    protein: parseNumber(valueOf(row, ["Protein goal", "proteinGoal", "protein", "Protein"])),
+    fat: parseNumber(valueOf(row, ["Fat goal", "fatGoal", "fat", "Fat"])),
+    carbs: parseNumber(valueOf(row, ["Carb goal", "carbGoal", "carbs", "Carbs"]))
+  };
+}
+
+export function rowToSummaryTotals(row: SheetRow): NutritionTotals {
+  return {
+    calories: parseNumber(valueOf(row, ["Calories", "calories"])),
+    protein: parseNumber(valueOf(row, ["Protein", "protein"])),
+    fat: parseNumber(valueOf(row, ["Fat", "fat"])),
+    carbs: parseNumber(valueOf(row, ["Carbs", "carbs"]))
   };
 }
 
@@ -124,20 +153,23 @@ export function statusToSheetRow(status: DailyStatus): string[] {
     status.date,
     status.goalType,
     String(status.steps),
-    String(status.strengthSession),
-    String(status.creatineTaken),
+    status.strengthSession ? "Yes" : "No",
+    status.creatineTaken ? "Yes" : "No",
     String(status.basketballMinutes)
   ];
 }
 
 export function foodLogToSheetRow(log: FoodLog): string[] {
   return [
-    log.id,
-    log.createdAt,
     log.date,
     log.meal,
+    "Manual",
     log.foodName,
-    log.amount,
+    log.amount || "1.00",
+    String(log.calories),
+    String(log.protein),
+    String(log.fat),
+    String(log.carbs),
     String(log.calories),
     String(log.protein),
     String(log.fat),

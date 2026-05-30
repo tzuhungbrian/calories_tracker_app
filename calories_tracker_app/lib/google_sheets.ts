@@ -10,10 +10,11 @@ const SCOPES = ["https://www.googleapis.com/auth/spreadsheets"];
 const spreadsheetId = process.env.GOOGLE_SHEET_ID;
 
 export const sheetTabs = {
-  dailyLog: process.env.GOOGLE_SHEET_DAILY_LOG_TAB || "DailyLog",
-  dailyStatus: process.env.GOOGLE_SHEET_DAILY_STATUS_TAB || "DailyStatus",
-  commonFoods: process.env.GOOGLE_SHEET_COMMON_FOODS_TAB || "CommonFoods",
-  targets: process.env.GOOGLE_SHEET_TARGETS_TAB || "Targets"
+  dailyLog: process.env.GOOGLE_SHEET_DAILY_LOG_TAB || "Daily_Log",
+  dailyStatus: process.env.GOOGLE_SHEET_DAILY_STATUS_TAB || "Daily_Status",
+  commonFoods: process.env.GOOGLE_SHEET_COMMON_FOODS_TAB || "Common_Foods",
+  summaryData: process.env.GOOGLE_SHEET_SUMMARY_DATA_TAB || "Summary_Data",
+  settings: process.env.GOOGLE_SHEET_SETTINGS_TAB || "Settings"
 };
 
 function getPrivateKey(): string {
@@ -39,18 +40,37 @@ function asRows(values: unknown[][] | null | undefined): string[][] {
 }
 
 function rowsToObjects(rows: string[][]): SheetRow[] {
-  const [headers = [], ...dataRows] = rows;
+  const knownHeaders = new Set([
+    "date",
+    "meal",
+    "food name",
+    "food / item",
+    "goal type",
+    "calories",
+    "metric"
+  ]);
+  const headerIndex = rows.findIndex((row) =>
+    row.filter(Boolean).some((cell) => knownHeaders.has(cell.trim().toLowerCase()))
+  );
+  const headers = rows[headerIndex] ?? [];
+  const dataRows = headerIndex >= 0 ? rows.slice(headerIndex + 1) : [];
 
   return dataRows
     .filter((row) => row.some(Boolean))
     .map((row) =>
       headers.reduce<SheetRow>((record, header, index) => {
         if (header) {
-          record[header] = row[index] ?? "";
+          const value = row[index] ?? "";
+          record[header] = value;
+          record[normalizeHeader(header)] = value;
         }
         return record;
       }, {})
     );
+}
+
+function normalizeHeader(header: string): string {
+  return header.toLowerCase().replace(/[^a-z0-9]/g, "");
 }
 
 export async function readSheetObjects(tabName: string): Promise<SheetRow[]> {

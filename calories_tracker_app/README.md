@@ -28,43 +28,45 @@ GOOGLE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\
 
 ## Expected sheet tabs
 
-The app is configured for these tabs by default:
+The app is configured for the existing `diet_tracker_dynamic_tdee` tabs by default:
 
-- `DailyLog`
-- `DailyStatus`
-- `CommonFoods`
-- `Targets`
+- `Daily_Log`
+- `Daily_Status`
+- `Common_Foods`
+- `Summary_Data`
+- `Settings`
 
 You can change tab names in `.env.local`:
 
 ```bash
-GOOGLE_SHEET_DAILY_LOG_TAB=DailyLog
-GOOGLE_SHEET_DAILY_STATUS_TAB=DailyStatus
-GOOGLE_SHEET_COMMON_FOODS_TAB=CommonFoods
-GOOGLE_SHEET_TARGETS_TAB=Targets
+GOOGLE_SHEET_DAILY_LOG_TAB=Daily_Log
+GOOGLE_SHEET_DAILY_STATUS_TAB=Daily_Status
+GOOGLE_SHEET_COMMON_FOODS_TAB=Common_Foods
+GOOGLE_SHEET_SUMMARY_DATA_TAB=Summary_Data
+GOOGLE_SHEET_SETTINGS_TAB=Settings
 ```
 
 ## Suggested columns
 
-`DailyLog`:
+`Daily_Log`:
 
 ```text
-id, createdAt, date, meal, foodName, amount, calories, protein, fat, carbs, notes
+Date, Meal, Entry Type, Food / Item, Servings, Manual kcal, Manual P, Manual F, Manual C, Final kcal, Final P, Final F, Final C, Notes
 ```
 
-`DailyStatus`:
+`Daily_Status`:
 
 ```text
-date, goalType, steps, strengthSession, creatineTaken, basketballMinutes
+Date, Goal Type, Steps, Strength session, Creatine Taken, Basketball minutes, Dynamic TDEE, Calorie target, Protein goal, Fat goal, Carb goal
 ```
 
-`CommonFoods`:
+`Common_Foods`:
 
 ```text
-name, serving, calories, protein, fat, carbs
+Food name, Category, Serving label, Serving size, Calories / serving, Protein (g), Fat (g), Carbs (g), Notes
 ```
 
-The parser accepts a few common variations such as `Date`, `Food`, `Calories`, and `Protein` to stay compatible with existing sheets.
+The parser automatically skips intro rows and uses the header row, so the existing explanatory rows at the top of each tab can stay in place.
 
 ## Local development
 
