@@ -1,11 +1,10 @@
 "use client";
 
-import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { CommonFoodSelector } from "@/components/common_food_selector";
 import { DailyStatusEditor } from "@/components/daily_status_editor";
 import { DashboardCards } from "@/components/dashboard_cards";
-import { FoodLogForm } from "@/components/food_log_form";
+import { FoodLogComposer } from "@/components/food_log_composer";
+import { MealPrepCalculator } from "@/components/meal_prep_calculator";
 import { SummaryTable } from "@/components/summary_table";
 import { TrendCharts } from "@/components/trend_charts";
 import type { CommonFood, DailyStatus, DailySummary, DashboardData, FoodLogInput } from "@/lib/types";
@@ -41,6 +40,7 @@ function createEmptyStatus(date: string): DailyStatus {
 
 export default function HomePage() {
   const today = useMemo(() => getTodayKey(), []);
+  const [activeTab, setActiveTab] = useState<"dashboard" | "prep">("dashboard");
   const [dashboard, setDashboard] = useState<DashboardData | null>(null);
   const [commonFoods, setCommonFoods] = useState<CommonFood[]>([]);
   const [summary, setSummary] = useState<DailySummary[]>([]);
@@ -134,28 +134,44 @@ export default function HomePage() {
           <p className="text-sm font-medium text-blue-700">{today}</p>
           <h1 className="mt-1 text-3xl font-semibold tracking-tight">Brian&apos;s nutrition tracker</h1>
         </div>
-        <Link className="text-sm font-medium text-blue-700 hover:underline" href="/prep">
-          Open prep calculator
-        </Link>
+        <div className="inline-grid rounded-lg border border-slate-200 bg-white p-1 shadow-sm sm:grid-cols-2">
+          <button
+            className={`rounded-md px-4 py-2 text-sm font-semibold ${activeTab === "dashboard" ? "bg-ink text-white" : "text-slate-600"}`}
+            type="button"
+            onClick={() => setActiveTab("dashboard")}
+          >
+            Dashboard
+          </button>
+          <button
+            className={`rounded-md px-4 py-2 text-sm font-semibold ${activeTab === "prep" ? "bg-ink text-white" : "text-slate-600"}`}
+            type="button"
+            onClick={() => setActiveTab("prep")}
+          >
+            Meal prep
+          </button>
+        </div>
       </header>
 
       {error ? (
         <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div>
       ) : null}
 
-      <DashboardCards data={dashboard} />
+      {activeTab === "dashboard" ? (
+        <>
+          <DashboardCards data={dashboard} />
 
-      <TrendCharts rows={summary} />
+          <TrendCharts rows={summary} />
 
-      <section className="grid gap-4 lg:grid-cols-[1fr_360px]">
-        <div className="flex flex-col gap-4">
-          <CommonFoodSelector foods={commonFoods} onSelect={(food) => setFoodLog((current) => ({ ...current, ...food }))} />
-          <FoodLogForm value={foodLog} isSaving={isSavingFood} onChange={setFoodLog} onSubmit={saveFoodLog} />
-        </div>
-        <DailyStatusEditor value={dailyStatus} isSaving={isSavingStatus} onChange={setDailyStatus} onSubmit={saveDailyStatus} />
-      </section>
+          <section className="grid gap-4 lg:grid-cols-[1fr_360px]">
+            <FoodLogComposer foods={commonFoods} value={foodLog} isSaving={isSavingFood} onChange={setFoodLog} onSubmit={saveFoodLog} />
+            <DailyStatusEditor value={dailyStatus} isSaving={isSavingStatus} onChange={setDailyStatus} onSubmit={saveDailyStatus} />
+          </section>
 
-      <SummaryTable rows={summary} />
+          <SummaryTable rows={summary} />
+        </>
+      ) : (
+        <MealPrepCalculator foods={commonFoods} />
+      )}
     </main>
   );
 }
