@@ -24,14 +24,13 @@ export function ThemeToggle() {
 
   return (
     <button
-      className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-accent dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+      aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
+      className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-700 shadow-sm transition hover:border-accent hover:text-accent dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+      title={isDark ? "Switch to light mode" : "Switch to dark mode"}
       type="button"
       onClick={toggleTheme}
     >
-      <span className="inline-flex items-center gap-2">
-        {isDark ? <Sun size={16} /> : <Moon size={16} />}
-        {isDark ? "Light mode" : "Dark mode"}
-      </span>
+      {isDark ? <Sun size={18} /> : <Moon size={18} />}
     </button>
   );
 }

@@ -14,6 +14,16 @@ import { ThemeToggle } from "@/components/theme_toggle";
 import { dateKey } from "@/lib/date";
 import type { CommonFood, DailyStatus, DailySummary, DashboardData, FoodLog, FoodLogInput } from "@/lib/types";
 
+const tabs = [
+  { id: "dashboard", label: "Dashboard", icon: BarChart3 },
+  { id: "stats", label: "Stats", icon: LineChart },
+  { id: "logs", label: "Logs", icon: ReceiptText },
+  { id: "foods", label: "Foods", icon: Database },
+  { id: "prep", label: "Meal prep", icon: Utensils }
+] as const;
+
+type AppTab = (typeof tabs)[number]["id"];
+
 function getTodayKey(): string {
   return dateKey();
 }
@@ -45,7 +55,7 @@ function createEmptyStatus(date: string): DailyStatus {
 
 export default function HomePage() {
   const [today, setToday] = useState(() => getTodayKey());
-  const [activeTab, setActiveTab] = useState<"dashboard" | "stats" | "logs" | "prep" | "foods">("dashboard");
+  const [activeTab, setActiveTab] = useState<AppTab>("dashboard");
   const [dashboard, setDashboard] = useState<DashboardData | null>(null);
   const [commonFoods, setCommonFoods] = useState<CommonFood[]>([]);
   const [foodLogs, setFoodLogs] = useState<FoodLog[]>([]);
@@ -153,6 +163,8 @@ export default function HomePage() {
     }
   }
 
+  const activeTabIndex = tabs.findIndex((tab) => tab.id === activeTab);
+
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-6xl flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8">
       <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
@@ -160,58 +172,27 @@ export default function HomePage() {
           <p className="text-sm font-medium text-blue-700">{today}</p>
           <h1 className="mt-1 text-3xl font-semibold tracking-tight">Brian&apos;s nutrition tracker</h1>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <div className="inline-grid rounded-lg border border-slate-200 bg-white p-1 shadow-sm sm:grid-cols-5">
-            <button
-              className={`rounded-md px-4 py-2 text-sm font-semibold ${activeTab === "dashboard" ? "bg-ink text-white" : "text-slate-600"}`}
-              type="button"
-              onClick={() => setActiveTab("dashboard")}
-            >
-              <span className="inline-flex items-center gap-2">
-                <BarChart3 size={16} />
-                Dashboard
-              </span>
-            </button>
-            <button
-              className={`rounded-md px-4 py-2 text-sm font-semibold ${activeTab === "stats" ? "bg-ink text-white" : "text-slate-600"}`}
-              type="button"
-              onClick={() => setActiveTab("stats")}
-            >
-              <span className="inline-flex items-center gap-2">
-                <LineChart size={16} />
-                Stats
-              </span>
-            </button>
-            <button
-              className={`rounded-md px-4 py-2 text-sm font-semibold ${activeTab === "logs" ? "bg-ink text-white" : "text-slate-600"}`}
-              type="button"
-              onClick={() => setActiveTab("logs")}
-            >
-              <span className="inline-flex items-center gap-2">
-                <ReceiptText size={16} />
-                Logs
-              </span>
-            </button>
-            <button
-              className={`rounded-md px-4 py-2 text-sm font-semibold ${activeTab === "foods" ? "bg-ink text-white" : "text-slate-600"}`}
-              type="button"
-              onClick={() => setActiveTab("foods")}
-            >
-              <span className="inline-flex items-center gap-2">
-                <Database size={16} />
-                Foods
-              </span>
-            </button>
-            <button
-              className={`rounded-md px-4 py-2 text-sm font-semibold ${activeTab === "prep" ? "bg-ink text-white" : "text-slate-600"}`}
-              type="button"
-              onClick={() => setActiveTab("prep")}
-            >
-              <span className="inline-flex items-center gap-2">
-                <Utensils size={16} />
-                Meal prep
-              </span>
-            </button>
+        <div className="flex w-full flex-wrap gap-2 sm:w-auto sm:justify-end">
+          <div className="max-w-full overflow-x-auto">
+            <div className="relative inline-grid min-w-[680px] grid-cols-5 overflow-hidden rounded-lg border border-slate-200 bg-white p-1 shadow-sm sm:min-w-0">
+              <span
+                className="pointer-events-none absolute bottom-1 left-1 top-1 w-[calc((100%_-_0.5rem)/5)] rounded-md bg-ink shadow-sm transition-transform duration-300 ease-out"
+                style={{ transform: `translateX(${Math.max(activeTabIndex, 0) * 100}%)` }}
+              />
+              {tabs.map(({ id, label, icon: Icon }) => (
+                <button
+                  key={id}
+                  className={`relative z-10 rounded-md px-4 py-2 text-sm font-semibold transition-colors duration-300 ${activeTab === id ? "text-white" : "text-slate-600 hover:text-ink"}`}
+                  type="button"
+                  onClick={() => setActiveTab(id)}
+                >
+                  <span className="inline-flex items-center justify-center gap-2">
+                    <Icon size={16} />
+                    {label}
+                  </span>
+                </button>
+              ))}
+            </div>
           </div>
           <ThemeToggle />
         </div>
