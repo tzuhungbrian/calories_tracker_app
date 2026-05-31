@@ -93,10 +93,10 @@ export function parseGoalType(value: string | undefined): GoalType {
   return "maintain";
 }
 
-export function normalizeFoodLog(input: FoodLogInput): FoodLog {
+export function normalizeFoodLog(input: FoodLogInput, existing?: Pick<FoodLog, "id" | "createdAt">): FoodLog {
   return {
-    id: crypto.randomUUID(),
-    createdAt: new Date().toISOString(),
+    id: existing?.id || crypto.randomUUID(),
+    createdAt: existing?.createdAt || new Date().toISOString(),
     date: input.date || todayKey(),
     meal: input.meal.trim(),
     foodId: input.foodId ?? "",

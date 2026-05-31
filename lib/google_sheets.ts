@@ -76,6 +76,19 @@ function normalizeHeader(header: string): string {
   return header.toLowerCase().replace(/[^a-z0-9]/g, "");
 }
 
+function columnName(columnNumber: number): string {
+  let remaining = columnNumber;
+  let name = "";
+
+  while (remaining > 0) {
+    const offset = (remaining - 1) % 26;
+    name = String.fromCharCode(65 + offset) + name;
+    remaining = Math.floor((remaining - offset - 1) / 26);
+  }
+
+  return name || "A";
+}
+
 export async function readSheetObjects(tabName: string): Promise<SheetRow[]> {
   const sheets = getSheetsClient();
   const response = await sheets.spreadsheets.values.get({
@@ -129,7 +142,7 @@ export async function updateSheetRowById(tabName: string, id: string, values: st
 
   await sheets.spreadsheets.values.update({
     spreadsheetId,
-    range: `${tabName}!A${rowIndex + 1}:L${rowIndex + 1}`,
+    range: `${tabName}!A${rowIndex + 1}:${columnName(values.length)}${rowIndex + 1}`,
     valueInputOption: "USER_ENTERED",
     requestBody: { values: [values] }
   });

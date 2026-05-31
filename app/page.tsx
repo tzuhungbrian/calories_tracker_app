@@ -1,17 +1,18 @@
 "use client";
 
-import { BarChart3, Database, LineChart, Utensils } from "lucide-react";
+import { BarChart3, Database, LineChart, ReceiptText, Utensils } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { DailyStatusEditor } from "@/components/daily_status_editor";
 import { DashboardCards } from "@/components/dashboard_cards";
 import { FoodDatabaseManager } from "@/components/food_database_manager";
 import { FoodLogComposer } from "@/components/food_log_composer";
+import { FoodLogManager } from "@/components/food_log_manager";
 import { MealPrepCalculator } from "@/components/meal_prep_calculator";
 import { StatsDashboard } from "@/components/stats_dashboard";
 import { SummaryTable } from "@/components/summary_table";
 import { ThemeToggle } from "@/components/theme_toggle";
 import { dateKey } from "@/lib/date";
-import type { CommonFood, DailyStatus, DailySummary, DashboardData, FoodLogInput } from "@/lib/types";
+import type { CommonFood, DailyStatus, DailySummary, DashboardData, FoodLog, FoodLogInput } from "@/lib/types";
 
 function getTodayKey(): string {
   return dateKey();
@@ -44,9 +45,10 @@ function createEmptyStatus(date: string): DailyStatus {
 
 export default function HomePage() {
   const [today, setToday] = useState(() => getTodayKey());
-  const [activeTab, setActiveTab] = useState<"dashboard" | "stats" | "prep" | "foods">("dashboard");
+  const [activeTab, setActiveTab] = useState<"dashboard" | "stats" | "logs" | "prep" | "foods">("dashboard");
   const [dashboard, setDashboard] = useState<DashboardData | null>(null);
   const [commonFoods, setCommonFoods] = useState<CommonFood[]>([]);
+  const [foodLogs, setFoodLogs] = useState<FoodLog[]>([]);
   const [summary, setSummary] = useState<DailySummary[]>([]);
   const [foodLog, setFoodLog] = useState<FoodLogInput>(() => createEmptyFoodLog(today));
   const [dailyStatus, setDailyStatus] = useState<DailyStatus>(() => createEmptyStatus(today));
@@ -56,26 +58,29 @@ export default function HomePage() {
 
   const refreshData = useCallback(async () => {
     setError(null);
-    const [dashboardResponse, foodsResponse, statusResponse, summaryResponse] = await Promise.all([
+    const [dashboardResponse, foodsResponse, logsResponse, statusResponse, summaryResponse] = await Promise.all([
       fetch(`/api/dashboard?date=${today}`),
       fetch("/api/common_foods"),
+      fetch("/api/daily_log"),
       fetch(`/api/daily_status?date=${today}`),
       fetch("/api/summary?days=30")
     ]);
 
-    if (!dashboardResponse.ok || !foodsResponse.ok || !statusResponse.ok || !summaryResponse.ok) {
+    if (!dashboardResponse.ok || !foodsResponse.ok || !logsResponse.ok || !statusResponse.ok || !summaryResponse.ok) {
       throw new Error("Failed to load nutrition data.");
     }
 
-    const [dashboardData, foodsData, statusData, summaryData] = await Promise.all([
+    const [dashboardData, foodsData, logsData, statusData, summaryData] = await Promise.all([
       dashboardResponse.json() as Promise<DashboardData>,
       foodsResponse.json() as Promise<CommonFood[]>,
+      logsResponse.json() as Promise<FoodLog[]>,
       statusResponse.json() as Promise<DailyStatus | null>,
       summaryResponse.json() as Promise<DailySummary[]>
     ]);
 
     setDashboard(dashboardData);
     setCommonFoods(foodsData);
+    setFoodLogs(logsData);
     setSummary(summaryData);
     setDailyStatus(statusData ?? createEmptyStatus(today));
   }, [today]);
@@ -156,7 +161,7 @@ export default function HomePage() {
           <h1 className="mt-1 text-3xl font-semibold tracking-tight">Brian&apos;s nutrition tracker</h1>
         </div>
         <div className="flex flex-wrap gap-2">
-          <div className="inline-grid rounded-lg border border-slate-200 bg-white p-1 shadow-sm sm:grid-cols-4">
+          <div className="inline-grid rounded-lg border border-slate-200 bg-white p-1 shadow-sm sm:grid-cols-5">
             <button
               className={`rounded-md px-4 py-2 text-sm font-semibold ${activeTab === "dashboard" ? "bg-ink text-white" : "text-slate-600"}`}
               type="button"
@@ -175,6 +180,16 @@ export default function HomePage() {
               <span className="inline-flex items-center gap-2">
                 <LineChart size={16} />
                 Stats
+              </span>
+            </button>
+            <button
+              className={`rounded-md px-4 py-2 text-sm font-semibold ${activeTab === "logs" ? "bg-ink text-white" : "text-slate-600"}`}
+              type="button"
+              onClick={() => setActiveTab("logs")}
+            >
+              <span className="inline-flex items-center gap-2">
+                <ReceiptText size={16} />
+                Logs
               </span>
             </button>
             <button
@@ -220,6 +235,10 @@ export default function HomePage() {
       ) : activeTab === "stats" ? (
         <div className="animate-enter" key="stats-tab">
           <StatsDashboard rows={summary} />
+        </div>
+      ) : activeTab === "logs" ? (
+        <div className="animate-enter" key="logs-tab">
+          <FoodLogManager logs={foodLogs} today={today} onChanged={refreshData} />
         </div>
       ) : activeTab === "foods" ? (
         <div className="animate-enter" key="foods-tab">
