@@ -18,6 +18,8 @@ const macroFields: Array<keyof Pick<FoodLog, "calories" | "protein" | "fat" | "c
   "carbs"
 ];
 
+type FoodLogTotals = Pick<FoodLog, "calories" | "protein" | "fat" | "carbs">;
+
 function sortLogs(logs: FoodLog[]): FoodLog[] {
   return [...logs].sort((a, b) => {
     const dateCompare = b.date.localeCompare(a.date);
@@ -27,6 +29,27 @@ function sortLogs(logs: FoodLog[]): FoodLog[] {
 
     return (b.createdAt || "").localeCompare(a.createdAt || "");
   });
+}
+
+function emptyTotals(): FoodLogTotals {
+  return { calories: 0, protein: 0, fat: 0, carbs: 0 };
+}
+
+function addLogToTotals(totals: FoodLogTotals, log: FoodLog): FoodLogTotals {
+  return {
+    calories: totals.calories + log.calories,
+    protein: totals.protein + log.protein,
+    fat: totals.fat + log.fat,
+    carbs: totals.carbs + log.carbs
+  };
+}
+
+function percentOfDay(value: number, total: number): number {
+  if (!total) {
+    return 0;
+  }
+
+  return Math.round((value / total) * 100);
 }
 
 export function FoodLogManager({ logs, today, onChanged }: FoodLogManagerProps) {
@@ -48,17 +71,17 @@ export function FoodLogManager({ logs, today, onChanged }: FoodLogManagerProps) 
   }, [dateFilter, logs, mealFilter, query]);
 
   const dayTotals = useMemo(
+    () => logs.filter((log) => log.date === dateFilter).reduce(addLogToTotals, emptyTotals()),
+    [dateFilter, logs]
+  );
+
+  const totalsByDate = useMemo(
     () =>
-      visibleLogs.reduce(
-        (totals, log) => ({
-          calories: totals.calories + log.calories,
-          protein: totals.protein + log.protein,
-          fat: totals.fat + log.fat,
-          carbs: totals.carbs + log.carbs
-        }),
-        { calories: 0, protein: 0, fat: 0, carbs: 0 }
-      ),
-    [visibleLogs]
+      logs.reduce<Record<string, FoodLogTotals>>((totals, log) => {
+        totals[log.date] = addLogToTotals(totals[log.date] ?? emptyTotals(), log);
+        return totals;
+      }, {}),
+    [logs]
   );
 
   function editLog(log: FoodLog) {
@@ -148,7 +171,7 @@ export function FoodLogManager({ logs, today, onChanged }: FoodLogManagerProps) 
               <Utensils size={20} />
               Food log manager
             </h2>
-            <p className="mt-1 text-sm text-slate-500">Edit or delete meals that were already logged.</p>
+            <p className="mt-1 text-sm text-slate-500">Edit meals and see each food&apos;s share of that day&apos;s nutrition.</p>
           </div>
           <div className="grid grid-cols-4 gap-2 rounded-lg bg-slate-50 p-2 text-center text-xs font-semibold text-slate-600">
             <span>{Math.round(dayTotals.calories)} kcal</span>
@@ -188,29 +211,39 @@ export function FoodLogManager({ logs, today, onChanged }: FoodLogManagerProps) 
 
         <div className="mt-4 grid max-h-[640px] gap-2 overflow-y-auto pr-1">
           {visibleLogs.length > 0 ? (
-            visibleLogs.map((log) => (
-              <button
-                key={log.id}
-                className={`hover-lift rounded-lg border p-3 text-left transition hover:border-accent hover:bg-blue-50 ${selectedLog?.id === log.id ? "border-accent bg-blue-50" : "border-slate-200"}`}
-                type="button"
-                onClick={() => editLog(log)}
-              >
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                  <div>
-                    <p className="font-semibold">{log.foodName}</p>
-                    <p className="mt-1 text-xs text-slate-500">
-                      {log.date} / {log.meal || "No meal"} / {log.amount || "1 serving"}
-                    </p>
+            visibleLogs.map((log) => {
+              const logDayTotals = totalsByDate[log.date] ?? emptyTotals();
+
+              return (
+                <button
+                  key={log.id}
+                  className={`hover-lift rounded-lg border p-3 text-left transition hover:border-accent hover:bg-blue-50 ${selectedLog?.id === log.id ? "border-accent bg-blue-50" : "border-slate-200"}`}
+                  type="button"
+                  onClick={() => editLog(log)}
+                >
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                      <p className="font-semibold">{log.foodName}</p>
+                      <p className="mt-1 text-xs text-slate-500">
+                        {log.date} / {log.meal || "No meal"} / {log.amount || "1 serving"}
+                      </p>
+                    </div>
+                    <span className="w-fit rounded-full bg-slate-50 px-2 py-1 text-xs font-semibold text-slate-600">{Math.round(log.calories)} kcal</span>
                   </div>
-                  <span className="w-fit rounded-full bg-slate-50 px-2 py-1 text-xs font-semibold text-slate-600">{Math.round(log.calories)} kcal</span>
-                </div>
-                <div className="mt-3 grid grid-cols-3 gap-2 text-sm text-slate-700">
-                  <span>Protein {log.protein}g</span>
-                  <span>Fat {log.fat}g</span>
-                  <span>Carbs {log.carbs}g</span>
-                </div>
-              </button>
-            ))
+                  <div className="mt-3 grid grid-cols-3 gap-2 text-sm text-slate-700">
+                    <span>Protein {log.protein}g</span>
+                    <span>Fat {log.fat}g</span>
+                    <span>Carbs {log.carbs}g</span>
+                  </div>
+                  <div className="mt-3 grid grid-cols-2 gap-2 text-xs font-semibold text-slate-600 sm:grid-cols-4">
+                    <PercentChip label="Calories" percent={percentOfDay(log.calories, logDayTotals.calories)} />
+                    <PercentChip label="Protein" percent={percentOfDay(log.protein, logDayTotals.protein)} />
+                    <PercentChip label="Fat" percent={percentOfDay(log.fat, logDayTotals.fat)} />
+                    <PercentChip label="Carbs" percent={percentOfDay(log.carbs, logDayTotals.carbs)} />
+                  </div>
+                </button>
+              );
+            })
           ) : (
             <div className="rounded-lg border border-dashed border-slate-300 p-6 text-center text-sm text-slate-500">No food logs match this filter.</div>
           )}
@@ -286,5 +319,13 @@ export function FoodLogManager({ logs, today, onChanged }: FoodLogManagerProps) 
         {message ? <p className="mt-3 rounded-md bg-green-50 p-3 text-sm text-green-700">{message}</p> : null}
       </aside>
     </section>
+  );
+}
+
+function PercentChip({ label, percent }: { label: string; percent: number }) {
+  return (
+    <span className="rounded-md bg-slate-50 px-2.5 py-2">
+      {label} <span className="text-blue-700">{percent}%</span>
+    </span>
   );
 }
