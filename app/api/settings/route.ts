@@ -10,6 +10,7 @@ const settingNotes: Record<string, string> = {
   height_cm: "Height in centimeters.",
   age: "Age used for personal reference.",
   sex: "Sex used for personal reference.",
+  bmr_mode: "Whether BMR is calculated automatically or entered manually.",
   weight_kg: "Current body weight used for target calculations.",
   bmr: "Base metabolic rate.",
   base_activity_factor: "Multiplier for non-step daily activity.",

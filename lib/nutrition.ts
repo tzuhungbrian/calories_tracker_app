@@ -49,7 +49,8 @@ export const defaultProfileSettings: UserProfileSettings = {
   displayName: "Brian",
   heightCm: 0,
   age: 0,
-  sex: ""
+  sex: "",
+  bmrMode: "manual"
 };
 
 export function todayKey(): string {
@@ -240,24 +241,30 @@ export function rowsToSettings(rows: SheetRow[]): NutritionSettings {
 export function rowsToProfileSettings(rows: SheetRow[]): UserProfileSettings {
   const values = new Map(rows.map((row) => [valueOf(row, ["key"]) || "", valueOf(row, ["value"]) || ""]));
   const settings = rowsToSettings(rows);
-
-  return {
+  const bmrMode: UserProfileSettings["bmrMode"] = values.get("bmr_mode") === "auto" ? "auto" : "manual";
+  const profile = {
     ...settings,
     displayName: values.get("display_name") || defaultProfileSettings.displayName,
     heightCm: parseNumber(values.get("height_cm")) || defaultProfileSettings.heightCm,
     age: parseNumber(values.get("age")) || defaultProfileSettings.age,
-    sex: values.get("sex") || defaultProfileSettings.sex
+    sex: values.get("sex") || defaultProfileSettings.sex,
+    bmrMode
   };
+
+  return bmrMode === "auto" ? { ...profile, bmr: calculateBmr(profile) || profile.bmr } : profile;
 }
 
 export function profileSettingsToKeyValues(settings: UserProfileSettings): Record<string, string> {
+  const bmr = settings.bmrMode === "auto" ? calculateBmr(settings) || settings.bmr : settings.bmr;
+
   return {
     display_name: settings.displayName.trim() || defaultProfileSettings.displayName,
     height_cm: String(Number(settings.heightCm) || 0),
     age: String(Number(settings.age) || 0),
     sex: settings.sex.trim(),
+    bmr_mode: settings.bmrMode,
     weight_kg: String(Number(settings.weightKg) || defaultSettings.weightKg),
-    bmr: String(Number(settings.bmr) || defaultSettings.bmr),
+    bmr: String(Number(bmr) || defaultSettings.bmr),
     base_activity_factor: String(Number(settings.baseActivityFactor) || defaultSettings.baseActivityFactor),
     calories_per_step: String(Number(settings.caloriesPerStep) || defaultSettings.caloriesPerStep),
     strength_training_kcal: String(Number(settings.strengthTrainingKcal) || defaultSettings.strengthTrainingKcal),
@@ -268,6 +275,17 @@ export function profileSettingsToKeyValues(settings: UserProfileSettings): Recor
     maintain_adjustment_kcal: String(Number(settings.maintainAdjustmentKcal) || defaultSettings.maintainAdjustmentKcal),
     bulk_adjustment_kcal: String(Number(settings.bulkAdjustmentKcal) || defaultSettings.bulkAdjustmentKcal)
   };
+}
+
+export function calculateBmr(settings: Pick<UserProfileSettings, "weightKg" | "heightCm" | "age" | "sex">): number {
+  const sex = settings.sex.trim().toLowerCase();
+
+  if (!settings.weightKg || !settings.heightCm || !settings.age || (sex !== "male" && sex !== "female")) {
+    return 0;
+  }
+
+  const sexAdjustment = sex === "male" ? 5 : -161;
+  return Math.round(10 * settings.weightKg + 6.25 * settings.heightCm - 5 * settings.age + sexAdjustment);
 }
 
 export function calculateDynamicTdee(status: DailyStatus | null, settings: NutritionSettings): number {

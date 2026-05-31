@@ -69,6 +69,7 @@ export type UserProfileSettings = NutritionSettings & {
   heightCm: number;
   age: number;
   sex: string;
+  bmrMode: "auto" | "manual";
 };
 
 export type DashboardData = {

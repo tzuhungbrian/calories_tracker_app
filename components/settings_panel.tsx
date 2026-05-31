@@ -13,6 +13,7 @@ const emptySettings: UserProfileSettings = {
   heightCm: 0,
   age: 0,
   sex: "",
+  bmrMode: "manual",
   weightKg: 0,
   bmr: 0,
   baseActivityFactor: 1.2,
@@ -26,7 +27,7 @@ const emptySettings: UserProfileSettings = {
   bulkAdjustmentKcal: 250
 };
 
-const numericFields: Array<keyof Omit<UserProfileSettings, "displayName" | "sex">> = [
+const numericFields: Array<keyof Omit<UserProfileSettings, "displayName" | "sex" | "bmrMode">> = [
   "heightCm",
   "age",
   "weightKg",
@@ -41,6 +42,21 @@ const numericFields: Array<keyof Omit<UserProfileSettings, "displayName" | "sex"
   "maintainAdjustmentKcal",
   "bulkAdjustmentKcal"
 ];
+
+function calculateBmr(settings: Pick<UserProfileSettings, "weightKg" | "heightCm" | "age" | "sex">): number {
+  const sex = settings.sex.trim().toLowerCase();
+
+  if (!settings.weightKg || !settings.heightCm || !settings.age || (sex !== "male" && sex !== "female")) {
+    return 0;
+  }
+
+  const sexAdjustment = sex === "male" ? 5 : -161;
+  return Math.round(10 * settings.weightKg + 6.25 * settings.heightCm - 5 * settings.age + sexAdjustment);
+}
+
+function effectiveBmr(settings: UserProfileSettings): number {
+  return settings.bmrMode === "auto" ? calculateBmr(settings) || settings.bmr : settings.bmr;
+}
 
 export function SettingsPanel({ onChanged }: SettingsPanelProps) {
   const [settings, setSettings] = useState<UserProfileSettings>(emptySettings);
@@ -97,7 +113,10 @@ export function SettingsPanel({ onChanged }: SettingsPanelProps) {
       const response = await fetch("/api/settings", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(settings)
+        body: JSON.stringify({
+          ...settings,
+          bmr: effectiveBmr(settings)
+        })
       });
 
       if (!response.ok) {
@@ -113,6 +132,10 @@ export function SettingsPanel({ onChanged }: SettingsPanelProps) {
       setIsSaving(false);
     }
   }
+
+  const calculatedBmr = calculateBmr(settings);
+  const displayBmr = effectiveBmr(settings);
+  const canAutoCalculateBmr = calculatedBmr > 0;
 
   return (
     <section className="grid gap-4">
@@ -146,7 +169,7 @@ export function SettingsPanel({ onChanged }: SettingsPanelProps) {
           </div>
           <div className="mt-5 grid grid-cols-2 gap-3">
             <MiniMetric label="Weight" value={`${settings.weightKg || 0} kg`} />
-            <MiniMetric label="BMR" value={`${settings.bmr || 0}`} />
+            <MiniMetric label="BMR" value={`${displayBmr || 0}`} />
             <MiniMetric label="Protein" value={`${settings.proteinTargetPerKg || 0} g/kg`} />
             <MiniMetric label="Fat" value={`${settings.fatTargetPerKg || 0} g/kg`} />
           </div>
@@ -163,16 +186,48 @@ export function SettingsPanel({ onChanged }: SettingsPanelProps) {
             <div className="mt-4 grid gap-5">
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                 <TextField label="Display name" value={settings.displayName} onChange={(value) => updateField("displayName", value)} />
-                <TextField label="Sex" value={settings.sex} placeholder="Optional" onChange={(value) => updateField("sex", value)} />
+                <label className="grid gap-1 text-sm font-medium text-slate-700">
+                  Sex
+                  <select className="rounded-md border border-slate-300 px-3 py-2 font-normal" value={settings.sex} onChange={(event) => updateField("sex", event.target.value)}>
+                    <option value="">Optional</option>
+                    <option value="male">Male</option>
+                    <option value="female">Female</option>
+                  </select>
+                </label>
                 <NumberField label="Age" value={settings.age} onChange={(value) => updateField("age", value)} />
                 <NumberField label="Height (cm)" value={settings.heightCm} onChange={(value) => updateField("heightCm", value)} />
               </div>
 
               <div>
                 <p className="mb-3 text-sm font-semibold text-slate-700">Energy model</p>
+                <div className="mb-3 inline-grid rounded-lg border border-slate-200 bg-slate-50 p-1 sm:grid-cols-2">
+                  {(["auto", "manual"] as const).map((mode) => (
+                    <button
+                      key={mode}
+                      className={`rounded-md px-4 py-2 text-sm font-semibold capitalize ${settings.bmrMode === mode ? "bg-ink text-white" : "text-slate-600"}`}
+                      type="button"
+                      onClick={() => updateField("bmrMode", mode)}
+                    >
+                      {mode} BMR
+                    </button>
+                  ))}
+                </div>
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                   <NumberField label="Weight (kg)" step="0.1" value={settings.weightKg} onChange={(value) => updateField("weightKg", value)} />
-                  <NumberField label="BMR" step="0.1" value={settings.bmr} onChange={(value) => updateField("bmr", value)} />
+                  <NumberField
+                    disabled={settings.bmrMode === "auto"}
+                    helperText={
+                      settings.bmrMode === "auto"
+                        ? canAutoCalculateBmr
+                          ? "Calculated from weight, height, age, and sex."
+                          : "Fill weight, height, age, and sex."
+                        : "Manual value."
+                    }
+                    label="BMR"
+                    step="0.1"
+                    value={settings.bmrMode === "auto" ? calculatedBmr : settings.bmr}
+                    onChange={(value) => updateField("bmr", value)}
+                  />
                   <NumberField label="Activity factor" step="0.01" value={settings.baseActivityFactor} onChange={(value) => updateField("baseActivityFactor", value)} />
                   <NumberField label="Calories / step" step="0.001" value={settings.caloriesPerStep} onChange={(value) => updateField("caloriesPerStep", value)} />
                   <NumberField label="Strength kcal" value={settings.strengthTrainingKcal} onChange={(value) => updateField("strengthTrainingKcal", value)} />
@@ -228,11 +283,33 @@ function TextField({ label, value, placeholder, onChange }: { label: string; val
   );
 }
 
-function NumberField({ label, value, step = "1", onChange }: { label: string; value: number; step?: string; onChange: (value: string) => void }) {
+function NumberField({
+  disabled = false,
+  helperText,
+  label,
+  value,
+  step = "1",
+  onChange
+}: {
+  disabled?: boolean;
+  helperText?: string;
+  label: string;
+  value: number;
+  step?: string;
+  onChange: (value: string) => void;
+}) {
   return (
     <label className="grid gap-1 text-sm font-medium text-slate-700">
       {label}
-      <input className="rounded-md border border-slate-300 px-3 py-2 font-normal" step={step} type="number" value={value} onChange={(event) => onChange(event.target.value)} />
+      <input
+        className="rounded-md border border-slate-300 px-3 py-2 font-normal disabled:bg-slate-50 disabled:text-slate-500"
+        disabled={disabled}
+        step={step}
+        type="number"
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+      />
+      {helperText ? <span className="text-xs font-normal text-slate-500">{helperText}</span> : null}
     </label>
   );
 }
