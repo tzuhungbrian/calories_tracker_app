@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { appendSheetRow, deleteSheetRowById, readSheetObjects, sheetTabs, updateSheetRowById } from "@/lib/google_sheets";
+import { isVisibleDataDate } from "@/lib/date";
 import { foodLogToSheetRow, normalizeFoodLog, rowToFoodLog } from "@/lib/nutrition";
 import type { FoodLog, FoodLogInput } from "@/lib/types";
 
@@ -7,7 +8,7 @@ export const dynamic = "force-dynamic";
 
 export async function GET() {
   const rows = await readSheetObjects(sheetTabs.dailyLog);
-  return NextResponse.json(rows.map(rowToFoodLog));
+  return NextResponse.json(rows.map(rowToFoodLog).filter((log) => isVisibleDataDate(log.date)));
 }
 
 export async function POST(request: Request) {

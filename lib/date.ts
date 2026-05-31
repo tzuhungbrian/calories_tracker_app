@@ -1,4 +1,5 @@
 const defaultTimeZone = "Asia/Tokyo";
+export const visibleDataStartDate = "2026-05-20";
 
 export function dateKey(date = new Date(), timeZone = defaultTimeZone): string {
   const parts = new Intl.DateTimeFormat("en-CA", {
@@ -21,4 +22,8 @@ export function recentDateKeys(days: number, timeZone = defaultTimeZone): string
     date.setDate(date.getDate() - index);
     return dateKey(date, timeZone);
   });
+}
+
+export function isVisibleDataDate(date: string): boolean {
+  return !date || date >= visibleDataStartDate;
 }
