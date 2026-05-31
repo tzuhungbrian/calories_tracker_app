@@ -388,28 +388,28 @@ export function MealPrepCalculator({ foods: providedFoods, onChanged }: MealPrep
           </h2>
           <p className="mt-1 text-sm text-slate-500">Name the finished prep and save one portion as a reusable database food.</p>
           <div className="mt-4 grid gap-3">
-            <label className="grid gap-1 text-sm font-medium text-slate-700">
+            <label className="grid min-w-0 gap-1 text-sm font-medium text-slate-700">
               Database food name
-              <input className="rounded-md border border-slate-300 px-3 py-2 font-normal" placeholder="Chicken rice prep" value={mealName} onChange={(event) => setMealName(event.target.value)} />
+              <input className="w-full min-w-0 rounded-md border border-slate-300 px-3 py-2 font-normal" placeholder="Chicken rice prep" value={mealName} onChange={(event) => setMealName(event.target.value)} />
             </label>
             <div className="grid grid-cols-2 gap-3">
-              <label className="grid gap-1 text-sm font-medium text-slate-700">
+              <label className="grid min-w-0 gap-1 text-sm font-medium text-slate-700">
                 Portions
-                <input className="rounded-md border border-slate-300 px-3 py-2 font-normal" min="1" step="1" type="number" value={servingCount} onChange={(event) => setServingCount(Number(event.target.value) || 1)} />
+                <input className="w-full min-w-0 rounded-md border border-slate-300 px-3 py-2 font-normal" min="1" step="1" type="number" value={servingCount} onChange={(event) => setServingCount(Number(event.target.value) || 1)} />
               </label>
-              <label className="grid gap-1 text-sm font-medium text-slate-700">
+              <label className="grid min-w-0 gap-1 text-sm font-medium text-slate-700">
                 Category
-                <input className="rounded-md border border-slate-300 px-3 py-2 font-normal" value={category} onChange={(event) => setCategory(event.target.value)} />
+                <input className="w-full min-w-0 rounded-md border border-slate-300 px-3 py-2 font-normal" value={category} onChange={(event) => setCategory(event.target.value)} />
               </label>
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <label className="grid gap-1 text-sm font-medium text-slate-700">
+              <label className="grid min-w-0 gap-1 text-sm font-medium text-slate-700">
                 Serving label
-                <input className="rounded-md border border-slate-300 px-3 py-2 font-normal" value={servingLabel} onChange={(event) => setServingLabel(event.target.value)} />
+                <input className="w-full min-w-0 rounded-md border border-slate-300 px-3 py-2 font-normal" value={servingLabel} onChange={(event) => setServingLabel(event.target.value)} />
               </label>
-              <label className="grid gap-1 text-sm font-medium text-slate-700">
+              <label className="grid min-w-0 gap-1 text-sm font-medium text-slate-700">
                 Serving size
-                <input className="rounded-md border border-slate-300 px-3 py-2 font-normal" placeholder="Optional" value={servingSize} onChange={(event) => setServingSize(event.target.value)} />
+                <input className="w-full min-w-0 rounded-md border border-slate-300 px-3 py-2 font-normal" placeholder="Optional" value={servingSize} onChange={(event) => setServingSize(event.target.value)} />
               </label>
             </div>
           </div>
@@ -430,7 +430,7 @@ export function MealPrepCalculator({ foods: providedFoods, onChanged }: MealPrep
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Batch total</p>
             <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
               {macroCards.map((macro) => (
-                <div key={macro.key} className="rounded-md bg-white px-3 py-2">
+                <div key={macro.key} className="min-w-0 rounded-md bg-white px-3 py-2">
                   <span className="text-slate-500">{macro.label}</span>
                   <p className="font-semibold text-slate-800">
                     {roundMacro(totals[macro.key])} {macro.unit}
@@ -476,9 +476,9 @@ export function MealPrepCalculator({ foods: providedFoods, onChanged }: MealPrep
 
 function MacroCard({ label, value, unit }: { label: string; value: number; unit: string }) {
   return (
-    <div className="rounded-md bg-white p-3">
+    <div className="min-w-0 rounded-md bg-white p-3">
       <p className="text-xs text-slate-500">{label}</p>
-      <p className="mt-1 text-xl font-semibold">
+      <p className="mt-1 text-xl font-semibold tabular-nums">
         {value} <span className="text-sm font-normal text-slate-500">{unit}</span>
       </p>
     </div>
