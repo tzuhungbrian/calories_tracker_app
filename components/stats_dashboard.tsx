@@ -3,10 +3,12 @@
 import { Activity, BarChart3, CheckCircle2, Flame, Footprints, Target, Trophy, Utensils } from "lucide-react";
 import type { ReactNode } from "react";
 import { useMemo, useState } from "react";
-import type { DailySummary } from "@/lib/types";
+import { DashboardCards } from "@/components/dashboard_cards";
+import type { DailySummary, DashboardData } from "@/lib/types";
 
 type StatsDashboardProps = {
   rows: DailySummary[];
+  dashboard: DashboardData | null;
 };
 
 type HabitKey = "logged" | "protein" | "creatine" | "training";
@@ -64,7 +66,7 @@ function proteinStreak(rows: DailySummary[]): number {
   return streak;
 }
 
-export function StatsDashboard({ rows }: StatsDashboardProps) {
+export function StatsDashboard({ rows, dashboard }: StatsDashboardProps) {
   const [dayRange, setDayRange] = useState(14);
   const scopedRows = useMemo(() => rows.slice(0, dayRange), [dayRange, rows]);
   const orderedRows = useMemo(() => [...scopedRows].reverse(), [scopedRows]);
@@ -122,6 +124,8 @@ export function StatsDashboard({ rows }: StatsDashboardProps) {
           ))}
         </div>
       </div>
+
+      <DashboardCards data={dashboard} />
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard icon={<Flame size={18} />} label="Avg calories" value={`${round(averages.calories)} kcal`} sub={`Target ${round(averages.target)}`} />

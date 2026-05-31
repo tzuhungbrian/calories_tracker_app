@@ -10,14 +10,13 @@ import { FoodLogManager } from "@/components/food_log_manager";
 import { MealPrepCalculator } from "@/components/meal_prep_calculator";
 import { SettingsPanel } from "@/components/settings_panel";
 import { StatsDashboard } from "@/components/stats_dashboard";
-import { SummaryTable } from "@/components/summary_table";
 import { ThemeToggle } from "@/components/theme_toggle";
 import { dateKey } from "@/lib/date";
 import type { CommonFood, DailyStatus, DailySummary, DashboardData, FoodLog, FoodLogInput } from "@/lib/types";
 
 const tabs = [
-  { id: "dashboard", label: "Dashboard", icon: BarChart3 },
   { id: "stats", label: "Stats", icon: LineChart },
+  { id: "dashboard", label: "Today", icon: BarChart3 },
   { id: "logs", label: "Logs", icon: ReceiptText },
   { id: "foods", label: "Foods", icon: Database },
   { id: "prep", label: "Meal prep", icon: Utensils },
@@ -60,7 +59,7 @@ function createEmptyStatus(date: string): DailyStatus {
 
 export default function HomePage() {
   const [today, setToday] = useState(() => getTodayKey());
-  const [activeTab, setActiveTab] = useState<AppTab>("dashboard");
+  const [activeTab, setActiveTab] = useState<AppTab>("stats");
   const [dashboard, setDashboard] = useState<DashboardData | null>(null);
   const [commonFoods, setCommonFoods] = useState<CommonFood[]>([]);
   const [foodLogs, setFoodLogs] = useState<FoodLog[]>([]);
@@ -259,18 +258,18 @@ export default function HomePage() {
 
           {activeTab === "dashboard" ? (
             <div className="flex flex-col gap-6 animate-enter" key="dashboard-tab">
-              <DashboardCards data={dashboard} />
-
+              <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+                <h2 className="text-lg font-semibold">Today</h2>
+                <p className="mt-1 text-sm text-slate-500">Log food, update activity, and keep today accurate.</p>
+              </section>
               <section className="grid gap-4 xl:grid-cols-[1fr_360px]">
                 <FoodLogComposer foods={commonFoods} value={foodLog} isSaving={isSavingFood} onChange={setFoodLog} onSubmit={saveFoodLog} />
                 <DailyStatusEditor value={dailyStatus} isSaving={isSavingStatus} onChange={setDailyStatus} onSubmit={saveDailyStatus} />
               </section>
-
-              <SummaryTable rows={summary} />
             </div>
           ) : activeTab === "stats" ? (
             <div className="animate-enter" key="stats-tab">
-              <StatsDashboard rows={summary} />
+              <StatsDashboard dashboard={dashboard} rows={summary} />
             </div>
           ) : activeTab === "logs" ? (
             <div className="animate-enter" key="logs-tab">
