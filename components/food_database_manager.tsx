@@ -1,6 +1,6 @@
 "use client";
 
-import { Database, Plus, RotateCcw, Save, Search, Trash2 } from "lucide-react";
+import { Calculator, Database, Plus, RotateCcw, Save, Search, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import type { CommonFood } from "@/lib/types";
 
@@ -30,10 +30,50 @@ const macroFields: Array<keyof Pick<CommonFood, "calories" | "protein" | "fat" |
   "carbs"
 ];
 
+const macroLabels: Record<(typeof macroFields)[number], string> = {
+  calories: "Calories",
+  protein: "Protein",
+  fat: "Fat",
+  carbs: "Carbs"
+};
+
+type LabelScaleState = {
+  baseAmount: number;
+  servingAmount: number;
+  unit: "ml" | "g";
+} & Pick<CommonFood, "calories" | "protein" | "fat" | "carbs">;
+
+const defaultLabelScale: LabelScaleState = {
+  baseAmount: 100,
+  servingAmount: 600,
+  unit: "ml",
+  calories: 0,
+  protein: 0,
+  fat: 0,
+  carbs: 0
+};
+
+function roundMacro(value: number): number {
+  return Math.round(value * 10) / 10;
+}
+
+function calculateScaledMacros(labelScale: LabelScaleState): Pick<CommonFood, "calories" | "protein" | "fat" | "carbs"> {
+  const multiplier = labelScale.baseAmount > 0 ? labelScale.servingAmount / labelScale.baseAmount : 0;
+
+  return {
+    calories: roundMacro(labelScale.calories * multiplier),
+    protein: roundMacro(labelScale.protein * multiplier),
+    fat: roundMacro(labelScale.fat * multiplier),
+    carbs: roundMacro(labelScale.carbs * multiplier)
+  };
+}
+
 export function FoodDatabaseManager({ foods, onChanged }: FoodDatabaseManagerProps) {
   const [form, setForm] = useState<FoodFormState>(emptyFood);
   const [selectedCategory, setSelectedCategory] = useState("");
   const [query, setQuery] = useState("");
+  const [macroMode, setMacroMode] = useState<"total" | "label">("total");
+  const [labelScale, setLabelScale] = useState<LabelScaleState>(defaultLabelScale);
   const [isSaving, setIsSaving] = useState(false);
   const [isUndoing, setIsUndoing] = useState(false);
   const [lastAddedFood, setLastAddedFood] = useState<CommonFood | null>(null);
@@ -57,6 +97,8 @@ export function FoodDatabaseManager({ foods, onChanged }: FoodDatabaseManagerPro
 
   function editFood(food: CommonFood) {
     setForm(food);
+    setMacroMode("total");
+    setLabelScale(defaultLabelScale);
     setLastAddedFood(null);
     setMessage("");
     setError(null);
@@ -64,6 +106,8 @@ export function FoodDatabaseManager({ foods, onChanged }: FoodDatabaseManagerPro
 
   function resetForm() {
     setForm(emptyFood);
+    setMacroMode("total");
+    setLabelScale(defaultLabelScale);
     setMessage("");
     setError(null);
   }
@@ -73,6 +117,32 @@ export function FoodDatabaseManager({ foods, onChanged }: FoodDatabaseManagerPro
       ...current,
       [field]: macroFields.includes(field as (typeof macroFields)[number]) ? Number(value) || 0 : value
     }));
+  }
+
+  function applyLabelScale(nextLabelScale: LabelScaleState) {
+    const scaledMacros = calculateScaledMacros(nextLabelScale);
+    setLabelScale(nextLabelScale);
+    setForm((current) => ({
+      ...current,
+      servingSize: nextLabelScale.servingAmount ? `${nextLabelScale.servingAmount} ${nextLabelScale.unit}` : current.servingSize,
+      ...scaledMacros
+    }));
+  }
+
+  function updateLabelScale(field: keyof LabelScaleState, value: string) {
+    const nextLabelScale = {
+      ...labelScale,
+      [field]: field === "unit" ? value : Number(value) || 0
+    } as LabelScaleState;
+
+    applyLabelScale(nextLabelScale);
+  }
+
+  function switchMacroMode(nextMode: "total" | "label") {
+    setMacroMode(nextMode);
+    if (nextMode === "label") {
+      applyLabelScale(labelScale);
+    }
   }
 
   async function saveFood() {
@@ -261,11 +331,102 @@ export function FoodDatabaseManager({ foods, onChanged }: FoodDatabaseManagerPro
             Serving size
             <input className="rounded-md border border-slate-300 px-3 py-2 font-normal" placeholder="Optional, e.g. 100 g" value={form.servingSize} onChange={(event) => updateField("servingSize", event.target.value)} />
           </label>
+          <div className="grid gap-3 rounded-lg bg-slate-50 p-3">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="inline-flex items-center gap-2 text-sm font-semibold text-slate-800">
+                  <Calculator size={16} className="text-blue-700" />
+                  Nutrition label helper
+                </p>
+                <p className="mt-1 text-xs text-slate-500">Convert labels like per 100 ml/g into one saved serving.</p>
+              </div>
+              <div className="inline-grid rounded-md border border-slate-200 bg-white p-1 sm:grid-cols-2">
+                <button
+                  className={`rounded px-3 py-1.5 text-xs font-semibold ${macroMode === "total" ? "bg-ink text-white" : "text-slate-600"}`}
+                  type="button"
+                  onClick={() => switchMacroMode("total")}
+                >
+                  Enter total
+                </button>
+                <button
+                  className={`rounded px-3 py-1.5 text-xs font-semibold ${macroMode === "label" ? "bg-ink text-white" : "text-slate-600"}`}
+                  type="button"
+                  onClick={() => switchMacroMode("label")}
+                >
+                  Scale label
+                </button>
+              </div>
+            </div>
+
+            {macroMode === "label" ? (
+              <div className="grid gap-3">
+                <div className="grid grid-cols-[1fr_1fr_82px] gap-2">
+                  <label className="grid min-w-0 gap-1 text-xs font-semibold text-slate-600">
+                    Label amount
+                    <input
+                      className="w-full min-w-0 rounded-md border border-slate-300 px-2 py-2 font-normal"
+                      min="0"
+                      step="0.1"
+                      type="number"
+                      value={labelScale.baseAmount}
+                      onChange={(event) => updateLabelScale("baseAmount", event.target.value)}
+                    />
+                  </label>
+                  <label className="grid min-w-0 gap-1 text-xs font-semibold text-slate-600">
+                    Serving
+                    <input
+                      className="w-full min-w-0 rounded-md border border-slate-300 px-2 py-2 font-normal"
+                      min="0"
+                      step="0.1"
+                      type="number"
+                      value={labelScale.servingAmount}
+                      onChange={(event) => updateLabelScale("servingAmount", event.target.value)}
+                    />
+                  </label>
+                  <label className="grid min-w-0 gap-1 text-xs font-semibold text-slate-600">
+                    Unit
+                    <select
+                      className="w-full min-w-0 rounded-md border border-slate-300 px-2 py-2 font-normal"
+                      value={labelScale.unit}
+                      onChange={(event) => updateLabelScale("unit", event.target.value)}
+                    >
+                      <option value="ml">ml</option>
+                      <option value="g">g</option>
+                    </select>
+                  </label>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  {macroFields.map((field) => (
+                    <label key={field} className="grid min-w-0 gap-1 text-xs font-semibold text-slate-600">
+                      {macroLabels[field]} / label
+                      <input
+                        className="w-full min-w-0 rounded-md border border-slate-300 px-2 py-2 font-normal"
+                        min="0"
+                        step="0.1"
+                        type="number"
+                        value={labelScale[field]}
+                        onChange={(event) => updateLabelScale(field, event.target.value)}
+                      />
+                    </label>
+                  ))}
+                </div>
+                <p className="rounded-md bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-700">
+                  Multiplier: {labelScale.baseAmount > 0 ? roundMacro(labelScale.servingAmount / labelScale.baseAmount) : 0}x. Saved macros below are the scaled serving total.
+                </p>
+              </div>
+            ) : null}
+          </div>
           <div className="grid grid-cols-2 gap-3">
             {macroFields.map((field) => (
               <label key={field} className="grid gap-1 text-sm font-medium capitalize text-slate-700">
-                {field}
-                <input className="rounded-md border border-slate-300 px-3 py-2 font-normal" min="0" step="0.1" type="number" value={form[field]} onChange={(event) => updateField(field, event.target.value)} />
+                {macroLabels[field]}
+                {macroMode === "label" ? (
+                  <p className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 font-semibold text-slate-900">
+                    {form[field]} <span className="text-xs font-normal text-slate-500">{field === "calories" ? "kcal" : "g"}</span>
+                  </p>
+                ) : (
+                  <input className="rounded-md border border-slate-300 px-3 py-2 font-normal" min="0" step="0.1" type="number" value={form[field]} onChange={(event) => updateField(field, event.target.value)} />
+                )}
               </label>
             ))}
           </div>
