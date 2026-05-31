@@ -125,7 +125,7 @@ export default function HomePage() {
     return () => window.clearInterval(intervalId);
   }, []);
 
-  async function saveFoodLog() {
+  async function saveFoodLog(): Promise<boolean> {
     setIsSavingFood(true);
     setError(null);
     try {
@@ -170,8 +170,10 @@ export default function HomePage() {
 
       setFoodLog(createEmptyFoodLog(today));
       await refreshData();
+      return true;
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : "Failed to save food log.");
+      return false;
     } finally {
       setIsSavingFood(false);
     }
