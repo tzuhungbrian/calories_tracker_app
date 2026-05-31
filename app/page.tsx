@@ -1,6 +1,6 @@
 "use client";
 
-import { BarChart3, Database, ReceiptText, Settings, Sprout, Utensils } from "lucide-react";
+import { BarChart3, CalendarCheck, Database, ReceiptText, Settings, Sprout, Utensils } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { DailyStatusEditor } from "@/components/daily_status_editor";
 import { DashboardCards } from "@/components/dashboard_cards";
@@ -16,7 +16,7 @@ import type { CommonFood, DailyStatus, DailySummary, DashboardData, FoodLog, Foo
 
 const tabs = [
   { id: "stats", label: "Dashboard", icon: BarChart3 },
-  { id: "dashboard", label: "Today", icon: BarChart3 },
+  { id: "dashboard", label: "Today", icon: CalendarCheck },
   { id: "logs", label: "Logs", icon: ReceiptText },
   { id: "foods", label: "Foods", icon: Database },
   { id: "prep", label: "Meal prep", icon: Utensils },
