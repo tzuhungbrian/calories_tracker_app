@@ -187,7 +187,7 @@ export function SettingsPanel({ onChanged }: SettingsPanelProps) {
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                 <TextField label="Display name" value={settings.displayName} onChange={(value) => updateField("displayName", value)} />
                 <label className="grid gap-1 text-sm font-medium text-slate-700">
-                  Sex
+                  <span className="flex h-10 flex-col justify-end">Sex</span>
                   <select className="rounded-md border border-slate-300 px-3 py-2 font-normal" value={settings.sex} onChange={(event) => updateField("sex", event.target.value)}>
                     <option value="">Optional</option>
                     <option value="male">Male</option>
@@ -277,7 +277,7 @@ function MiniMetric({ label, value }: { label: string; value: string }) {
 function TextField({ label, value, placeholder, onChange }: { label: string; value: string; placeholder?: string; onChange: (value: string) => void }) {
   return (
     <label className="grid gap-1 text-sm font-medium text-slate-700">
-      {label}
+      <span className="flex h-10 flex-col justify-end">{label}</span>
       <input className="rounded-md border border-slate-300 px-3 py-2 font-normal" placeholder={placeholder} value={value} onChange={(event) => onChange(event.target.value)} />
     </label>
   );
@@ -300,8 +300,10 @@ function NumberField({
 }) {
   return (
     <label className="grid gap-1 text-sm font-medium text-slate-700">
-      <span>{label}</span>
-      {helperText ? <span className="-mt-0.5 text-xs font-normal text-slate-500">{helperText}</span> : null}
+      <span className="flex h-10 flex-col justify-end">
+        <span>{label}</span>
+        {helperText ? <span className="text-xs font-normal text-slate-500">{helperText}</span> : null}
+      </span>
       <input
         className="rounded-md border border-slate-300 px-3 py-2 font-normal disabled:bg-slate-50 disabled:text-slate-500"
         disabled={disabled}
