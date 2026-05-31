@@ -1,6 +1,6 @@
 "use client";
 
-import { Database, Plus, Search, Sparkles, Utensils } from "lucide-react";
+import { Calculator, Database, Plus, Search, Sparkles, Utensils } from "lucide-react";
 import { useMemo, useState } from "react";
 import type { CommonFood, FoodLogInput } from "@/lib/types";
 
@@ -27,8 +27,35 @@ const macroLabels: Record<(typeof macroFields)[number], string> = {
   carbs: "Carbs"
 };
 
+type LabelScaleState = {
+  baseAmount: number;
+  consumedAmount: number;
+  unit: "ml" | "g";
+} & Pick<FoodLogInput, "calories" | "protein" | "fat" | "carbs">;
+
+const defaultLabelScale: LabelScaleState = {
+  baseAmount: 100,
+  consumedAmount: 600,
+  unit: "ml",
+  calories: 0,
+  protein: 0,
+  fat: 0,
+  carbs: 0
+};
+
 function roundMacro(value: number): number {
   return Math.round(value * 10) / 10;
+}
+
+function calculateScaledMacros(labelScale: LabelScaleState): Pick<FoodLogInput, "calories" | "protein" | "fat" | "carbs"> {
+  const multiplier = labelScale.baseAmount > 0 ? labelScale.consumedAmount / labelScale.baseAmount : 0;
+
+  return {
+    calories: roundMacro(labelScale.calories * multiplier),
+    protein: roundMacro(labelScale.protein * multiplier),
+    fat: roundMacro(labelScale.fat * multiplier),
+    carbs: roundMacro(labelScale.carbs * multiplier)
+  };
 }
 
 export function FoodLogComposer({ foods, value, isSaving, onChange, onSubmit }: FoodLogComposerProps) {
@@ -37,6 +64,8 @@ export function FoodLogComposer({ foods, value, isSaving, onChange, onSubmit }: 
   const [query, setQuery] = useState("");
   const [selectedFood, setSelectedFood] = useState<CommonFood | null>(null);
   const [servings, setServings] = useState(1);
+  const [customMacroMode, setCustomMacroMode] = useState<"total" | "label">("total");
+  const [labelScale, setLabelScale] = useState<LabelScaleState>(defaultLabelScale);
 
   const categories = useMemo(
     () =>
@@ -76,6 +105,8 @@ export function FoodLogComposer({ foods, value, isSaving, onChange, onSubmit }: 
     setSelectedFood(null);
     setServings(1);
     if (nextMode === "custom") {
+      setCustomMacroMode("total");
+      setLabelScale(defaultLabelScale);
       onChange({
         ...value,
         foodId: "",
@@ -108,6 +139,33 @@ export function FoodLogComposer({ foods, value, isSaving, onChange, onSubmit }: 
       foodId: "",
       [field]: macroFields.includes(field as (typeof macroFields)[number]) ? Number(fieldValue) || 0 : fieldValue
     });
+  }
+
+  function applyLabelScale(nextLabelScale: LabelScaleState) {
+    const scaledMacros = calculateScaledMacros(nextLabelScale);
+    setLabelScale(nextLabelScale);
+    onChange({
+      ...value,
+      foodId: "",
+      amount: nextLabelScale.consumedAmount ? `${nextLabelScale.consumedAmount} ${nextLabelScale.unit}` : "",
+      ...scaledMacros
+    });
+  }
+
+  function updateLabelScale(field: keyof LabelScaleState, fieldValue: string) {
+    const nextLabelScale = {
+      ...labelScale,
+      [field]: field === "unit" ? fieldValue : Number(fieldValue) || 0
+    } as LabelScaleState;
+
+    applyLabelScale(nextLabelScale);
+  }
+
+  function switchCustomMacroMode(nextMode: "total" | "label") {
+    setCustomMacroMode(nextMode);
+    if (nextMode === "label") {
+      applyLabelScale(labelScale);
+    }
   }
 
   async function submitLog() {
@@ -272,6 +330,93 @@ export function FoodLogComposer({ foods, value, isSaving, onChange, onSubmit }: 
               </datalist>
             </label>
           ) : null}
+          <div className="grid gap-3 rounded-lg bg-white p-3 lg:col-span-2">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="inline-flex items-center gap-2 text-sm font-semibold text-slate-800">
+                  <Calculator size={16} className="text-blue-700" />
+                  Nutrition label helper
+                </p>
+                <p className="mt-1 text-xs text-slate-500">Use this when the label says per 100 ml/g, but you log the whole bottle or pack.</p>
+              </div>
+              <div className="inline-grid rounded-md border border-slate-200 bg-slate-50 p-1 sm:grid-cols-2">
+                <button
+                  className={`rounded px-3 py-1.5 text-xs font-semibold ${customMacroMode === "total" ? "bg-ink text-white" : "text-slate-600"}`}
+                  type="button"
+                  onClick={() => switchCustomMacroMode("total")}
+                >
+                  Enter total
+                </button>
+                <button
+                  className={`rounded px-3 py-1.5 text-xs font-semibold ${customMacroMode === "label" ? "bg-ink text-white" : "text-slate-600"}`}
+                  type="button"
+                  onClick={() => switchCustomMacroMode("label")}
+                >
+                  Scale from label
+                </button>
+              </div>
+            </div>
+
+            {customMacroMode === "label" ? (
+              <div className="grid gap-3">
+                <div className="grid gap-3 sm:grid-cols-[1fr_1fr_110px]">
+                  <label className="grid min-w-0 gap-1 text-sm font-medium text-slate-700">
+                    Label amount
+                    <input
+                      className="w-full min-w-0 rounded-md border border-slate-300 px-3 py-2 font-normal"
+                      min="0"
+                      step="0.1"
+                      type="number"
+                      value={labelScale.baseAmount}
+                      onChange={(event) => updateLabelScale("baseAmount", event.target.value)}
+                    />
+                  </label>
+                  <label className="grid min-w-0 gap-1 text-sm font-medium text-slate-700">
+                    I consumed
+                    <input
+                      className="w-full min-w-0 rounded-md border border-slate-300 px-3 py-2 font-normal"
+                      min="0"
+                      step="0.1"
+                      type="number"
+                      value={labelScale.consumedAmount}
+                      onChange={(event) => updateLabelScale("consumedAmount", event.target.value)}
+                    />
+                  </label>
+                  <label className="grid min-w-0 gap-1 text-sm font-medium text-slate-700">
+                    Unit
+                    <select
+                      className="w-full min-w-0 rounded-md border border-slate-300 px-3 py-2 font-normal"
+                      value={labelScale.unit}
+                      onChange={(event) => updateLabelScale("unit", event.target.value)}
+                    >
+                      <option value="ml">ml</option>
+                      <option value="g">g</option>
+                    </select>
+                  </label>
+                </div>
+
+                <div className="grid min-w-0 grid-cols-2 gap-2 md:grid-cols-4">
+                  {macroFields.map((field) => (
+                    <label key={field} className="grid min-w-0 gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      {macroLabels[field]} / label
+                      <input
+                        className="w-full min-w-0 rounded-md border border-slate-300 px-2 py-2 text-sm font-semibold text-slate-900"
+                        min="0"
+                        step="0.1"
+                        type="number"
+                        value={labelScale[field]}
+                        onChange={(event) => updateLabelScale(field, event.target.value)}
+                      />
+                    </label>
+                  ))}
+                </div>
+
+                <p className="rounded-md bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-700">
+                  Multiplier: {labelScale.baseAmount > 0 ? roundMacro(labelScale.consumedAmount / labelScale.baseAmount) : 0}x. The log uses the scaled total below.
+                </p>
+              </div>
+            ) : null}
+          </div>
         </div>
       )}
 
@@ -294,14 +439,20 @@ export function FoodLogComposer({ foods, value, isSaving, onChange, onSubmit }: 
             <div key={field} className="min-w-0 rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
               <p className="truncate text-xs font-medium uppercase tracking-wide text-slate-500">{macroLabels[field]}</p>
               {entryMode === "custom" ? (
-                <input
-                  className="mt-1 w-full rounded-md border border-slate-300 bg-white px-2 py-1 text-lg font-semibold text-slate-900"
-                  min="0"
-                  step="0.1"
-                  type="number"
-                  value={value[field]}
-                  onChange={(event) => updateCustomField(field, event.target.value)}
-                />
+                customMacroMode === "label" ? (
+                  <p className="mt-1 truncate text-lg font-semibold text-slate-900">
+                    {value[field]} <span className="text-xs font-normal text-slate-500">{field === "calories" ? "kcal" : "g"}</span>
+                  </p>
+                ) : (
+                  <input
+                    className="mt-1 w-full rounded-md border border-slate-300 bg-white px-2 py-1 text-lg font-semibold text-slate-900"
+                    min="0"
+                    step="0.1"
+                    type="number"
+                    value={value[field]}
+                    onChange={(event) => updateCustomField(field, event.target.value)}
+                  />
+                )
               ) : (
                 <p className="mt-1 truncate text-lg font-semibold text-slate-900">
                   {value[field]} <span className="text-xs font-normal text-slate-500">{field === "calories" ? "kcal" : "g"}</span>
