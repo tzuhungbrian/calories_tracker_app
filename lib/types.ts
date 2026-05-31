@@ -11,6 +11,9 @@ export type FoodLogInput = {
   fat: number;
   carbs: number;
   notes?: string;
+  isAiEstimated?: boolean;
+  saveToDatabase?: boolean;
+  databaseCategory?: string;
 };
 
 export type FoodLog = FoodLogInput & {

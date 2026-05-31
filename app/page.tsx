@@ -40,7 +40,10 @@ function createEmptyFoodLog(date: string): FoodLogInput {
     protein: 0,
     fat: 0,
     carbs: 0,
-    notes: ""
+    notes: "",
+    isAiEstimated: false,
+    saveToDatabase: false,
+    databaseCategory: ""
   };
 }
 
@@ -132,6 +135,28 @@ export default function HomePage() {
 
       if (!response.ok) {
         throw new Error("Failed to save food log.");
+      }
+
+      if (foodLog.saveToDatabase) {
+        const foodResponse = await fetch("/api/foods", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: foodLog.foodName,
+            category: foodLog.databaseCategory || "AI estimates",
+            serving: foodLog.amount || "1 serving",
+            servingSize: foodLog.amount || "",
+            calories: foodLog.calories,
+            protein: foodLog.protein,
+            fat: foodLog.fat,
+            carbs: foodLog.carbs,
+            notes: foodLog.isAiEstimated ? "AI estimated macro entry." : foodLog.notes || ""
+          })
+        });
+
+        if (!foodResponse.ok) {
+          throw new Error("Food log was saved, but adding it to the foods database failed.");
+        }
       }
 
       setFoodLog(createEmptyFoodLog(today));

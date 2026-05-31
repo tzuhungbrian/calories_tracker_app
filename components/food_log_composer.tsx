@@ -1,6 +1,6 @@
 "use client";
 
-import { Plus, Search, Utensils } from "lucide-react";
+import { Database, Plus, Search, Sparkles, Utensils } from "lucide-react";
 import { useMemo, useState } from "react";
 import type { CommonFood, FoodLogInput } from "@/lib/types";
 
@@ -32,6 +32,7 @@ function roundMacro(value: number): number {
 }
 
 export function FoodLogComposer({ foods, value, isSaving, onChange, onSubmit }: FoodLogComposerProps) {
+  const [entryMode, setEntryMode] = useState<"saved" | "custom">("saved");
   const [selectedCategory, setSelectedCategory] = useState("");
   const [query, setQuery] = useState("");
   const [selectedFood, setSelectedFood] = useState<CommonFood | null>(null);
@@ -63,8 +64,32 @@ export function FoodLogComposer({ foods, value, isSaving, onChange, onSubmit }: 
       calories: roundMacro(food.calories * nextServings),
       protein: roundMacro(food.protein * nextServings),
       fat: roundMacro(food.fat * nextServings),
-      carbs: roundMacro(food.carbs * nextServings)
+      carbs: roundMacro(food.carbs * nextServings),
+      isAiEstimated: false,
+      saveToDatabase: false,
+      databaseCategory: ""
     });
+  }
+
+  function switchMode(nextMode: "saved" | "custom") {
+    setEntryMode(nextMode);
+    setSelectedFood(null);
+    setServings(1);
+    if (nextMode === "custom") {
+      onChange({
+        ...value,
+        foodId: "",
+        foodName: "",
+        amount: "1 serving",
+        calories: 0,
+        protein: 0,
+        fat: 0,
+        carbs: 0,
+        isAiEstimated: false,
+        saveToDatabase: false,
+        databaseCategory: ""
+      });
+    }
   }
 
   function updateServings(nextServings: number) {
@@ -77,11 +102,20 @@ export function FoodLogComposer({ foods, value, isSaving, onChange, onSubmit }: 
     }
   }
 
+  function updateCustomField(field: keyof FoodLogInput, fieldValue: string | boolean) {
+    onChange({
+      ...value,
+      foodId: "",
+      [field]: macroFields.includes(field as (typeof macroFields)[number]) ? Number(fieldValue) || 0 : fieldValue
+    });
+  }
+
   async function submitLog() {
     await onSubmit();
     setSelectedFood(null);
     setServings(1);
     setQuery("");
+    setEntryMode("saved");
   }
 
   return (
@@ -92,7 +126,7 @@ export function FoodLogComposer({ foods, value, isSaving, onChange, onSubmit }: 
             <Utensils size={20} />
             Add food
           </h2>
-          <p className="mt-1 text-sm text-slate-500">Pick the meal, choose a saved food, adjust servings, then add it.</p>
+          <p className="mt-1 text-sm text-slate-500">Choose a saved food or enter a custom AI-estimated meal.</p>
         </div>
         <input
           className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm sm:w-40"
@@ -100,6 +134,23 @@ export function FoodLogComposer({ foods, value, isSaving, onChange, onSubmit }: 
           value={value.date}
           onChange={(event) => onChange({ ...value, date: event.target.value })}
         />
+      </div>
+
+      <div className="mt-4 inline-grid rounded-lg border border-slate-200 bg-slate-50 p-1 sm:grid-cols-2">
+        <button
+          className={`rounded-md px-4 py-2 text-sm font-semibold ${entryMode === "saved" ? "bg-ink text-white" : "text-slate-600"}`}
+          type="button"
+          onClick={() => switchMode("saved")}
+        >
+          Saved foods
+        </button>
+        <button
+          className={`rounded-md px-4 py-2 text-sm font-semibold ${entryMode === "custom" ? "bg-ink text-white" : "text-slate-600"}`}
+          type="button"
+          onClick={() => switchMode("custom")}
+        >
+          Custom food
+        </button>
       </div>
 
       <div className="mt-4">
@@ -118,81 +169,144 @@ export function FoodLogComposer({ foods, value, isSaving, onChange, onSubmit }: 
         </div>
       </div>
 
-      <div className="mt-5 grid gap-3 lg:grid-cols-[220px_1fr]">
-        <div>
-          <p className="text-sm font-medium text-slate-700">Category</p>
-          <div className="mt-2 flex gap-2 overflow-x-auto pb-1 lg:flex-col lg:overflow-visible">
-            <button
-              className={`hover-lift whitespace-nowrap rounded-md border px-3 py-2 text-left text-sm ${selectedCategory === "" ? "border-accent bg-blue-50 text-blue-700" : "border-slate-300"}`}
-              type="button"
-              onClick={() => setSelectedCategory("")}
-            >
-              All foods
-            </button>
-            {categories.map((category) => (
+      {entryMode === "saved" ? (
+        <div className="mt-5 grid gap-3 lg:grid-cols-[220px_1fr]">
+          <div>
+            <p className="text-sm font-medium text-slate-700">Category</p>
+            <div className="mt-2 flex gap-2 overflow-x-auto pb-1 lg:flex-col lg:overflow-visible">
               <button
-                key={category}
-                className={`hover-lift whitespace-nowrap rounded-md border px-3 py-2 text-left text-sm ${selectedCategory === category ? "border-accent bg-blue-50 text-blue-700" : "border-slate-300"}`}
+                className={`hover-lift whitespace-nowrap rounded-md border px-3 py-2 text-left text-sm ${selectedCategory === "" ? "border-accent bg-blue-50 text-blue-700" : "border-slate-300"}`}
                 type="button"
-                onClick={() => setSelectedCategory(category)}
+                onClick={() => setSelectedCategory("")}
               >
-                {category}
+                All foods
               </button>
-            ))}
+              {categories.map((category) => (
+                <button
+                  key={category}
+                  className={`hover-lift whitespace-nowrap rounded-md border px-3 py-2 text-left text-sm ${selectedCategory === category ? "border-accent bg-blue-50 text-blue-700" : "border-slate-300"}`}
+                  type="button"
+                  onClick={() => setSelectedCategory(category)}
+                >
+                  {category}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <label className="grid gap-1 text-sm font-medium text-slate-700">
+              <span className="inline-flex items-center gap-1.5">
+                <Search size={16} />
+                Find food
+              </span>
+              <input
+                className="rounded-md border border-slate-300 px-3 py-2 font-normal"
+                placeholder="Search saved foods"
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+              />
+            </label>
+            <div className="mt-3 grid max-h-72 gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
+              {filteredFoods.map((food) => (
+                <button
+                  key={food.id}
+                  className={`hover-lift rounded-lg border p-3 text-left transition hover:border-accent hover:bg-blue-50 ${selectedFood?.id === food.id ? "border-accent bg-blue-50" : "border-slate-200"}`}
+                  type="button"
+                  onClick={() => applyFood(food, 1)}
+                >
+                  <p className="font-medium">{food.name}</p>
+                  <p className="mt-1 text-xs text-slate-500">{food.serving || "1 serving"}</p>
+                  <p className="mt-2 text-sm text-slate-700">
+                    {food.calories} kcal / P {food.protein} / F {food.fat} / C {food.carbs}
+                  </p>
+                </button>
+              ))}
+            </div>
           </div>
         </div>
-
-        <div>
+      ) : (
+        <div className="mt-5 grid gap-3 rounded-lg border border-dashed border-blue-200 bg-blue-50/40 p-4 lg:grid-cols-[1fr_180px]">
           <label className="grid gap-1 text-sm font-medium text-slate-700">
-            <span className="inline-flex items-center gap-1.5">
-              <Search size={16} />
-              Find food
-            </span>
+            Custom food name
             <input
               className="rounded-md border border-slate-300 px-3 py-2 font-normal"
-              placeholder="Search saved foods"
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
+              placeholder="e.g. AI estimated chicken rice plate"
+              value={value.foodName}
+              onChange={(event) => updateCustomField("foodName", event.target.value)}
             />
           </label>
-          <div className="mt-3 grid max-h-72 gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
-            {filteredFoods.map((food) => (
-              <button
-                key={food.id}
-                className={`hover-lift rounded-lg border p-3 text-left transition hover:border-accent hover:bg-blue-50 ${selectedFood?.id === food.id ? "border-accent bg-blue-50" : "border-slate-200"}`}
-                type="button"
-                onClick={() => applyFood(food, 1)}
-              >
-                <p className="font-medium">{food.name}</p>
-                <p className="mt-1 text-xs text-slate-500">{food.serving || "1 serving"}</p>
-                <p className="mt-2 text-sm text-slate-700">
-                  {food.calories} kcal · P {food.protein} · F {food.fat} · C {food.carbs}
-                </p>
-              </button>
-            ))}
-          </div>
+          <label className="grid gap-1 text-sm font-medium text-slate-700">
+            Amount / serving
+            <input
+              className="rounded-md border border-slate-300 px-3 py-2 font-normal"
+              placeholder="1 plate"
+              value={value.amount}
+              onChange={(event) => updateCustomField("amount", event.target.value)}
+            />
+          </label>
+          <label className="inline-flex items-center gap-2 rounded-md bg-white px-3 py-2 text-sm font-medium text-slate-700">
+            <input checked={value.isAiEstimated ?? false} type="checkbox" onChange={(event) => updateCustomField("isAiEstimated", event.target.checked)} />
+            <Sparkles size={16} className="text-blue-700" />
+            AI estimated macros
+          </label>
+          <label className="inline-flex items-center gap-2 rounded-md bg-white px-3 py-2 text-sm font-medium text-slate-700">
+            <input checked={value.saveToDatabase ?? false} type="checkbox" onChange={(event) => updateCustomField("saveToDatabase", event.target.checked)} />
+            <Database size={16} className="text-slate-700" />
+            Save to foods database
+          </label>
+          {value.saveToDatabase ? (
+            <label className="grid gap-1 text-sm font-medium text-slate-700 lg:col-span-2">
+              Database category
+              <input
+                className="rounded-md border border-slate-300 px-3 py-2 font-normal"
+                list="composer-food-categories"
+                placeholder="AI estimates"
+                value={value.databaseCategory ?? ""}
+                onChange={(event) => updateCustomField("databaseCategory", event.target.value)}
+              />
+              <datalist id="composer-food-categories">
+                {categories.map((category) => (
+                  <option key={category} value={category} />
+                ))}
+              </datalist>
+            </label>
+          ) : null}
         </div>
-      </div>
+      )}
 
-      <div className="mt-5 grid gap-3 xl:grid-cols-[180px_minmax(0,1fr)_auto] xl:items-end">
-        <label className="grid gap-1 text-sm font-medium text-slate-700">
-          Servings
-          <input
-            className="rounded-md border border-slate-300 px-3 py-2 font-normal"
-            min="0"
-            step="0.1"
-            type="number"
-            value={servings}
-            onChange={(event) => updateServings(Number(event.target.value))}
-          />
-        </label>
+      <div className={`mt-5 grid gap-3 ${entryMode === "saved" ? "xl:grid-cols-[180px_minmax(0,1fr)_auto]" : "xl:grid-cols-[minmax(0,1fr)_auto]"} xl:items-end`}>
+        {entryMode === "saved" ? (
+          <label className="grid gap-1 text-sm font-medium text-slate-700">
+            Servings
+            <input
+              className="rounded-md border border-slate-300 px-3 py-2 font-normal"
+              min="0"
+              step="0.1"
+              type="number"
+              value={servings}
+              onChange={(event) => updateServings(Number(event.target.value))}
+            />
+          </label>
+        ) : null}
         <div className="grid min-w-0 grid-cols-2 gap-2 md:grid-cols-4">
           {macroFields.map((field) => (
             <div key={field} className="min-w-0 rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
               <p className="truncate text-xs font-medium uppercase tracking-wide text-slate-500">{macroLabels[field]}</p>
-              <p className="mt-1 truncate text-lg font-semibold text-slate-900">
-                {value[field]} <span className="text-xs font-normal text-slate-500">{field === "calories" ? "kcal" : "g"}</span>
-              </p>
+              {entryMode === "custom" ? (
+                <input
+                  className="mt-1 w-full rounded-md border border-slate-300 bg-white px-2 py-1 text-lg font-semibold text-slate-900"
+                  min="0"
+                  step="0.1"
+                  type="number"
+                  value={value[field]}
+                  onChange={(event) => updateCustomField(field, event.target.value)}
+                />
+              ) : (
+                <p className="mt-1 truncate text-lg font-semibold text-slate-900">
+                  {value[field]} <span className="text-xs font-normal text-slate-500">{field === "calories" ? "kcal" : "g"}</span>
+                </p>
+              )}
             </div>
           ))}
         </div>
@@ -213,7 +327,7 @@ export function FoodLogComposer({ foods, value, isSaving, onChange, onSubmit }: 
         Notes
         <textarea
           className="rounded-md border border-slate-300 px-3 py-2 font-normal"
-          placeholder="Optional"
+          placeholder={entryMode === "custom" ? "Optional. AI estimated entries will be tagged automatically." : "Optional"}
           value={value.notes}
           onChange={(event) => onChange({ ...value, notes: event.target.value })}
         />

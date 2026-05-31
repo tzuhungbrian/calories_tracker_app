@@ -104,6 +104,9 @@ export function parseGoalType(value: string | undefined): GoalType {
 }
 
 export function normalizeFoodLog(input: FoodLogInput, existing?: Pick<FoodLog, "id" | "createdAt">): FoodLog {
+  const cleanNotes = input.notes?.trim() ?? "";
+  const notes = input.isAiEstimated && !cleanNotes.toLowerCase().includes("ai estimated") ? `AI estimated. ${cleanNotes}`.trim() : cleanNotes;
+
   return {
     id: existing?.id || crypto.randomUUID(),
     createdAt: existing?.createdAt || new Date().toISOString(),
@@ -116,11 +119,16 @@ export function normalizeFoodLog(input: FoodLogInput, existing?: Pick<FoodLog, "
     protein: Number(input.protein) || 0,
     fat: Number(input.fat) || 0,
     carbs: Number(input.carbs) || 0,
-    notes: input.notes?.trim() ?? ""
+    notes,
+    isAiEstimated: input.isAiEstimated ?? false,
+    saveToDatabase: input.saveToDatabase ?? false,
+    databaseCategory: input.databaseCategory?.trim() ?? ""
   };
 }
 
 export function rowToFoodLog(row: SheetRow): FoodLog {
+  const notes = valueOf(row, ["notes", "Notes"]) || "";
+
   return {
     id: valueOf(row, ["id", "ID"]) || "",
     createdAt: valueOf(row, ["createdAt", "CreatedAt", "created_at"]) || "",
@@ -133,7 +141,10 @@ export function rowToFoodLog(row: SheetRow): FoodLog {
     protein: parseNumber(valueOf(row, ["protein", "Final P", "Protein"])),
     fat: parseNumber(valueOf(row, ["fat", "Final F", "Fat"])),
     carbs: parseNumber(valueOf(row, ["carbs", "Final C", "Carbs", "carbohydrates"])),
-    notes: valueOf(row, ["notes", "Notes"]) || ""
+    notes,
+    isAiEstimated: notes.toLowerCase().includes("ai estimated"),
+    saveToDatabase: false,
+    databaseCategory: ""
   };
 }
 
