@@ -300,7 +300,8 @@ function NumberField({
 }) {
   return (
     <label className="grid gap-1 text-sm font-medium text-slate-700">
-      {label}
+      <span>{label}</span>
+      {helperText ? <span className="-mt-0.5 text-xs font-normal text-slate-500">{helperText}</span> : null}
       <input
         className="rounded-md border border-slate-300 px-3 py-2 font-normal disabled:bg-slate-50 disabled:text-slate-500"
         disabled={disabled}
@@ -309,7 +310,6 @@ function NumberField({
         value={value}
         onChange={(event) => onChange(event.target.value)}
       />
-      {helperText ? <span className="text-xs font-normal text-slate-500">{helperText}</span> : null}
     </label>
   );
 }
