@@ -1,6 +1,6 @@
 "use client";
 
-import { ClipboardCopy, CookingPot, Plus, Scale, Trash2, Utensils } from "lucide-react";
+import { CheckCircle2, ClipboardCopy, CookingPot, Database, Minus, Plus, Search, Trash2, Utensils } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import type { CommonFood, NutritionTotals } from "@/lib/types";
 
@@ -12,7 +12,15 @@ type PrepIngredient = {
 
 type MealPrepCalculatorProps = {
   foods?: CommonFood[];
+  onChanged?: () => Promise<void>;
 };
+
+const macroCards: Array<{ key: keyof NutritionTotals; label: string; unit: string }> = [
+  { key: "calories", label: "Calories", unit: "kcal" },
+  { key: "protein", label: "Protein", unit: "g" },
+  { key: "fat", label: "Fat", unit: "g" },
+  { key: "carbs", label: "Carbs", unit: "g" }
+];
 
 function emptyTotals(): NutritionTotals {
   return { calories: 0, protein: 0, fat: 0, carbs: 0 };
@@ -31,20 +39,20 @@ function multiplyFood(food: CommonFood, servings: number): NutritionTotals {
   };
 }
 
-export function MealPrepCalculator({ foods: providedFoods }: MealPrepCalculatorProps) {
+export function MealPrepCalculator({ foods: providedFoods, onChanged }: MealPrepCalculatorProps) {
   const [loadedFoods, setLoadedFoods] = useState<CommonFood[]>([]);
   const foods = providedFoods ?? loadedFoods;
   const [selectedCategory, setSelectedCategory] = useState("");
-  const [selectedFoodName, setSelectedFoodName] = useState("");
+  const [query, setQuery] = useState("");
   const [ingredients, setIngredients] = useState<PrepIngredient[]>([]);
   const [mealName, setMealName] = useState("");
-  const [outputFoodId, setOutputFoodId] = useState(() => crypto.randomUUID());
   const [category, setCategory] = useState("Meal prep");
   const [servingLabel, setServingLabel] = useState("1 portion");
   const [servingSize, setServingSize] = useState("");
   const [servingCount, setServingCount] = useState(4);
-  const [copyStatus, setCopyStatus] = useState("");
+  const [message, setMessage] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     if (providedFoods) {
@@ -71,10 +79,14 @@ export function MealPrepCalculator({ foods: providedFoods }: MealPrepCalculatorP
         .sort((a, b) => a.localeCompare(b)),
     [foods]
   );
-  const filteredFoods = useMemo(
-    () => foods.filter((food) => !selectedCategory || (food.category || "Uncategorized") === selectedCategory),
-    [foods, selectedCategory]
-  );
+
+  const filteredFoods = useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase();
+    return foods
+      .filter((food) => !selectedCategory || (food.category || "Uncategorized") === selectedCategory)
+      .filter((food) => !normalizedQuery || food.name.toLowerCase().includes(normalizedQuery))
+      .slice(0, 80);
+  }, [foods, query, selectedCategory]);
 
   const totals = useMemo(
     () =>
@@ -100,148 +112,210 @@ export function MealPrepCalculator({ foods: providedFoods }: MealPrepCalculatorP
     };
   }, [servingCount, totals]);
 
-  const commonFoodRow = useMemo(() => {
-    const now = new Date().toISOString();
-    const notes = ingredients
-      .map((ingredient) => `${ingredient.food.name} x ${ingredient.servings}`)
-      .join("; ");
-    return [
-      outputFoodId,
-      mealName,
-      category,
-      servingLabel,
-      servingSize || `${servingCount} portions total`,
-      perServing.calories,
-      perServing.protein,
-      perServing.fat,
-      perServing.carbs,
-      notes,
-      now,
-      now
-    ].join("\t");
-  }, [category, ingredients, mealName, outputFoodId, perServing, servingCount, servingLabel, servingSize]);
+  const notes = useMemo(
+    () => ingredients.map((ingredient) => `${ingredient.food.name} x ${ingredient.servings}`).join("; "),
+    [ingredients]
+  );
 
-  function addSelectedFood() {
-    const food = foods.find((item) => item.name === selectedFoodName);
-    if (!food) {
-      return;
-    }
+  const rowPreview = useMemo(
+    () =>
+      [
+        mealName,
+        category,
+        servingLabel,
+        servingSize || `${servingCount} portions total`,
+        perServing.calories,
+        perServing.protein,
+        perServing.fat,
+        perServing.carbs,
+        notes
+      ].join("\t"),
+    [category, mealName, notes, perServing, servingCount, servingLabel, servingSize]
+  );
 
-    setIngredients((current) => [
-      ...current,
-      {
-        id: crypto.randomUUID(),
-        food,
-        servings: 1
+  function addFood(food: CommonFood) {
+    setMessage("");
+    setIngredients((current) => {
+      const existing = current.find((ingredient) => ingredient.food.id === food.id);
+      if (existing) {
+        return current.map((ingredient) => (ingredient.id === existing.id ? { ...ingredient, servings: roundMacro(ingredient.servings + 1) } : ingredient));
       }
-    ]);
-    setSelectedFoodName("");
+
+      return [...current, { id: crypto.randomUUID(), food, servings: 1 }];
+    });
   }
 
   function updateServings(id: string, servings: number) {
     setIngredients((current) =>
       current.map((ingredient) =>
-        ingredient.id === id ? { ...ingredient, servings: Number.isFinite(servings) ? servings : 0 } : ingredient
+        ingredient.id === id ? { ...ingredient, servings: Number.isFinite(servings) ? Math.max(servings, 0) : 0 } : ingredient
       )
     );
   }
 
-  async function copyRow() {
-    await navigator.clipboard.writeText(commonFoodRow);
-    setCopyStatus("Copied row for foods.");
-    window.setTimeout(() => setCopyStatus(""), 1800);
+  async function copyPreview() {
+    await navigator.clipboard.writeText(rowPreview);
+    setMessage("Copied meal row preview.");
+    window.setTimeout(() => setMessage(""), 1800);
   }
 
+  async function saveMealToFoods() {
+    setIsSaving(true);
+    setError(null);
+    setMessage("");
+
+    try {
+      const response = await fetch("/api/foods", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: mealName,
+          category,
+          serving: servingLabel,
+          servingSize: servingSize || `${servingCount} portions total`,
+          calories: perServing.calories,
+          protein: perServing.protein,
+          fat: perServing.fat,
+          carbs: perServing.carbs,
+          notes
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to save meal to foods database.");
+      }
+
+      await onChanged?.();
+      setMessage("Saved to foods database.");
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : "Failed to save meal to foods database.");
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  const canSave = Boolean(mealName.trim()) && ingredients.length > 0;
+
   return (
-    <section className="grid gap-4 lg:grid-cols-[1fr_360px]">
-      {error ? <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800 lg:col-span-2">{error}</div> : null}
+    <section className="grid gap-4 xl:grid-cols-[minmax(280px,0.85fr)_minmax(360px,1.15fr)_360px]">
+      {error ? <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800 xl:col-span-3">{error}</div> : null}
 
       <div className="animate-enter rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2 className="inline-flex items-center gap-2 text-lg font-semibold">
+            <Search size={20} />
+            Add ingredients
+          </h2>
+          <p className="mt-1 text-sm text-slate-500">Search foods and tap cards to add them to the batch.</p>
+        </div>
+
+        <label className="mt-4 grid gap-1 text-sm font-medium text-slate-700">
+          Search
+          <input
+            className="rounded-md border border-slate-300 px-3 py-2 font-normal"
+            placeholder="Chicken, rice, sauce..."
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+          />
+        </label>
+
+        <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
+          <button
+            className={`whitespace-nowrap rounded-full border px-3 py-1.5 text-sm font-semibold ${selectedCategory === "" ? "border-blue-200 bg-blue-50 text-blue-700" : "border-slate-300 text-slate-600"}`}
+            type="button"
+            onClick={() => setSelectedCategory("")}
+          >
+            All
+          </button>
+          {categories.map((foodCategory) => (
+            <button
+              key={foodCategory}
+              className={`whitespace-nowrap rounded-full border px-3 py-1.5 text-sm font-semibold ${selectedCategory === foodCategory ? "border-blue-200 bg-blue-50 text-blue-700" : "border-slate-300 text-slate-600"}`}
+              type="button"
+              onClick={() => setSelectedCategory(foodCategory)}
+            >
+              {foodCategory}
+            </button>
+          ))}
+        </div>
+
+        <div className="mt-4 grid max-h-[640px] gap-2 overflow-y-auto pr-1">
+          {filteredFoods.map((food) => (
+            <button
+              key={food.id}
+              className="hover-lift rounded-lg border border-slate-200 p-3 text-left transition hover:border-accent hover:bg-blue-50"
+              type="button"
+              onClick={() => addFood(food)}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="font-semibold">{food.name}</p>
+                  <p className="mt-1 text-xs text-slate-500">{food.category || "Uncategorized"} / {food.serving || "1 serving"}</p>
+                </div>
+                <span className="rounded-full bg-slate-50 px-2 py-1 text-xs font-semibold text-slate-600">{food.calories} kcal</span>
+              </div>
+              <p className="mt-2 text-sm text-slate-700">P {food.protein} / F {food.fat} / C {food.carbs}</p>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="animate-enter rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <h2 className="inline-flex items-center gap-2 text-lg font-semibold">
               <CookingPot size={20} />
-              Meal prep builder
+              Batch basket
             </h2>
-            <p className="mt-1 text-sm text-slate-500">Build a batch from saved foods, then copy one per-portion food row.</p>
+            <p className="mt-1 text-sm text-slate-500">Adjust servings for the whole cooked batch.</p>
           </div>
-          <label className="grid gap-1 text-sm font-medium text-slate-700 sm:w-56">
-            Category
-            <select
-              className="rounded-md border border-slate-300 px-3 py-2 font-normal"
-              value={selectedCategory}
-              onChange={(event) => {
-                setSelectedCategory(event.target.value);
-                setSelectedFoodName("");
-              }}
-            >
-              <option value="">All categories</option>
-              {categories.map((foodCategory) => (
-                <option key={foodCategory} value={foodCategory}>
-                  {foodCategory}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
-
-        <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_auto]">
-          <label className="grid gap-1 text-sm font-medium text-slate-700">
-            Add ingredient
-            <select
-              className="rounded-md border border-slate-300 px-3 py-2 font-normal"
-              value={selectedFoodName}
-              onChange={(event) => setSelectedFoodName(event.target.value)}
-            >
-              <option value="">Choose a food</option>
-              {filteredFoods.map((food) => (
-                <option key={`${food.name}-${food.serving}`} value={food.name}>
-                  {food.name} ({food.serving})
-                </option>
-              ))}
-            </select>
-          </label>
-          <button className="self-end rounded-md bg-accent px-4 py-2 font-medium text-white disabled:opacity-60" disabled={!selectedFoodName} onClick={addSelectedFood}>
-            <span className="inline-flex items-center gap-2">
-              <Plus size={16} />
-              Add
-            </span>
+          <button
+            className="w-fit rounded-md border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-600 disabled:opacity-40"
+            disabled={ingredients.length === 0}
+            type="button"
+            onClick={() => setIngredients([])}
+          >
+            Clear
           </button>
         </div>
 
-        <div className="mt-5 grid gap-3">
+        <div className="mt-4 grid gap-3">
           {ingredients.length === 0 ? (
             <div className="rounded-lg border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500">
-              Add ingredients to calculate this prep batch.
+              Add ingredients from the left. Your per-portion macros will update instantly.
             </div>
           ) : null}
           {ingredients.map((ingredient) => {
             const ingredientTotals = multiplyFood(ingredient.food, ingredient.servings);
             return (
-              <div key={ingredient.id} className="hover-lift grid gap-3 rounded-lg border border-slate-200 p-3 sm:grid-cols-[1fr_110px_auto] sm:items-center">
-                <div>
-                  <p className="font-medium">{ingredient.food.name}</p>
-                  <p className="mt-1 text-sm text-slate-500">
-                    {ingredient.food.serving || "1 serving"} · {roundMacro(ingredientTotals.calories)} kcal · P {roundMacro(ingredientTotals.protein)} · F {roundMacro(ingredientTotals.fat)} · C {roundMacro(ingredientTotals.carbs)}
-                  </p>
+              <div key={ingredient.id} className="rounded-lg border border-slate-200 p-3">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="font-semibold">{ingredient.food.name}</p>
+                    <p className="mt-1 text-sm text-slate-500">
+                      {roundMacro(ingredientTotals.calories)} kcal / P {roundMacro(ingredientTotals.protein)} / F {roundMacro(ingredientTotals.fat)} / C {roundMacro(ingredientTotals.carbs)}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button className="rounded-md border border-slate-200 p-2 text-slate-600" type="button" onClick={() => updateServings(ingredient.id, roundMacro(ingredient.servings - 0.5))}>
+                      <Minus size={15} />
+                    </button>
+                    <input
+                      className="w-20 rounded-md border border-slate-300 px-2 py-2 text-center font-semibold"
+                      min="0"
+                      step="0.1"
+                      type="number"
+                      value={ingredient.servings}
+                      onChange={(event) => updateServings(ingredient.id, Number(event.target.value))}
+                    />
+                    <button className="rounded-md border border-slate-200 p-2 text-slate-600" type="button" onClick={() => updateServings(ingredient.id, roundMacro(ingredient.servings + 0.5))}>
+                      <Plus size={15} />
+                    </button>
+                    <button className="rounded-md border border-red-100 p-2 text-red-600" type="button" onClick={() => setIngredients((current) => current.filter((item) => item.id !== ingredient.id))}>
+                      <Trash2 size={15} />
+                    </button>
+                  </div>
                 </div>
-                <label className="grid gap-1 text-xs font-medium uppercase tracking-wide text-slate-500">
-                  Servings
-                  <input
-                    className="rounded-md border border-slate-300 px-2 py-1 text-base font-normal text-slate-900"
-                    min="0"
-                    step="0.1"
-                    type="number"
-                    value={ingredient.servings}
-                    onChange={(event) => updateServings(ingredient.id, Number(event.target.value))}
-                  />
-                </label>
-                <button className="text-sm font-medium text-red-600" onClick={() => setIngredients((current) => current.filter((item) => item.id !== ingredient.id))}>
-                  <span className="inline-flex items-center gap-1.5">
-                    <Trash2 size={15} />
-                    Remove
-                  </span>
-                </button>
               </div>
             );
           })}
@@ -249,73 +323,75 @@ export function MealPrepCalculator({ foods: providedFoods }: MealPrepCalculatorP
       </div>
 
       <aside className="flex flex-col gap-4">
-        <div className="animate-enter rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="animate-enter rounded-lg border border-slate-200 bg-white p-4 shadow-sm xl:sticky xl:top-6">
           <h2 className="inline-flex items-center gap-2 text-lg font-semibold">
             <Utensils size={20} />
-            Output food
+            Meal output
           </h2>
           <div className="mt-4 grid gap-3">
             <label className="grid gap-1 text-sm font-medium text-slate-700">
               Meal name
-              <input
-                className="rounded-md border border-slate-300 px-3 py-2 font-normal"
-                placeholder="e.g. 0601 chicken rice prep"
-                value={mealName}
-                onChange={(event) => {
-                  setMealName(event.target.value);
-                  setOutputFoodId((current) => current || crypto.randomUUID());
-                }}
-              />
+              <input className="rounded-md border border-slate-300 px-3 py-2 font-normal" placeholder="Chicken rice prep" value={mealName} onChange={(event) => setMealName(event.target.value)} />
             </label>
-            <label className="grid gap-1 text-sm font-medium text-slate-700">
-              Category
-              <input className="rounded-md border border-slate-300 px-3 py-2 font-normal" value={category} onChange={(event) => setCategory(event.target.value)} />
-            </label>
-            <label className="grid gap-1 text-sm font-medium text-slate-700">
-              Serving label
-              <input className="rounded-md border border-slate-300 px-3 py-2 font-normal" value={servingLabel} onChange={(event) => setServingLabel(event.target.value)} />
-            </label>
-            <label className="grid gap-1 text-sm font-medium text-slate-700">
-              Serving size
-              <input className="rounded-md border border-slate-300 px-3 py-2 font-normal" placeholder="Optional, e.g. 420 g" value={servingSize} onChange={(event) => setServingSize(event.target.value)} />
-            </label>
-            <label className="grid gap-1 text-sm font-medium text-slate-700">
-              Number of portions
-              <input className="rounded-md border border-slate-300 px-3 py-2 font-normal" min="1" step="1" type="number" value={servingCount} onChange={(event) => setServingCount(Number(event.target.value))} />
-            </label>
+            <div className="grid grid-cols-2 gap-3">
+              <label className="grid gap-1 text-sm font-medium text-slate-700">
+                Portions
+                <input className="rounded-md border border-slate-300 px-3 py-2 font-normal" min="1" step="1" type="number" value={servingCount} onChange={(event) => setServingCount(Number(event.target.value) || 1)} />
+              </label>
+              <label className="grid gap-1 text-sm font-medium text-slate-700">
+                Category
+                <input className="rounded-md border border-slate-300 px-3 py-2 font-normal" value={category} onChange={(event) => setCategory(event.target.value)} />
+              </label>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <label className="grid gap-1 text-sm font-medium text-slate-700">
+                Serving label
+                <input className="rounded-md border border-slate-300 px-3 py-2 font-normal" value={servingLabel} onChange={(event) => setServingLabel(event.target.value)} />
+              </label>
+              <label className="grid gap-1 text-sm font-medium text-slate-700">
+                Serving size
+                <input className="rounded-md border border-slate-300 px-3 py-2 font-normal" placeholder="Optional" value={servingSize} onChange={(event) => setServingSize(event.target.value)} />
+              </label>
+            </div>
           </div>
-        </div>
 
-        <div className="animate-enter-soft rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-          <h2 className="inline-flex items-center gap-2 text-lg font-semibold">
-            <Scale size={20} />
-            Per portion
-          </h2>
-          <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
-            <MacroCard label="Calories" value={perServing.calories} unit="kcal" />
-            <MacroCard label="Protein" value={perServing.protein} unit="g" />
-            <MacroCard label="Fat" value={perServing.fat} unit="g" />
-            <MacroCard label="Carbs" value={perServing.carbs} unit="g" />
+          <div className="mt-5 rounded-lg bg-blue-50 p-4">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-sm font-semibold text-blue-700">Per portion</p>
+              <span className="rounded-full bg-white px-2 py-1 text-xs font-semibold text-blue-700">{servingCount || 1} portions</span>
+            </div>
+            <div className="mt-4 grid grid-cols-2 gap-3">
+              {macroCards.map((macro) => (
+                <MacroCard key={macro.key} label={macro.label} unit={macro.unit} value={perServing[macro.key]} />
+              ))}
+            </div>
           </div>
+
           <div className="mt-4 rounded-md bg-slate-50 p-3 text-sm text-slate-600">
             Batch total: {roundMacro(totals.calories)} kcal, {roundMacro(totals.protein)} P, {roundMacro(totals.fat)} F, {roundMacro(totals.carbs)} C
           </div>
-        </div>
 
-        <div className="animate-enter-soft rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-          <h2 className="inline-flex items-center gap-2 text-lg font-semibold">
-            <ClipboardCopy size={20} />
-            Paste row
-          </h2>
-          <p className="mt-1 text-sm text-slate-500">Copy this row and paste it under the `foods` header row.</p>
-          <textarea className="mt-3 h-28 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" readOnly value={commonFoodRow} />
-          <button className="mt-3 rounded-md bg-ink px-4 py-2 font-medium text-white disabled:opacity-60" disabled={!mealName || ingredients.length === 0} onClick={copyRow}>
-            <span className="inline-flex items-center gap-2">
-              <ClipboardCopy size={16} />
-              Copy row
-            </span>
-          </button>
-          {copyStatus ? <p className="mt-2 text-sm font-medium text-green-700">{copyStatus}</p> : null}
+          <div className="mt-4 grid gap-2">
+            <button className="rounded-md bg-accent px-4 py-2 font-semibold text-white disabled:opacity-60" disabled={!canSave || isSaving} type="button" onClick={saveMealToFoods}>
+              <span className="inline-flex items-center justify-center gap-2">
+                <Database size={16} />
+                {isSaving ? "Saving..." : "Save to foods database"}
+              </span>
+            </button>
+            <button className="rounded-md border border-slate-200 px-4 py-2 font-semibold text-slate-700 disabled:opacity-60" disabled={!canSave} type="button" onClick={copyPreview}>
+              <span className="inline-flex items-center justify-center gap-2">
+                <ClipboardCopy size={16} />
+                Copy row preview
+              </span>
+            </button>
+          </div>
+
+          {message ? (
+            <p className="mt-3 inline-flex items-center gap-2 rounded-md bg-emerald-50 p-3 text-sm font-semibold text-emerald-700">
+              <CheckCircle2 size={16} />
+              {message}
+            </p>
+          ) : null}
         </div>
       </aside>
     </section>
@@ -324,8 +400,8 @@ export function MealPrepCalculator({ foods: providedFoods }: MealPrepCalculatorP
 
 function MacroCard({ label, value, unit }: { label: string; value: number; unit: string }) {
   return (
-    <div className="rounded-md border border-slate-200 p-3">
-      <p className="text-slate-500">{label}</p>
+    <div className="rounded-md bg-white p-3">
+      <p className="text-xs text-slate-500">{label}</p>
       <p className="mt-1 text-xl font-semibold">
         {value} <span className="text-sm font-normal text-slate-500">{unit}</span>
       </p>

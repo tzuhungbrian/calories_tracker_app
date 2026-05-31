@@ -285,7 +285,7 @@ export default function HomePage() {
             </div>
           ) : (
             <div className="animate-enter" key="prep-tab">
-              <MealPrepCalculator foods={commonFoods} />
+              <MealPrepCalculator foods={commonFoods} onChanged={refreshData} />
             </div>
           )}
         </section>
