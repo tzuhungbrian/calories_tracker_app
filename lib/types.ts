@@ -64,6 +64,13 @@ export type NutritionSettings = {
   bulkAdjustmentKcal: number;
 };
 
+export type UserProfileSettings = NutritionSettings & {
+  displayName: string;
+  heightCm: number;
+  age: number;
+  sex: string;
+};
+
 export type DashboardData = {
   date: string;
   totals: NutritionTotals;

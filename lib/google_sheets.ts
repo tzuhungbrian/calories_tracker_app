@@ -89,14 +89,22 @@ function columnName(columnNumber: number): string {
   return name || "A";
 }
 
-export async function readSheetObjects(tabName: string): Promise<SheetRow[]> {
+function quoteSheetName(title: string): string {
+  return `'${title.replace(/'/g, "''")}'`;
+}
+
+export async function readSheetValues(tabName: string): Promise<string[][]> {
   const sheets = getSheetsClient();
   const response = await sheets.spreadsheets.values.get({
     spreadsheetId,
-    range: `${tabName}!A:Z`
+    range: `${quoteSheetName(tabName)}!A:Z`
   });
 
-  return rowsToObjects(asRows(response.data.values));
+  return asRows(response.data.values);
+}
+
+export async function readSheetObjects(tabName: string): Promise<SheetRow[]> {
+  return rowsToObjects(await readSheetValues(tabName));
 }
 
 export async function appendSheetRow(tabName: string, values: string[]): Promise<void> {
@@ -202,4 +210,54 @@ export async function upsertDailyStatus(status: DailyStatus): Promise<void> {
   }
 
   await appendSheetRow(sheetTabs.dailyStatus, values);
+}
+
+export async function upsertSettings(valuesByKey: Record<string, string>, notesByKey: Record<string, string> = {}): Promise<void> {
+  const sheets = getSheetsClient();
+  const rows = await readSheetValues(sheetTabs.settings);
+  const now = new Date().toISOString();
+  const updates: Array<{ rowNumber: number; values: string[] }> = [];
+  const existingKeys = new Set<string>();
+
+  rows.forEach((row, index) => {
+    if (index === 0) {
+      return;
+    }
+
+    const key = row[0];
+    if (!key || !(key in valuesByKey)) {
+      return;
+    }
+
+    existingKeys.add(key);
+    updates.push({
+      rowNumber: index + 1,
+      values: [key, valuesByKey[key], row[2] || notesByKey[key] || "", now]
+    });
+  });
+
+  await Promise.all(
+    updates.map((update) =>
+      sheets.spreadsheets.values.update({
+        spreadsheetId,
+        range: `${sheetTabs.settings}!A${update.rowNumber}:D${update.rowNumber}`,
+        valueInputOption: "USER_ENTERED",
+        requestBody: { values: [update.values] }
+      })
+    )
+  );
+
+  const newRows = Object.entries(valuesByKey)
+    .filter(([key]) => !existingKeys.has(key))
+    .map(([key, value]) => [key, value, notesByKey[key] || "", now]);
+
+  if (newRows.length) {
+    const startRow = Math.max(rows.length + 1, 2);
+    await sheets.spreadsheets.values.update({
+      spreadsheetId,
+      range: `${sheetTabs.settings}!A${startRow}:D${startRow + newRows.length - 1}`,
+      valueInputOption: "USER_ENTERED",
+      requestBody: { values: newRows }
+    });
+  }
 }

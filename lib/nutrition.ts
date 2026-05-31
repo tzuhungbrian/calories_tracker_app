@@ -7,7 +7,8 @@ import type {
   NutritionSettings,
   NutritionTargets,
   NutritionTotals,
-  SheetRow
+  SheetRow,
+  UserProfileSettings
 } from "./types";
 import { dateKey } from "./date";
 
@@ -41,6 +42,14 @@ export const defaultSettings: NutritionSettings = {
   cutAdjustmentKcal: -300,
   maintainAdjustmentKcal: 0,
   bulkAdjustmentKcal: 250
+};
+
+export const defaultProfileSettings: UserProfileSettings = {
+  ...defaultSettings,
+  displayName: "Brian",
+  heightCm: 0,
+  age: 0,
+  sex: ""
 };
 
 export function todayKey(): string {
@@ -225,6 +234,39 @@ export function rowsToSettings(rows: SheetRow[]): NutritionSettings {
     cutAdjustmentKcal: parseNumber(values.get("cut_adjustment_kcal")) || defaultSettings.cutAdjustmentKcal,
     maintainAdjustmentKcal: parseNumber(values.get("maintain_adjustment_kcal")),
     bulkAdjustmentKcal: parseNumber(values.get("bulk_adjustment_kcal")) || defaultSettings.bulkAdjustmentKcal
+  };
+}
+
+export function rowsToProfileSettings(rows: SheetRow[]): UserProfileSettings {
+  const values = new Map(rows.map((row) => [valueOf(row, ["key"]) || "", valueOf(row, ["value"]) || ""]));
+  const settings = rowsToSettings(rows);
+
+  return {
+    ...settings,
+    displayName: values.get("display_name") || defaultProfileSettings.displayName,
+    heightCm: parseNumber(values.get("height_cm")) || defaultProfileSettings.heightCm,
+    age: parseNumber(values.get("age")) || defaultProfileSettings.age,
+    sex: values.get("sex") || defaultProfileSettings.sex
+  };
+}
+
+export function profileSettingsToKeyValues(settings: UserProfileSettings): Record<string, string> {
+  return {
+    display_name: settings.displayName.trim() || defaultProfileSettings.displayName,
+    height_cm: String(Number(settings.heightCm) || 0),
+    age: String(Number(settings.age) || 0),
+    sex: settings.sex.trim(),
+    weight_kg: String(Number(settings.weightKg) || defaultSettings.weightKg),
+    bmr: String(Number(settings.bmr) || defaultSettings.bmr),
+    base_activity_factor: String(Number(settings.baseActivityFactor) || defaultSettings.baseActivityFactor),
+    calories_per_step: String(Number(settings.caloriesPerStep) || defaultSettings.caloriesPerStep),
+    strength_training_kcal: String(Number(settings.strengthTrainingKcal) || defaultSettings.strengthTrainingKcal),
+    basketball_kcal_per_minute: String(Number(settings.basketballKcalPerMinute) || defaultSettings.basketballKcalPerMinute),
+    protein_target_per_kg: String(Number(settings.proteinTargetPerKg) || defaultSettings.proteinTargetPerKg),
+    fat_target_per_kg: String(Number(settings.fatTargetPerKg) || defaultSettings.fatTargetPerKg),
+    cut_adjustment_kcal: String(Number(settings.cutAdjustmentKcal) || defaultSettings.cutAdjustmentKcal),
+    maintain_adjustment_kcal: String(Number(settings.maintainAdjustmentKcal) || defaultSettings.maintainAdjustmentKcal),
+    bulk_adjustment_kcal: String(Number(settings.bulkAdjustmentKcal) || defaultSettings.bulkAdjustmentKcal)
   };
 }
 
