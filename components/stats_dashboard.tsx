@@ -107,7 +107,7 @@ export function StatsDashboard({ rows, dashboard }: StatsDashboardProps) {
         <div>
           <h2 className="inline-flex items-center gap-2 text-lg font-semibold">
             <BarChart3 size={20} />
-            Stats
+            Dashboard
           </h2>
           <p className="mt-1 text-sm text-slate-500">Nutrition balance, consistency, and macro patterns.</p>
         </div>
