@@ -204,9 +204,26 @@ export default function HomePage() {
     }
   }
 
+  async function loadDailyStatusForDate(date: string) {
+    setError(null);
+    try {
+      const response = await fetch(`/api/daily_status?date=${date}`);
+
+      if (!response.ok) {
+        throw new Error("Failed to load daily status.");
+      }
+
+      const statusData = (await response.json()) as DailyStatus | null;
+      setDailyStatus(statusData ?? createEmptyStatus(date));
+    } catch (loadError) {
+      setError(loadError instanceof Error ? loadError.message : "Failed to load daily status.");
+    }
+  }
+
   async function saveDailyStatus() {
     setIsSavingStatus(true);
     setError(null);
+    const savedDate = dailyStatus.date;
     try {
       const response = await fetch("/api/daily_status", {
         method: "PUT",
@@ -219,6 +236,7 @@ export default function HomePage() {
       }
 
       await refreshData();
+      await loadDailyStatusForDate(savedDate);
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : "Failed to save daily status.");
     } finally {
@@ -317,7 +335,14 @@ export default function HomePage() {
               ) : null}
               <section className="grid gap-4 xl:grid-cols-[1fr_360px]">
                 <FoodLogComposer foods={commonFoods} value={foodLog} isSaving={isSavingFood} onChange={setFoodLog} onSubmit={saveFoodLog} />
-                <DailyStatusEditor value={dailyStatus} isSaving={isSavingStatus} onChange={setDailyStatus} onSubmit={saveDailyStatus} />
+                <DailyStatusEditor
+                  value={dailyStatus}
+                  today={today}
+                  isSaving={isSavingStatus}
+                  onChange={setDailyStatus}
+                  onDateSelect={loadDailyStatusForDate}
+                  onSubmit={saveDailyStatus}
+                />
               </section>
             </div>
           ) : activeTab === "stats" ? (
