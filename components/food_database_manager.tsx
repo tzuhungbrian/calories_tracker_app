@@ -1,6 +1,6 @@
 "use client";
 
-import { Database, Plus, Save, Search, Trash2 } from "lucide-react";
+import { Database, Plus, RotateCcw, Save, Search, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import type { CommonFood } from "@/lib/types";
 
@@ -35,6 +35,8 @@ export function FoodDatabaseManager({ foods, onChanged }: FoodDatabaseManagerPro
   const [selectedCategory, setSelectedCategory] = useState("");
   const [query, setQuery] = useState("");
   const [isSaving, setIsSaving] = useState(false);
+  const [isUndoing, setIsUndoing] = useState(false);
+  const [lastAddedFood, setLastAddedFood] = useState<CommonFood | null>(null);
   const [message, setMessage] = useState("");
   const [error, setError] = useState<string | null>(null);
 
@@ -55,6 +57,7 @@ export function FoodDatabaseManager({ foods, onChanged }: FoodDatabaseManagerPro
 
   function editFood(food: CommonFood) {
     setForm(food);
+    setLastAddedFood(null);
     setMessage("");
     setError(null);
   }
@@ -88,9 +91,14 @@ export function FoodDatabaseManager({ foods, onChanged }: FoodDatabaseManagerPro
         throw new Error("Failed to save food.");
       }
 
+      const savedFood = (await response.json()) as CommonFood;
       await onChanged();
-      setMessage(form.id ? "Food updated." : "Food added.");
-      if (!form.id) {
+      if (form.id) {
+        setLastAddedFood(null);
+        setMessage("Food updated.");
+      } else {
+        setLastAddedFood(savedFood);
+        setMessage(`Food added: ${savedFood.name}`);
         setForm(emptyFood);
       }
     } catch (saveError) {
@@ -120,11 +128,39 @@ export function FoodDatabaseManager({ foods, onChanged }: FoodDatabaseManagerPro
 
       await onChanged();
       setForm(emptyFood);
+      setLastAddedFood(null);
       setMessage("Food deleted.");
     } catch (deleteError) {
       setError(deleteError instanceof Error ? deleteError.message : "Failed to delete food.");
     } finally {
       setIsSaving(false);
+    }
+  }
+
+  async function undoLastAddedFood() {
+    if (!lastAddedFood) {
+      return;
+    }
+
+    setIsUndoing(true);
+    setError(null);
+
+    try {
+      const response = await fetch(`/api/foods?id=${encodeURIComponent(lastAddedFood.id)}`, {
+        method: "DELETE"
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to undo added food.");
+      }
+
+      await onChanged();
+      setMessage(`Removed ${lastAddedFood.name} from foods database.`);
+      setLastAddedFood(null);
+    } catch (undoError) {
+      setError(undoError instanceof Error ? undoError.message : "Failed to undo added food.");
+    } finally {
+      setIsUndoing(false);
     }
   }
 
@@ -240,7 +276,22 @@ export function FoodDatabaseManager({ foods, onChanged }: FoodDatabaseManagerPro
         </div>
 
         {error ? <p className="mt-3 rounded-md bg-red-50 p-3 text-sm text-red-700">{error}</p> : null}
-        {message ? <p className="mt-3 rounded-md bg-green-50 p-3 text-sm text-green-700">{message}</p> : null}
+        {message ? (
+          <div className="mt-3 flex flex-col gap-3 rounded-md bg-green-50 p-3 text-sm text-green-700 sm:flex-row sm:items-center sm:justify-between">
+            <span>{message}</span>
+            {lastAddedFood ? (
+              <button
+                className="inline-flex w-fit items-center gap-2 rounded-md border border-green-200 bg-white px-3 py-1.5 font-semibold text-green-700 disabled:opacity-60"
+                disabled={isUndoing}
+                type="button"
+                onClick={undoLastAddedFood}
+              >
+                <RotateCcw size={15} />
+                {isUndoing ? "Undoing..." : "Undo"}
+              </button>
+            ) : null}
+          </div>
+        ) : null}
 
         <div className="mt-4 flex flex-wrap gap-2">
           <button className="rounded-md bg-accent px-4 py-2 font-semibold text-white disabled:opacity-60" disabled={isSaving || !form.name} type="button" onClick={saveFood}>

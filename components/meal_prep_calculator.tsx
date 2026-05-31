@@ -1,6 +1,6 @@
 "use client";
 
-import { CheckCircle2, ClipboardCopy, CookingPot, Database, Minus, Plus, Search, Trash2, Utensils } from "lucide-react";
+import { CheckCircle2, ClipboardCopy, CookingPot, Database, Minus, Plus, RotateCcw, Search, Trash2, Utensils } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import type { CommonFood, NutritionTotals } from "@/lib/types";
 
@@ -53,6 +53,8 @@ export function MealPrepCalculator({ foods: providedFoods, onChanged }: MealPrep
   const [message, setMessage] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [isUndoing, setIsUndoing] = useState(false);
+  const [lastAddedFood, setLastAddedFood] = useState<CommonFood | null>(null);
 
   useEffect(() => {
     if (providedFoods) {
@@ -135,6 +137,7 @@ export function MealPrepCalculator({ foods: providedFoods, onChanged }: MealPrep
 
   function addFood(food: CommonFood) {
     setMessage("");
+    setLastAddedFood(null);
     setIngredients((current) => {
       const existing = current.find((ingredient) => ingredient.food.id === food.id);
       if (existing) {
@@ -185,12 +188,41 @@ export function MealPrepCalculator({ foods: providedFoods, onChanged }: MealPrep
         throw new Error("Failed to save meal to foods database.");
       }
 
+      const savedFood = (await response.json()) as CommonFood;
       await onChanged?.();
-      setMessage("Saved to foods database.");
+      setLastAddedFood(savedFood);
+      setMessage(`Saved ${savedFood.name} to foods database.`);
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : "Failed to save meal to foods database.");
     } finally {
       setIsSaving(false);
+    }
+  }
+
+  async function undoLastAddedFood() {
+    if (!lastAddedFood) {
+      return;
+    }
+
+    setIsUndoing(true);
+    setError(null);
+
+    try {
+      const response = await fetch(`/api/foods?id=${encodeURIComponent(lastAddedFood.id)}`, {
+        method: "DELETE"
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to undo saved meal.");
+      }
+
+      await onChanged?.();
+      setMessage(`Removed ${lastAddedFood.name} from foods database.`);
+      setLastAddedFood(null);
+    } catch (undoError) {
+      setError(undoError instanceof Error ? undoError.message : "Failed to undo saved meal.");
+    } finally {
+      setIsUndoing(false);
     }
   }
 
@@ -387,10 +419,23 @@ export function MealPrepCalculator({ foods: providedFoods, onChanged }: MealPrep
           </div>
 
           {message ? (
-            <p className="mt-3 inline-flex items-center gap-2 rounded-md bg-emerald-50 p-3 text-sm font-semibold text-emerald-700">
-              <CheckCircle2 size={16} />
-              {message}
-            </p>
+            <div className="mt-3 flex flex-col gap-3 rounded-md bg-emerald-50 p-3 text-sm font-semibold text-emerald-700 sm:flex-row sm:items-center sm:justify-between">
+              <span className="inline-flex items-center gap-2">
+                <CheckCircle2 size={16} />
+                {message}
+              </span>
+              {lastAddedFood ? (
+                <button
+                  className="inline-flex w-fit items-center gap-2 rounded-md border border-emerald-200 bg-white px-3 py-1.5 text-emerald-700 disabled:opacity-60"
+                  disabled={isUndoing}
+                  type="button"
+                  onClick={undoLastAddedFood}
+                >
+                  <RotateCcw size={15} />
+                  {isUndoing ? "Undoing..." : "Undo"}
+                </button>
+              ) : null}
+            </div>
           ) : null}
         </div>
       </aside>

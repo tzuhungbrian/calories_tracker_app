@@ -1,6 +1,6 @@
 "use client";
 
-import { BarChart3, CalendarCheck, Database, ReceiptText, Settings, Sprout, Utensils } from "lucide-react";
+import { BarChart3, CalendarCheck, Database, ReceiptText, RotateCcw, Settings, Sprout, Utensils } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { DailyStatusEditor } from "@/components/daily_status_editor";
 import { DashboardCards } from "@/components/dashboard_cards";
@@ -68,6 +68,9 @@ export default function HomePage() {
   const [dailyStatus, setDailyStatus] = useState<DailyStatus>(() => createEmptyStatus(today));
   const [isSavingFood, setIsSavingFood] = useState(false);
   const [isSavingStatus, setIsSavingStatus] = useState(false);
+  const [isUndoingDatabaseFood, setIsUndoingDatabaseFood] = useState(false);
+  const [lastAddedDatabaseFood, setLastAddedDatabaseFood] = useState<CommonFood | null>(null);
+  const [databaseFoodMessage, setDatabaseFoodMessage] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   const refreshData = useCallback(async () => {
@@ -156,6 +159,13 @@ export default function HomePage() {
         if (!foodResponse.ok) {
           throw new Error("Food log was saved, but adding it to the foods database failed.");
         }
+
+        const savedFood = (await foodResponse.json()) as CommonFood;
+        setLastAddedDatabaseFood(savedFood);
+        setDatabaseFoodMessage(`Saved ${savedFood.name} to foods database.`);
+      } else {
+        setLastAddedDatabaseFood(null);
+        setDatabaseFoodMessage("");
       }
 
       setFoodLog(createEmptyFoodLog(today));
@@ -164,6 +174,33 @@ export default function HomePage() {
       setError(saveError instanceof Error ? saveError.message : "Failed to save food log.");
     } finally {
       setIsSavingFood(false);
+    }
+  }
+
+  async function undoLastAddedDatabaseFood() {
+    if (!lastAddedDatabaseFood) {
+      return;
+    }
+
+    setIsUndoingDatabaseFood(true);
+    setError(null);
+
+    try {
+      const response = await fetch(`/api/foods?id=${encodeURIComponent(lastAddedDatabaseFood.id)}`, {
+        method: "DELETE"
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to undo added database food.");
+      }
+
+      await refreshData();
+      setDatabaseFoodMessage(`Removed ${lastAddedDatabaseFood.name} from foods database.`);
+      setLastAddedDatabaseFood(null);
+    } catch (undoError) {
+      setError(undoError instanceof Error ? undoError.message : "Failed to undo added database food.");
+    } finally {
+      setIsUndoingDatabaseFood(false);
     }
   }
 
@@ -262,6 +299,22 @@ export default function HomePage() {
                 <h2 className="text-lg font-semibold">Today</h2>
                 <p className="mt-1 text-sm text-slate-500">Log food, update activity, and keep today accurate.</p>
               </section>
+              {databaseFoodMessage ? (
+                <div className="flex flex-col gap-3 rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm font-semibold text-emerald-700 sm:flex-row sm:items-center sm:justify-between">
+                  <span>{databaseFoodMessage}</span>
+                  {lastAddedDatabaseFood ? (
+                    <button
+                      className="inline-flex w-fit items-center gap-2 rounded-md border border-emerald-200 bg-white px-3 py-1.5 text-emerald-700 disabled:opacity-60"
+                      disabled={isUndoingDatabaseFood}
+                      type="button"
+                      onClick={undoLastAddedDatabaseFood}
+                    >
+                      <RotateCcw size={15} />
+                      {isUndoingDatabaseFood ? "Undoing..." : "Undo"}
+                    </button>
+                  ) : null}
+                </div>
+              ) : null}
               <section className="grid gap-4 xl:grid-cols-[1fr_360px]">
                 <FoodLogComposer foods={commonFoods} value={foodLog} isSaving={isSavingFood} onChange={setFoodLog} onSubmit={saveFoodLog} />
                 <DailyStatusEditor value={dailyStatus} isSaving={isSavingStatus} onChange={setDailyStatus} onSubmit={saveDailyStatus} />
