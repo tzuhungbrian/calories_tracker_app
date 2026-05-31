@@ -1,7 +1,8 @@
 "use client";
 
-import { CheckCircle2, ClipboardCopy, CookingPot, Database, Minus, Plus, RotateCcw, Search, Trash2, Utensils } from "lucide-react";
+import { CheckCircle2, CookingPot, Database, GripVertical, Minus, Plus, RotateCcw, Search, Trash2, Utensils } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import type { DragEvent } from "react";
 import type { CommonFood, NutritionTotals } from "@/lib/types";
 
 type PrepIngredient = {
@@ -54,6 +55,8 @@ export function MealPrepCalculator({ foods: providedFoods, onChanged }: MealPrep
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isUndoing, setIsUndoing] = useState(false);
+  const [draggingFoodId, setDraggingFoodId] = useState<string | null>(null);
+  const [isBasketActive, setIsBasketActive] = useState(false);
   const [lastAddedFood, setLastAddedFood] = useState<CommonFood | null>(null);
 
   useEffect(() => {
@@ -119,22 +122,6 @@ export function MealPrepCalculator({ foods: providedFoods, onChanged }: MealPrep
     [ingredients]
   );
 
-  const rowPreview = useMemo(
-    () =>
-      [
-        mealName,
-        category,
-        servingLabel,
-        servingSize || `${servingCount} portions total`,
-        perServing.calories,
-        perServing.protein,
-        perServing.fat,
-        perServing.carbs,
-        notes
-      ].join("\t"),
-    [category, mealName, notes, perServing, servingCount, servingLabel, servingSize]
-  );
-
   function addFood(food: CommonFood) {
     setMessage("");
     setLastAddedFood(null);
@@ -148,18 +135,35 @@ export function MealPrepCalculator({ foods: providedFoods, onChanged }: MealPrep
     });
   }
 
+  function addDraggedFood(foodId: string) {
+    const food = foods.find((candidate) => candidate.id === foodId);
+    if (food) {
+      addFood(food);
+    }
+  }
+
+  function startFoodDrag(event: DragEvent<HTMLElement>, food: CommonFood) {
+    setDraggingFoodId(food.id);
+    event.dataTransfer.effectAllowed = "copy";
+    event.dataTransfer.setData("text/plain", food.id);
+  }
+
+  function dropFoodIntoBasket(event: DragEvent<HTMLDivElement>) {
+    event.preventDefault();
+    const foodId = event.dataTransfer.getData("text/plain") || draggingFoodId;
+    if (foodId) {
+      addDraggedFood(foodId);
+    }
+    setDraggingFoodId(null);
+    setIsBasketActive(false);
+  }
+
   function updateServings(id: string, servings: number) {
     setIngredients((current) =>
       current.map((ingredient) =>
         ingredient.id === id ? { ...ingredient, servings: Number.isFinite(servings) ? Math.max(servings, 0) : 0 } : ingredient
       )
     );
-  }
-
-  async function copyPreview() {
-    await navigator.clipboard.writeText(rowPreview);
-    setMessage("Copied meal row preview.");
-    window.setTimeout(() => setMessage(""), 1800);
   }
 
   async function saveMealToFoods() {
@@ -238,7 +242,7 @@ export function MealPrepCalculator({ foods: providedFoods, onChanged }: MealPrep
             <Search size={20} />
             Add ingredients
           </h2>
-          <p className="mt-1 text-sm text-slate-500">Search foods and tap cards to add them to the batch.</p>
+          <p className="mt-1 text-sm text-slate-500">Drag foods into the basket, or tap a card to add it quickly.</p>
         </div>
 
         <label className="mt-4 grid gap-1 text-sm font-medium text-slate-700">
@@ -275,13 +279,22 @@ export function MealPrepCalculator({ foods: providedFoods, onChanged }: MealPrep
           {filteredFoods.map((food) => (
             <button
               key={food.id}
-              className="hover-lift rounded-lg border border-slate-200 p-3 text-left transition hover:border-accent hover:bg-blue-50"
+              className={`hover-lift cursor-grab rounded-lg border p-3 text-left transition active:cursor-grabbing ${draggingFoodId === food.id ? "border-accent bg-blue-50 opacity-80 ring-2 ring-blue-100" : "border-slate-200 hover:border-accent hover:bg-blue-50"}`}
+              draggable
               type="button"
               onClick={() => addFood(food)}
+              onDragEnd={() => {
+                setDraggingFoodId(null);
+                setIsBasketActive(false);
+              }}
+              onDragStart={(event) => startFoodDrag(event, food)}
             >
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <p className="font-semibold">{food.name}</p>
+                  <p className="inline-flex items-center gap-2 font-semibold">
+                    <GripVertical size={15} className="text-slate-400" />
+                    {food.name}
+                  </p>
                   <p className="mt-1 text-xs text-slate-500">{food.category || "Uncategorized"} / {food.serving || "1 serving"}</p>
                 </div>
                 <span className="rounded-full bg-slate-50 px-2 py-1 text-xs font-semibold text-slate-600">{food.calories} kcal</span>
@@ -292,14 +305,27 @@ export function MealPrepCalculator({ foods: providedFoods, onChanged }: MealPrep
         </div>
       </div>
 
-      <div className="animate-enter rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+      <div
+        className={`animate-enter rounded-lg border bg-white p-4 shadow-sm transition ${isBasketActive ? "border-blue-300 bg-blue-50/60 ring-4 ring-blue-100" : "border-slate-200"}`}
+        onDragEnter={(event) => {
+          event.preventDefault();
+          setIsBasketActive(true);
+        }}
+        onDragLeave={() => setIsBasketActive(false)}
+        onDragOver={(event) => {
+          event.preventDefault();
+          event.dataTransfer.dropEffect = "copy";
+          setIsBasketActive(true);
+        }}
+        onDrop={dropFoodIntoBasket}
+      >
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <h2 className="inline-flex items-center gap-2 text-lg font-semibold">
               <CookingPot size={20} />
               Batch basket
             </h2>
-            <p className="mt-1 text-sm text-slate-500">Adjust servings for the whole cooked batch.</p>
+            <p className="mt-1 text-sm text-slate-500">Drop ingredient cards here, then adjust servings for the whole cooked batch.</p>
           </div>
           <button
             className="w-fit rounded-md border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-600 disabled:opacity-40"
@@ -313,8 +339,8 @@ export function MealPrepCalculator({ foods: providedFoods, onChanged }: MealPrep
 
         <div className="mt-4 grid gap-3">
           {ingredients.length === 0 ? (
-            <div className="rounded-lg border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500">
-              Add ingredients from the left. Your per-portion macros will update instantly.
+            <div className={`rounded-lg border border-dashed p-8 text-center text-sm transition ${isBasketActive ? "border-blue-300 bg-white text-blue-700" : "border-slate-300 text-slate-500"}`}>
+              Drop foods here or tap cards from the left. Per-portion macros update instantly.
             </div>
           ) : null}
           {ingredients.map((ingredient) => {
@@ -358,11 +384,12 @@ export function MealPrepCalculator({ foods: providedFoods, onChanged }: MealPrep
         <div className="animate-enter rounded-lg border border-slate-200 bg-white p-4 shadow-sm xl:sticky xl:top-6">
           <h2 className="inline-flex items-center gap-2 text-lg font-semibold">
             <Utensils size={20} />
-            Meal output
+            Save meal
           </h2>
+          <p className="mt-1 text-sm text-slate-500">Name the finished prep and save one portion as a reusable database food.</p>
           <div className="mt-4 grid gap-3">
             <label className="grid gap-1 text-sm font-medium text-slate-700">
-              Meal name
+              Database food name
               <input className="rounded-md border border-slate-300 px-3 py-2 font-normal" placeholder="Chicken rice prep" value={mealName} onChange={(event) => setMealName(event.target.value)} />
             </label>
             <div className="grid grid-cols-2 gap-3">
@@ -399,8 +426,18 @@ export function MealPrepCalculator({ foods: providedFoods, onChanged }: MealPrep
             </div>
           </div>
 
-          <div className="mt-4 rounded-md bg-slate-50 p-3 text-sm text-slate-600">
-            Batch total: {roundMacro(totals.calories)} kcal, {roundMacro(totals.protein)} P, {roundMacro(totals.fat)} F, {roundMacro(totals.carbs)} C
+          <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Batch total</p>
+            <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
+              {macroCards.map((macro) => (
+                <div key={macro.key} className="rounded-md bg-white px-3 py-2">
+                  <span className="text-slate-500">{macro.label}</span>
+                  <p className="font-semibold text-slate-800">
+                    {roundMacro(totals[macro.key])} {macro.unit}
+                  </p>
+                </div>
+              ))}
+            </div>
           </div>
 
           <div className="mt-4 grid gap-2">
@@ -408,12 +445,6 @@ export function MealPrepCalculator({ foods: providedFoods, onChanged }: MealPrep
               <span className="inline-flex items-center justify-center gap-2">
                 <Database size={16} />
                 {isSaving ? "Saving..." : "Save to foods database"}
-              </span>
-            </button>
-            <button className="rounded-md border border-slate-200 px-4 py-2 font-semibold text-slate-700 disabled:opacity-60" disabled={!canSave} type="button" onClick={copyPreview}>
-              <span className="inline-flex items-center justify-center gap-2">
-                <ClipboardCopy size={16} />
-                Copy row preview
               </span>
             </button>
           </div>
