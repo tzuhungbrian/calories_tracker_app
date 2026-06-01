@@ -203,36 +203,51 @@ function CalorieBalanceChart({ rows }: { rows: DailySummary[] }) {
       </div>
 
       <div className="mt-5 overflow-x-auto">
-        <div className="relative flex h-64 min-w-[620px] items-center gap-2 overflow-hidden border-y border-slate-100 py-4">
-          <div className="absolute left-0 right-0 top-1/2 h-px bg-slate-300" />
-          {rows.map((row) => {
-            const balance = row.calories - row.dynamicTdee;
-            const barHeight = clamp(positivePercent(Math.abs(balance), maxBalance) * (maxBarPercentFromMidline / 100), 4, maxBarPercentFromMidline);
-            const isOver = balance > 0;
-            const isHovered = hoveredDate === row.date;
-            const barColor = calorieBalanceColor(row);
+        <div className="min-w-[620px]">
+          <div className="relative flex h-48 gap-2 overflow-hidden border-y border-slate-100">
+            <div className="absolute left-0 right-0 top-1/2 h-px bg-slate-300" />
+            {rows.map((row) => {
+              const balance = row.calories - row.dynamicTdee;
+              const barHeight = clamp(positivePercent(Math.abs(balance), maxBalance) * (maxBarPercentFromMidline / 100), 4, maxBarPercentFromMidline);
+              const isOver = balance > 0;
+              const isHovered = hoveredDate === row.date;
+              const barColor = calorieBalanceColor(row);
 
-            return (
+              return (
+                <button
+                  key={row.date}
+                  className="group relative flex h-full flex-1 items-center justify-center"
+                  type="button"
+                  title={`${row.date}: ${round(balance)} kcal vs TDEE, target ${round(row.calorieTarget)} kcal`}
+                  onBlur={() => setHoveredDate(null)}
+                  onFocus={() => setHoveredDate(row.date)}
+                  onMouseEnter={() => setHoveredDate(row.date)}
+                  onMouseLeave={() => setHoveredDate(null)}
+                >
+                  <span
+                    className={`absolute w-full max-w-9 rounded-md transition-all duration-200 ${isOver ? "bottom-1/2" : "top-1/2"} ${barColor} ${isHovered ? "opacity-100 shadow-lg" : "opacity-80"}`}
+                    style={{ height: `${barHeight}%` }}
+                  />
+                </button>
+              );
+            })}
+          </div>
+          <div className="mt-2 flex gap-2">
+            {rows.map((row) => (
               <button
-                key={row.date}
-                className="group relative flex h-full flex-1 flex-col items-center justify-center"
+                key={`${row.date}-label`}
+                className="flex-1 rotate-[-45deg] text-[10px] text-slate-500 transition hover:text-slate-800 focus:outline-none focus-visible:text-slate-900"
                 type="button"
-                title={`${row.date}: ${round(balance)} kcal vs TDEE, target ${round(row.calorieTarget)} kcal`}
+                title={`${row.date}: ${round(row.calories - row.dynamicTdee)} kcal vs TDEE, target ${round(row.calorieTarget)} kcal`}
                 onBlur={() => setHoveredDate(null)}
                 onFocus={() => setHoveredDate(row.date)}
                 onMouseEnter={() => setHoveredDate(row.date)}
                 onMouseLeave={() => setHoveredDate(null)}
               >
-                <span className="relative flex h-[184px] w-full items-center justify-center overflow-hidden">
-                  <span
-                    className={`absolute w-full max-w-9 rounded-md transition-all duration-200 ${isOver ? "bottom-1/2" : "top-1/2"} ${barColor} ${isHovered ? "opacity-100 shadow-lg" : "opacity-80"}`}
-                    style={{ height: `${barHeight}%` }}
-                  />
-                </span>
-                <span className="mt-2 rotate-[-45deg] text-[10px] text-slate-500">{row.date.slice(5)}</span>
+                {row.date.slice(5)}
               </button>
-            );
-          })}
+            ))}
+          </div>
         </div>
       </div>
     </section>
