@@ -11,6 +11,18 @@ type PrepIngredient = {
   servings: number;
 };
 
+type CustomIngredientInput = {
+  name: string;
+  category: string;
+  serving: string;
+  servingSize: string;
+  calories: number;
+  protein: number;
+  fat: number;
+  carbs: number;
+  notes: string;
+};
+
 type MealPrepCalculatorProps = {
   foods?: CommonFood[];
   onChanged?: () => Promise<void>;
@@ -40,6 +52,24 @@ function multiplyFood(food: CommonFood, servings: number): NutritionTotals {
   };
 }
 
+function createEmptyCustomIngredient(): CustomIngredientInput {
+  return {
+    name: "",
+    category: "Temporary",
+    serving: "1 serving",
+    servingSize: "",
+    calories: 0,
+    protein: 0,
+    fat: 0,
+    carbs: 0,
+    notes: ""
+  };
+}
+
+function isTemporaryFood(food: CommonFood): boolean {
+  return food.id.startsWith("temp_");
+}
+
 export function MealPrepCalculator({ foods: providedFoods, onChanged }: MealPrepCalculatorProps) {
   const [loadedFoods, setLoadedFoods] = useState<CommonFood[]>([]);
   const foods = providedFoods ?? loadedFoods;
@@ -58,6 +88,8 @@ export function MealPrepCalculator({ foods: providedFoods, onChanged }: MealPrep
   const [draggingFoodId, setDraggingFoodId] = useState<string | null>(null);
   const [isBasketActive, setIsBasketActive] = useState(false);
   const [lastAddedFood, setLastAddedFood] = useState<CommonFood | null>(null);
+  const [customIngredient, setCustomIngredient] = useState<CustomIngredientInput>(() => createEmptyCustomIngredient());
+  const [isSavingIngredientId, setIsSavingIngredientId] = useState<string | null>(null);
 
   useEffect(() => {
     if (providedFoods) {
@@ -133,6 +165,83 @@ export function MealPrepCalculator({ foods: providedFoods, onChanged }: MealPrep
 
       return [...current, { id: crypto.randomUUID(), food, servings: 1 }];
     });
+  }
+
+  function customIngredientToFood(): CommonFood {
+    return {
+      id: `temp_${crypto.randomUUID()}`,
+      name: customIngredient.name.trim(),
+      category: customIngredient.category.trim() || "Temporary",
+      serving: customIngredient.serving.trim() || "1 serving",
+      servingSize: customIngredient.servingSize.trim(),
+      calories: Number(customIngredient.calories) || 0,
+      protein: Number(customIngredient.protein) || 0,
+      fat: Number(customIngredient.fat) || 0,
+      carbs: Number(customIngredient.carbs) || 0,
+      notes: customIngredient.notes.trim()
+    };
+  }
+
+  function addCustomIngredientToBasket() {
+    if (!customIngredient.name.trim()) {
+      setError("Custom ingredient name is required.");
+      return;
+    }
+
+    setError(null);
+    addFood(customIngredientToFood());
+  }
+
+  async function saveFoodToDatabase(food: CommonFood, sourceIngredientId?: string) {
+    setIsSavingIngredientId(sourceIngredientId ?? "custom-form");
+    setError(null);
+    setMessage("");
+
+    try {
+      const response = await fetch("/api/foods", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: food.name,
+          category: food.category || "Meal prep",
+          serving: food.serving || "1 serving",
+          servingSize: food.servingSize,
+          calories: food.calories,
+          protein: food.protein,
+          fat: food.fat,
+          carbs: food.carbs,
+          notes: food.notes
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to save ingredient to foods database.");
+      }
+
+      const savedFood = (await response.json()) as CommonFood;
+      if (!providedFoods) {
+        setLoadedFoods((current) => [savedFood, ...current]);
+      }
+      if (sourceIngredientId) {
+        setIngredients((current) => current.map((ingredient) => (ingredient.id === sourceIngredientId ? { ...ingredient, food: savedFood } : ingredient)));
+      }
+      await onChanged?.();
+      setLastAddedFood(savedFood);
+      setMessage(`Saved ${savedFood.name} to foods database.`);
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : "Failed to save ingredient to foods database.");
+    } finally {
+      setIsSavingIngredientId(null);
+    }
+  }
+
+  function saveCustomIngredientToDatabase() {
+    if (!customIngredient.name.trim()) {
+      setError("Custom ingredient name is required.");
+      return;
+    }
+
+    return saveFoodToDatabase(customIngredientToFood());
   }
 
   function addDraggedFood(foodId: string) {
@@ -231,6 +340,7 @@ export function MealPrepCalculator({ foods: providedFoods, onChanged }: MealPrep
   }
 
   const canSave = Boolean(mealName.trim()) && ingredients.length > 0;
+  const canUseCustomIngredient = Boolean(customIngredient.name.trim());
 
   return (
     <section className="grid gap-4 xl:grid-cols-[minmax(280px,0.85fr)_minmax(360px,1.15fr)_360px]">
@@ -273,6 +383,85 @@ export function MealPrepCalculator({ foods: providedFoods, onChanged }: MealPrep
               {foodCategory}
             </button>
           ))}
+        </div>
+
+        <div className="mt-4 rounded-lg border border-dashed border-blue-200 bg-blue-50/50 p-3">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="font-semibold text-slate-800">Quick custom ingredient</p>
+              <p className="mt-1 text-xs text-slate-500">Use this for a temporary ingredient. Save it to the database only if it becomes reusable.</p>
+            </div>
+            <Database size={18} className="shrink-0 text-blue-700" />
+          </div>
+          <div className="mt-3 grid gap-2">
+            <input
+              className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+              placeholder="Ingredient name"
+              value={customIngredient.name}
+              onChange={(event) => setCustomIngredient((current) => ({ ...current, name: event.target.value }))}
+            />
+            <div className="grid grid-cols-2 gap-2">
+              <input
+                className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+                placeholder="Category"
+                value={customIngredient.category}
+                onChange={(event) => setCustomIngredient((current) => ({ ...current, category: event.target.value }))}
+              />
+              <input
+                className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+                placeholder="Serving"
+                value={customIngredient.serving}
+                onChange={(event) => setCustomIngredient((current) => ({ ...current, serving: event.target.value }))}
+              />
+            </div>
+            <input
+              className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+              placeholder="Serving size, optional"
+              value={customIngredient.servingSize}
+              onChange={(event) => setCustomIngredient((current) => ({ ...current, servingSize: event.target.value }))}
+            />
+            <div className="grid grid-cols-2 gap-2">
+              {macroCards.map((macro) => (
+                <label key={macro.key} className="grid gap-1 text-xs font-semibold text-slate-600">
+                  {macro.label}
+                  <input
+                    className="rounded-md border border-slate-300 px-3 py-2 text-sm font-normal"
+                    min="0"
+                    step="0.1"
+                    type="number"
+                    value={customIngredient[macro.key]}
+                    onChange={(event) => setCustomIngredient((current) => ({ ...current, [macro.key]: Number(event.target.value) || 0 }))}
+                  />
+                </label>
+              ))}
+            </div>
+            <textarea
+              className="min-h-16 rounded-md border border-slate-300 px-3 py-2 text-sm"
+              placeholder="Notes, optional"
+              value={customIngredient.notes}
+              onChange={(event) => setCustomIngredient((current) => ({ ...current, notes: event.target.value }))}
+            />
+            <div className="grid gap-2 sm:grid-cols-2">
+              <button
+                className="inline-flex items-center justify-center gap-2 rounded-md bg-ink px-3 py-2 text-sm font-semibold text-white disabled:opacity-50"
+                disabled={!canUseCustomIngredient}
+                type="button"
+                onClick={addCustomIngredientToBasket}
+              >
+                <Plus size={15} />
+                Add to basket
+              </button>
+              <button
+                className="inline-flex items-center justify-center gap-2 rounded-md border border-blue-200 bg-white px-3 py-2 text-sm font-semibold text-blue-700 disabled:opacity-50"
+                disabled={!canUseCustomIngredient || isSavingIngredientId === "custom-form"}
+                type="button"
+                onClick={saveCustomIngredientToDatabase}
+              >
+                <Database size={15} />
+                {isSavingIngredientId === "custom-form" ? "Saving..." : "Save to database"}
+              </button>
+            </div>
+          </div>
         </div>
 
         <div className="mt-4 grid max-h-[640px] gap-2 overflow-y-auto pr-1">
@@ -353,8 +542,20 @@ export function MealPrepCalculator({ foods: providedFoods, onChanged }: MealPrep
                     <p className="mt-1 text-sm text-slate-500">
                       {roundMacro(ingredientTotals.calories)} kcal / P {roundMacro(ingredientTotals.protein)} / F {roundMacro(ingredientTotals.fat)} / C {roundMacro(ingredientTotals.carbs)}
                     </p>
+                    {isTemporaryFood(ingredient.food) ? <p className="mt-1 text-xs font-semibold text-blue-700">Temporary ingredient</p> : null}
                   </div>
                   <div className="flex items-center gap-2">
+                    {isTemporaryFood(ingredient.food) ? (
+                      <button
+                        className="inline-flex items-center gap-1 rounded-md border border-blue-200 px-2 py-2 text-xs font-semibold text-blue-700 disabled:opacity-50"
+                        disabled={isSavingIngredientId === ingredient.id}
+                        type="button"
+                        onClick={() => saveFoodToDatabase(ingredient.food, ingredient.id)}
+                      >
+                        <Database size={14} />
+                        {isSavingIngredientId === ingredient.id ? "Saving..." : "Save"}
+                      </button>
+                    ) : null}
                     <button className="rounded-md border border-slate-200 p-2 text-slate-600" type="button" onClick={() => updateServings(ingredient.id, roundMacro(ingredient.servings - 0.5))}>
                       <Minus size={15} />
                     </button>
