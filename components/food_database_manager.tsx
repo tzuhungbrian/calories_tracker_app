@@ -2,6 +2,7 @@
 
 import { Calculator, Database, Plus, RotateCcw, Save, Search, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
+import { CategorySelect } from "@/components/category_select";
 import type { CommonFood } from "@/lib/types";
 
 type FoodDatabaseManagerProps = {
@@ -314,15 +315,7 @@ export function FoodDatabaseManager({ foods, onChanged }: FoodDatabaseManagerPro
             Name
             <input className="rounded-md border border-slate-300 px-3 py-2 font-normal" value={form.name} onChange={(event) => updateField("name", event.target.value)} />
           </label>
-          <label className="grid gap-1 text-sm font-medium text-slate-700">
-            Category
-            <input className="rounded-md border border-slate-300 px-3 py-2 font-normal" list="food-categories" value={form.category} onChange={(event) => updateField("category", event.target.value)} />
-            <datalist id="food-categories">
-              {categories.map((category) => (
-                <option key={category} value={category} />
-              ))}
-            </datalist>
-          </label>
+          <CategorySelect categories={["Uncategorized", ...categories]} value={form.category || "Uncategorized"} onChange={(nextCategory) => updateField("category", nextCategory)} />
           <label className="grid gap-1 text-sm font-medium text-slate-700">
             Serving label
             <input className="rounded-md border border-slate-300 px-3 py-2 font-normal" value={form.serving} onChange={(event) => updateField("serving", event.target.value)} />

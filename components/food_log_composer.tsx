@@ -2,6 +2,7 @@
 
 import { Calculator, CheckCircle2, Database, Plus, Search, Sparkles, Utensils } from "lucide-react";
 import { useMemo, useState } from "react";
+import { CategorySelect } from "@/components/category_select";
 import type { CommonFood, FoodLogInput } from "@/lib/types";
 
 type FoodLogComposerProps = {
@@ -255,25 +256,18 @@ export function FoodLogComposer({ foods, value, isSaving, onChange, onSubmit }: 
         <div className="mt-5 grid gap-3 lg:grid-cols-[220px_1fr]">
           <div>
             <p className="text-sm font-medium text-slate-700">Category</p>
-            <div className="mt-2 flex gap-2 overflow-x-auto pb-1 lg:flex-col lg:overflow-visible">
-              <button
-                className={`hover-lift whitespace-nowrap rounded-md border px-3 py-2 text-left text-sm ${selectedCategory === "" ? "border-accent bg-blue-50 text-blue-700" : "border-slate-300"}`}
-                type="button"
-                onClick={() => setSelectedCategory("")}
-              >
-                All foods
-              </button>
+            <select
+              className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+              value={selectedCategory}
+              onChange={(event) => setSelectedCategory(event.target.value)}
+            >
+              <option value="">All foods</option>
               {categories.map((category) => (
-                <button
-                  key={category}
-                  className={`hover-lift whitespace-nowrap rounded-md border px-3 py-2 text-left text-sm ${selectedCategory === category ? "border-accent bg-blue-50 text-blue-700" : "border-slate-300"}`}
-                  type="button"
-                  onClick={() => setSelectedCategory(category)}
-                >
+                <option key={category} value={category}>
                   {category}
-                </button>
+                </option>
               ))}
-            </div>
+            </select>
           </div>
 
           <div>
@@ -338,21 +332,14 @@ export function FoodLogComposer({ foods, value, isSaving, onChange, onSubmit }: 
             Save to foods database
           </label>
           {value.saveToDatabase ? (
-            <label className="grid gap-1 text-sm font-medium text-slate-700 lg:col-span-2">
-              Database category
-              <input
-                className="rounded-md border border-slate-300 px-3 py-2 font-normal"
-                list="composer-food-categories"
-                placeholder="AI estimates"
-                value={value.databaseCategory ?? ""}
-                onChange={(event) => updateCustomField("databaseCategory", event.target.value)}
+            <div className="lg:col-span-2">
+              <CategorySelect
+                categories={["AI estimates", ...categories]}
+                label="Database category"
+                value={value.databaseCategory || "AI estimates"}
+                onChange={(nextCategory) => updateCustomField("databaseCategory", nextCategory)}
               />
-              <datalist id="composer-food-categories">
-                {categories.map((category) => (
-                  <option key={category} value={category} />
-                ))}
-              </datalist>
-            </label>
+            </div>
           ) : null}
           <div className="grid gap-3 rounded-lg bg-white p-3 lg:col-span-2">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
