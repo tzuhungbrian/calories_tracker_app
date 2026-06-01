@@ -166,6 +166,7 @@ function CalorieBalanceChart({ rows }: { rows: DailySummary[] }) {
   const [hoveredDate, setHoveredDate] = useState<string | null>(null);
   const maxBalance = Math.max(...rows.map((row) => Math.abs(row.calories - row.calorieTarget)), 100);
   const hoveredRow = rows.find((row) => row.date === hoveredDate);
+  const maxBarPercentFromMidline = 46;
 
   return (
     <section className="animate-enter-soft rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
@@ -185,11 +186,11 @@ function CalorieBalanceChart({ rows }: { rows: DailySummary[] }) {
       </div>
 
       <div className="mt-5 overflow-x-auto">
-        <div className="relative flex h-64 min-w-[620px] items-center gap-2 border-y border-slate-100 py-4">
+        <div className="relative flex h-64 min-w-[620px] items-center gap-2 overflow-hidden border-y border-slate-100 py-4">
           <div className="absolute left-0 right-0 top-1/2 h-px bg-slate-300" />
           {rows.map((row) => {
             const balance = row.calories - row.calorieTarget;
-            const barHeight = Math.max(8, positivePercent(Math.abs(balance), maxBalance) * 0.92);
+            const barHeight = clamp(positivePercent(Math.abs(balance), maxBalance) * (maxBarPercentFromMidline / 100), 4, maxBarPercentFromMidline);
             const isOver = balance > 0;
             const isHovered = hoveredDate === row.date;
 
@@ -204,7 +205,7 @@ function CalorieBalanceChart({ rows }: { rows: DailySummary[] }) {
                 onMouseEnter={() => setHoveredDate(row.date)}
                 onMouseLeave={() => setHoveredDate(null)}
               >
-                <span className="relative flex h-[184px] w-full items-center justify-center">
+                <span className="relative flex h-[184px] w-full items-center justify-center overflow-hidden">
                   <span
                     className={`absolute w-full max-w-9 rounded-md transition-all duration-200 ${isOver ? "bottom-1/2 bg-red-500" : "top-1/2 bg-emerald-500"} ${isHovered ? "opacity-100 shadow-lg" : "opacity-80"}`}
                     style={{ height: `${barHeight}%` }}
