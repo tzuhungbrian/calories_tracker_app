@@ -658,6 +658,7 @@ export function MealPrepCalculator({ foods: providedFoods, onChanged }: MealPrep
               </label>
               <div className="grid gap-3 sm:grid-cols-2">
                 <CategorySelect
+                  compact
                   categories={["Temporary", "Meal prep", ...categories]}
                   value={customIngredient.category}
                   onChange={(nextCategory) => setCustomIngredient((current) => ({ ...current, category: nextCategory }))}

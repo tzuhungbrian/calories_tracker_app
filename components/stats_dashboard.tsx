@@ -243,11 +243,11 @@ function CalorieBalanceChart({ rows }: { rows: DailySummary[] }) {
               );
             })}
           </div>
-          <div className="mt-3 flex h-12 gap-2 overflow-hidden">
+          <div className="mt-3 flex h-12 gap-2 overflow-visible px-4">
             {rows.map((row) => (
               <button
                 key={`${row.date}-label`}
-                className="h-12 flex-1 origin-top-left rotate-[-45deg] whitespace-nowrap text-left text-[10px] text-slate-500 transition hover:text-slate-800 focus:outline-none focus-visible:text-slate-900"
+                className="h-12 flex-1 origin-top rotate-[-45deg] whitespace-nowrap text-center text-[10px] text-slate-500 transition hover:text-slate-800 focus:outline-none focus-visible:text-slate-900"
                 type="button"
                 title={`${row.date}: ${round(row.calories - row.dynamicTdee)} kcal vs TDEE, target ${round(row.calorieTarget)} kcal`}
                 onBlur={() => setHoveredDate(null)}
