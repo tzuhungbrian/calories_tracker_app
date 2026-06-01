@@ -18,6 +18,7 @@ const emptySettings: UserProfileSettings = {
   bmr: 0,
   baseActivityFactor: 1.2,
   caloriesPerStep: 0.04,
+  exerciseStepGoal: 8000,
   strengthTrainingKcal: 250,
   basketballKcalPerMinute: 8,
   proteinTargetPerKg: 2,
@@ -34,6 +35,7 @@ const numericFields: Array<keyof Omit<UserProfileSettings, "displayName" | "sex"
   "bmr",
   "baseActivityFactor",
   "caloriesPerStep",
+  "exerciseStepGoal",
   "strengthTrainingKcal",
   "basketballKcalPerMinute",
   "proteinTargetPerKg",
@@ -230,6 +232,7 @@ export function SettingsPanel({ onChanged }: SettingsPanelProps) {
                   />
                   <NumberField label="Activity factor" step="0.01" value={settings.baseActivityFactor} onChange={(value) => updateField("baseActivityFactor", value)} />
                   <NumberField label="Calories / step" step="0.001" value={settings.caloriesPerStep} onChange={(value) => updateField("caloriesPerStep", value)} />
+                  <NumberField label="Exercise step goal" value={settings.exerciseStepGoal} onChange={(value) => updateField("exerciseStepGoal", value)} />
                   <NumberField label="Strength kcal" value={settings.strengthTrainingKcal} onChange={(value) => updateField("strengthTrainingKcal", value)} />
                   <NumberField label="Basketball kcal / min" value={settings.basketballKcalPerMinute} onChange={(value) => updateField("basketballKcalPerMinute", value)} />
                 </div>

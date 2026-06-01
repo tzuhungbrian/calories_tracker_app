@@ -15,6 +15,7 @@ const settingNotes: Record<string, string> = {
   bmr: "Base metabolic rate.",
   base_activity_factor: "Multiplier for non-step daily activity.",
   calories_per_step: "Estimated calories burned per step.",
+  exercise_step_goal: "Steps needed for the exercise habit when there is no strength or basketball session.",
   strength_training_kcal: "Calories added when strength_session is true.",
   basketball_kcal_per_minute: "Calories added per basketball minute.",
   protein_target_per_kg: "Protein target in grams per kg.",

@@ -11,14 +11,14 @@ type StatsDashboardProps = {
   dashboard: DashboardData | null;
 };
 
-type HabitKey = "logged" | "protein" | "creatine" | "training";
+type HabitKey = "logged" | "protein" | "creatine" | "exercise";
 
 const rangeOptions = [7, 14, 30];
 const habitRows: Array<{ key: HabitKey; label: string }> = [
   { key: "logged", label: "Logged" },
   { key: "protein", label: "Protein" },
   { key: "creatine", label: "Creatine" },
-  { key: "training", label: "Training" }
+  { key: "exercise", label: "Exercise" }
 ];
 
 function average(values: number[]): number {
@@ -68,7 +68,7 @@ function isCalorieGoalHit(row: DailySummary): boolean {
   return row.calories <= row.calorieTarget;
 }
 
-function isHabitDone(row: DailySummary, key: HabitKey): boolean {
+function isHabitDone(row: DailySummary, key: HabitKey, exerciseStepGoal = 8000): boolean {
   if (key === "logged") {
     return row.calories > 0;
   }
@@ -78,7 +78,7 @@ function isHabitDone(row: DailySummary, key: HabitKey): boolean {
   if (key === "creatine") {
     return row.creatineTaken;
   }
-  return row.strengthSession || row.basketballMinutes > 0;
+  return row.strengthSession || row.basketballMinutes > 0 || row.steps > exerciseStepGoal;
 }
 
 function proteinStreak(rows: DailySummary[]): number {
@@ -96,6 +96,7 @@ function proteinStreak(rows: DailySummary[]): number {
 
 export function StatsDashboard({ rows, dashboard }: StatsDashboardProps) {
   const [dayRange, setDayRange] = useState(14);
+  const exerciseStepGoal = dashboard?.exerciseStepGoal ?? 8000;
   const scopedRows = useMemo(() => rows.slice(0, dayRange), [dayRange, rows]);
   const orderedRows = useMemo(() => [...scopedRows].reverse(), [scopedRows]);
   const averages = useMemo(
@@ -114,7 +115,7 @@ export function StatsDashboard({ rows, dashboard }: StatsDashboardProps) {
   const calorieHitRate = scopedRows.length
     ? Math.round((scopedRows.filter((row) => row.calories > 0 && isCalorieGoalHit(row)).length / scopedRows.length) * 100)
     : 0;
-  const trainingDays = scopedRows.filter((row) => row.strengthSession || row.basketballMinutes > 0).length;
+  const exerciseDays = scopedRows.filter((row) => row.strengthSession || row.basketballMinutes > 0 || row.steps > exerciseStepGoal).length;
   const currentProteinStreak = proteinStreak(scopedRows);
 
   return (
@@ -146,13 +147,13 @@ export function StatsDashboard({ rows, dashboard }: StatsDashboardProps) {
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard icon={<Flame size={18} />} label="Avg calories" value={`${round(averages.calories)} kcal`} sub={`Target ${round(averages.target)}`} />
         <StatCard icon={<Target size={18} />} label="Target hit rate" value={`${calorieHitRate}%`} sub="Logged days that matched the goal mode" />
-        <StatCard icon={<Footprints size={18} />} label="Avg steps" value={`${round(averages.steps)}`} sub={`${trainingDays} training days`} />
+        <StatCard icon={<Footprints size={18} />} label="Avg steps" value={`${round(averages.steps)}`} sub={`${exerciseDays} exercise days, goal ${round(exerciseStepGoal)}`} />
         <StatCard icon={<Trophy size={18} />} label="Protein streak" value={`${currentProteinStreak} days`} sub={`Avg ${round(averages.protein)} / ${round(averages.proteinGoal)} g`} />
       </div>
 
       <div className="grid gap-4 xl:grid-cols-2">
         <CalorieBalanceChart rows={orderedRows} />
-        <HabitHeatmap rows={orderedRows.slice(-14)} />
+        <HabitHeatmap rows={orderedRows.slice(-14)} exerciseStepGoal={exerciseStepGoal} />
       </div>
 
       <div className="grid gap-4 xl:grid-cols-2">
@@ -264,7 +265,7 @@ function CalorieBalanceChart({ rows }: { rows: DailySummary[] }) {
   );
 }
 
-function HabitHeatmap({ rows }: { rows: DailySummary[] }) {
+function HabitHeatmap({ rows, exerciseStepGoal }: { rows: DailySummary[]; exerciseStepGoal: number }) {
   return (
     <section className="animate-enter-soft rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
       <div className="flex items-start justify-between gap-3">
@@ -280,12 +281,16 @@ function HabitHeatmap({ rows }: { rows: DailySummary[] }) {
             <p className="text-sm font-medium text-slate-700">{habit.label}</p>
             <div className="grid grid-cols-7 gap-1.5 sm:grid-cols-[repeat(14,minmax(0,1fr))]">
               {rows.map((row) => {
-                const done = isHabitDone(row, habit.key);
+                const done = isHabitDone(row, habit.key, exerciseStepGoal);
                 return (
                   <span
                     key={`${habit.key}-${row.date}`}
                     className={`aspect-square w-full rounded-md border transition ${done ? "border-emerald-200 bg-emerald-500" : "border-slate-200 bg-slate-50"}`}
-                    title={`${row.date}: ${done ? "done" : "not yet"}`}
+                    title={
+                      habit.key === "exercise"
+                        ? `${row.date}: ${done ? "done" : "not yet"} (strength, basketball, or steps > ${round(exerciseStepGoal)})`
+                        : `${row.date}: ${done ? "done" : "not yet"}`
+                    }
                   />
                 );
               })}

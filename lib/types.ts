@@ -58,6 +58,7 @@ export type NutritionSettings = {
   bmr: number;
   baseActivityFactor: number;
   caloriesPerStep: number;
+  exerciseStepGoal: number;
   strengthTrainingKcal: number;
   basketballKcalPerMinute: number;
   proteinTargetPerKg: number;
@@ -80,6 +81,7 @@ export type DashboardData = {
   totals: NutritionTotals;
   targets: NutritionTargets;
   dynamicTdee: number;
+  exerciseStepGoal: number;
   remaining: NutritionTotals;
   status: DailyStatus | null;
 };

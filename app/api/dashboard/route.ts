@@ -34,6 +34,7 @@ export async function GET(request: Request) {
     totals,
     targets,
     dynamicTdee,
+    exerciseStepGoal: settings.exerciseStepGoal,
     remaining: remainingTotals(targets, totals),
     status
   };
