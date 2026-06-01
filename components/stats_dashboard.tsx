@@ -40,6 +40,26 @@ function positivePercent(value: number, max: number): number {
   return max > 0 ? clamp((value / max) * 100, 0, 100) : 0;
 }
 
+function calorieBalanceColor(row: DailySummary): string {
+  if (row.goalType === "bulk") {
+    return row.calories >= row.calorieTarget ? "bg-emerald-500" : "bg-red-500";
+  }
+
+  if (row.goalType === "cut") {
+    if (row.calories <= row.calorieTarget) {
+      return "bg-emerald-500";
+    }
+
+    if (row.dynamicTdee > row.calorieTarget && row.calories < row.dynamicTdee) {
+      return "bg-amber-500";
+    }
+
+    return "bg-red-500";
+  }
+
+  return row.calories <= row.calorieTarget ? "bg-emerald-500" : "bg-red-500";
+}
+
 function isHabitDone(row: DailySummary, key: HabitKey): boolean {
   if (key === "logged") {
     return row.calories > 0;
@@ -164,7 +184,7 @@ function StatCard({ icon, label, value, sub }: { icon: ReactNode; label: string;
 
 function CalorieBalanceChart({ rows }: { rows: DailySummary[] }) {
   const [hoveredDate, setHoveredDate] = useState<string | null>(null);
-  const maxBalance = Math.max(...rows.map((row) => Math.abs(row.calories - row.calorieTarget)), 100);
+  const maxBalance = Math.max(...rows.map((row) => Math.abs(row.calories - row.dynamicTdee)), 100);
   const hoveredRow = rows.find((row) => row.date === hoveredDate);
   const maxBarPercentFromMidline = 46;
 
@@ -173,13 +193,14 @@ function CalorieBalanceChart({ rows }: { rows: DailySummary[] }) {
       <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h2 className="text-lg font-semibold">Calorie balance</h2>
-          <p className="mt-1 text-sm text-slate-500">Daily difference from target. Green is under target, red is over.</p>
+          <p className="mt-1 text-sm text-slate-500">Daily difference from TDEE. Green hit the day&apos;s goal, amber is a partial cut day, red missed.</p>
         </div>
         {hoveredRow ? (
           <div className="rounded-md bg-slate-50 px-3 py-2 text-sm text-slate-700">
             <span className="font-semibold">{hoveredRow.date}</span>
-            <span className={hoveredRow.calories > hoveredRow.calorieTarget ? "ml-2 text-red-600" : "ml-2 text-emerald-600"}>
-              {round(hoveredRow.calories - hoveredRow.calorieTarget)} kcal
+            <span className="ml-2 text-slate-500">vs TDEE</span>
+            <span className={hoveredRow.calories > hoveredRow.dynamicTdee ? "ml-2 text-red-600" : "ml-2 text-emerald-600"}>
+              {round(hoveredRow.calories - hoveredRow.dynamicTdee)} kcal
             </span>
           </div>
         ) : null}
@@ -189,17 +210,18 @@ function CalorieBalanceChart({ rows }: { rows: DailySummary[] }) {
         <div className="relative flex h-64 min-w-[620px] items-center gap-2 overflow-hidden border-y border-slate-100 py-4">
           <div className="absolute left-0 right-0 top-1/2 h-px bg-slate-300" />
           {rows.map((row) => {
-            const balance = row.calories - row.calorieTarget;
+            const balance = row.calories - row.dynamicTdee;
             const barHeight = clamp(positivePercent(Math.abs(balance), maxBalance) * (maxBarPercentFromMidline / 100), 4, maxBarPercentFromMidline);
             const isOver = balance > 0;
             const isHovered = hoveredDate === row.date;
+            const barColor = calorieBalanceColor(row);
 
             return (
               <button
                 key={row.date}
                 className="group relative flex h-full flex-1 flex-col items-center justify-center"
                 type="button"
-                title={`${row.date}: ${round(balance)} kcal`}
+                title={`${row.date}: ${round(balance)} kcal vs TDEE, target ${round(row.calorieTarget)} kcal`}
                 onBlur={() => setHoveredDate(null)}
                 onFocus={() => setHoveredDate(row.date)}
                 onMouseEnter={() => setHoveredDate(row.date)}
@@ -207,7 +229,7 @@ function CalorieBalanceChart({ rows }: { rows: DailySummary[] }) {
               >
                 <span className="relative flex h-[184px] w-full items-center justify-center overflow-hidden">
                   <span
-                    className={`absolute w-full max-w-9 rounded-md transition-all duration-200 ${isOver ? "bottom-1/2 bg-red-500" : "top-1/2 bg-emerald-500"} ${isHovered ? "opacity-100 shadow-lg" : "opacity-80"}`}
+                    className={`absolute w-full max-w-9 rounded-md transition-all duration-200 ${isOver ? "bottom-1/2" : "top-1/2"} ${barColor} ${isHovered ? "opacity-100 shadow-lg" : "opacity-80"}`}
                     style={{ height: `${barHeight}%` }}
                   />
                 </span>
@@ -297,7 +319,7 @@ function HabitHeatmap({ rows }: { rows: DailySummary[] }) {
                 return (
                   <span
                     key={`${habit.key}-${row.date}`}
-                    className={`h-7 rounded-md border transition ${done ? "border-emerald-200 bg-emerald-500" : "border-slate-200 bg-slate-50"}`}
+                    className={`aspect-square w-full rounded-md border transition ${done ? "border-emerald-200 bg-emerald-500" : "border-slate-200 bg-slate-50"}`}
                     title={`${row.date}: ${done ? "done" : "not yet"}`}
                   />
                 );
