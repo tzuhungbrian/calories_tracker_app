@@ -111,6 +111,10 @@ function scaleMacros(baseline: MacroBaseline, amount: string): FoodLogTotals | n
   };
 }
 
+function findMatchingFood(log: FoodLog, foods: CommonFood[]): CommonFood | null {
+  return foods.find((food) => (log.foodId && food.id === log.foodId) || food.name.toLowerCase() === log.foodName.toLowerCase()) ?? null;
+}
+
 export function FoodLogManager({ logs, foods, today, onChanged }: FoodLogManagerProps) {
   const [selectedLog, setSelectedLog] = useState<FoodLog | null>(null);
   const [macroBaseline, setMacroBaseline] = useState<MacroBaseline | null>(null);
@@ -145,7 +149,11 @@ export function FoodLogManager({ logs, foods, today, onChanged }: FoodLogManager
   );
 
   function editLog(log: FoodLog) {
-    setSelectedLog(log);
+    const matchingFood = findMatchingFood(log, foods);
+    setSelectedLog({
+      ...log,
+      notes: log.notes?.trim() ? log.notes : matchingFood?.notes ?? ""
+    });
     setMacroBaseline(createMacroBaseline(log, foods));
     setMessage("");
     setError(null);

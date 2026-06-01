@@ -115,6 +115,7 @@ export function FoodLogComposer({ foods, recentLogs = [], value, isSaving, onCha
       protein: roundMacro(food.protein * nextServings),
       fat: roundMacro(food.fat * nextServings),
       carbs: roundMacro(food.carbs * nextServings),
+      notes: value.foodId === food.id && value.notes ? value.notes : food.notes,
       isAiEstimated: false,
       saveToDatabase: false,
       databaseCategory: ""
