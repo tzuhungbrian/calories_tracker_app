@@ -2,7 +2,7 @@
 
 import { Activity, BarChart3, CheckCircle2, Flame, Footprints, Info, Target, Trophy, Utensils } from "lucide-react";
 import type { ReactNode } from "react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { DashboardCards } from "@/components/dashboard_cards";
 import type { DailySummary, DashboardData } from "@/lib/types";
 
@@ -180,9 +180,19 @@ function StatCard({ icon, label, value, sub }: { icon: ReactNode; label: string;
 
 function CalorieBalanceChart({ rows }: { rows: DailySummary[] }) {
   const [hoveredDate, setHoveredDate] = useState<string | null>(null);
+  const scrollRef = useRef<HTMLDivElement | null>(null);
   const maxBalance = Math.max(...rows.map((row) => Math.abs(row.calories - row.dynamicTdee)), 100);
   const hoveredRow = rows.find((row) => row.date === hoveredDate);
   const maxBarPercentFromMidline = 46;
+
+  useEffect(() => {
+    const scrollElement = scrollRef.current;
+    if (!scrollElement) {
+      return;
+    }
+
+    scrollElement.scrollLeft = scrollElement.scrollWidth;
+  }, [rows]);
 
   return (
     <section className="animate-enter-soft rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
@@ -202,9 +212,9 @@ function CalorieBalanceChart({ rows }: { rows: DailySummary[] }) {
         ) : null}
       </div>
 
-      <div className="mt-5 overflow-x-auto">
-        <div className="min-w-[620px]">
-          <div className="relative flex h-48 gap-2 overflow-hidden border-y border-slate-100">
+      <div ref={scrollRef} className="calorie-scrollbar mt-5 overflow-x-auto overflow-y-hidden pb-2">
+        <div className="min-w-[720px]">
+          <div className="relative flex h-52 gap-2 overflow-hidden border-y border-slate-100">
             <div className="absolute left-0 right-0 top-1/2 h-px bg-slate-300" />
             {rows.map((row) => {
               const balance = row.calories - row.dynamicTdee;
@@ -232,11 +242,11 @@ function CalorieBalanceChart({ rows }: { rows: DailySummary[] }) {
               );
             })}
           </div>
-          <div className="mt-2 flex gap-2">
+          <div className="mt-3 flex h-12 gap-2 overflow-hidden">
             {rows.map((row) => (
               <button
                 key={`${row.date}-label`}
-                className="flex-1 rotate-[-45deg] text-[10px] text-slate-500 transition hover:text-slate-800 focus:outline-none focus-visible:text-slate-900"
+                className="h-12 flex-1 origin-top-left rotate-[-45deg] whitespace-nowrap text-left text-[10px] text-slate-500 transition hover:text-slate-800 focus:outline-none focus-visible:text-slate-900"
                 type="button"
                 title={`${row.date}: ${round(row.calories - row.dynamicTdee)} kcal vs TDEE, target ${round(row.calorieTarget)} kcal`}
                 onBlur={() => setHoveredDate(null)}
