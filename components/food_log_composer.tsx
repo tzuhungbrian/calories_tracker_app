@@ -1,12 +1,13 @@
 "use client";
 
-import { Calculator, CheckCircle2, Database, Plus, Search, Sparkles, Utensils } from "lucide-react";
+import { Calculator, CheckCircle2, Clock3, Database, Plus, Search, Sparkles, Utensils } from "lucide-react";
 import { useMemo, useState } from "react";
 import { CategorySelect } from "@/components/category_select";
-import type { CommonFood, FoodLogInput } from "@/lib/types";
+import type { CommonFood, FoodLog, FoodLogInput } from "@/lib/types";
 
 type FoodLogComposerProps = {
   foods: CommonFood[];
+  recentLogs?: FoodLog[];
   value: FoodLogInput;
   isSaving: boolean;
   onChange: (value: FoodLogInput) => void;
@@ -59,7 +60,7 @@ function calculateScaledMacros(labelScale: LabelScaleState): Pick<FoodLogInput, 
   };
 }
 
-export function FoodLogComposer({ foods, value, isSaving, onChange, onSubmit }: FoodLogComposerProps) {
+export function FoodLogComposer({ foods, recentLogs = [], value, isSaving, onChange, onSubmit }: FoodLogComposerProps) {
   const [entryMode, setEntryMode] = useState<"saved" | "custom">("saved");
   const [selectedCategory, setSelectedCategory] = useState("");
   const [query, setQuery] = useState("");
@@ -83,6 +84,23 @@ export function FoodLogComposer({ foods, value, isSaving, onChange, onSubmit }: 
       .filter((food) => !selectedCategory || (food.category || "Uncategorized") === selectedCategory)
       .filter((food) => !normalizedQuery || food.name.toLowerCase().includes(normalizedQuery));
   }, [foods, query, selectedCategory]);
+
+  const recentFoods = useMemo(() => {
+    const seen = new Set<string>();
+
+    return [...recentLogs]
+      .sort((a, b) => (b.createdAt || b.date).localeCompare(a.createdAt || a.date))
+      .map((log) => foods.find((food) => (log.foodId && food.id === log.foodId) || food.name.toLowerCase() === log.foodName.toLowerCase()))
+      .filter((food): food is CommonFood => Boolean(food))
+      .filter((food) => {
+        if (seen.has(food.id)) {
+          return false;
+        }
+        seen.add(food.id);
+        return true;
+      })
+      .slice(0, 6);
+  }, [foods, recentLogs]);
 
   function applyFood(food: CommonFood, nextServings = servings) {
     setSelectedFood(food);
@@ -431,6 +449,27 @@ export function FoodLogComposer({ foods, value, isSaving, onChange, onSubmit }: 
         </div>
       )}
 
+      {entryMode === "saved" && recentFoods.length > 0 ? (
+        <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-3">
+          <p className="inline-flex items-center gap-2 text-sm font-semibold text-slate-700">
+            <Clock3 size={16} className="text-blue-700" />
+            Recent picks
+          </p>
+          <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
+            {recentFoods.map((food) => (
+              <button
+                key={food.id}
+                className="shrink-0 rounded-full border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-accent hover:text-blue-700"
+                type="button"
+                onClick={() => applyFood(food, 1)}
+              >
+                {food.name}
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
       <div className={`mt-5 grid gap-3 ${entryMode === "saved" ? "xl:grid-cols-[180px_minmax(0,1fr)_auto]" : "xl:grid-cols-[minmax(0,1fr)_auto]"} xl:items-end`}>
         {entryMode === "saved" ? (
           <label className="grid gap-1 text-sm font-medium text-slate-700">
@@ -443,6 +482,18 @@ export function FoodLogComposer({ foods, value, isSaving, onChange, onSubmit }: 
               value={servings}
               onChange={(event) => updateServings(Number(event.target.value))}
             />
+            <span className="mt-1 grid grid-cols-4 gap-1">
+              {[0.5, 1, 1.5, 2].map((amount) => (
+                <button
+                  key={amount}
+                  className={`rounded-md border px-2 py-1 text-xs font-semibold transition ${servings === amount ? "border-blue-200 bg-blue-50 text-blue-700" : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"}`}
+                  type="button"
+                  onClick={() => updateServings(amount)}
+                >
+                  {amount}x
+                </button>
+              ))}
+            </span>
           </label>
         ) : null}
         <div className="grid min-w-0 grid-cols-2 gap-2 md:grid-cols-4">

@@ -3,6 +3,7 @@
 import { BarChart3, CalendarCheck, Database, ReceiptText, RotateCcw, Settings, Sprout, Utensils } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { DailyStatusEditor } from "@/components/daily_status_editor";
+import { DailyReview } from "@/components/daily_review";
 import { FoodDatabaseManager } from "@/components/food_database_manager";
 import { FoodLogComposer } from "@/components/food_log_composer";
 import { FoodLogManager } from "@/components/food_log_manager";
@@ -318,6 +319,7 @@ export default function HomePage() {
                 <h2 className="text-lg font-semibold">Today</h2>
                 <p className="mt-1 text-sm text-slate-500">Log food, update activity, and keep today accurate.</p>
               </section>
+              <DailyReview dashboard={dashboard} status={dailyStatus} />
               {databaseFoodMessage ? (
                 <div className="flex flex-col gap-3 rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm font-semibold text-emerald-700 sm:flex-row sm:items-center sm:justify-between">
                   <span>{databaseFoodMessage}</span>
@@ -335,7 +337,7 @@ export default function HomePage() {
                 </div>
               ) : null}
               <section className="grid gap-4 xl:grid-cols-[1fr_360px]">
-                <FoodLogComposer foods={commonFoods} value={foodLog} isSaving={isSavingFood} onChange={setFoodLog} onSubmit={saveFoodLog} />
+                <FoodLogComposer foods={commonFoods} recentLogs={foodLogs} value={foodLog} isSaving={isSavingFood} onChange={setFoodLog} onSubmit={saveFoodLog} />
                 <DailyStatusEditor
                   value={dailyStatus}
                   today={today}
