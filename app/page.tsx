@@ -352,7 +352,7 @@ export default function HomePage() {
             </div>
           ) : activeTab === "logs" ? (
             <div className="animate-enter" key="logs-tab">
-              <FoodLogManager logs={foodLogs} today={today} onChanged={refreshData} />
+              <FoodLogManager foods={commonFoods} logs={foodLogs} today={today} onChanged={refreshData} />
             </div>
           ) : activeTab === "foods" ? (
             <div className="animate-enter" key="foods-tab">

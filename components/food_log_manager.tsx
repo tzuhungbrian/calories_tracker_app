@@ -2,10 +2,11 @@
 
 import { CalendarDays, Pencil, Save, Search, Trash2, Utensils } from "lucide-react";
 import { useMemo, useState } from "react";
-import type { FoodLog } from "@/lib/types";
+import type { CommonFood, FoodLog } from "@/lib/types";
 
 type FoodLogManagerProps = {
   logs: FoodLog[];
+  foods: CommonFood[];
   today: string;
   onChanged: () => Promise<void>;
 };
@@ -19,6 +20,7 @@ const macroFields: Array<keyof Pick<FoodLog, "calories" | "protein" | "fat" | "c
 ];
 
 type FoodLogTotals = Pick<FoodLog, "calories" | "protein" | "fat" | "carbs">;
+type MacroBaseline = FoodLogTotals;
 
 function sortLogs(logs: FoodLog[]): FoodLog[] {
   return [...logs].sort((a, b) => {
@@ -52,8 +54,66 @@ function percentOfDay(value: number, total: number): number {
   return Math.round((value / total) * 100);
 }
 
-export function FoodLogManager({ logs, today, onChanged }: FoodLogManagerProps) {
+function roundMacro(value: number): number {
+  return Math.round(value * 10) / 10;
+}
+
+function parseAmountMultiplier(amount: string): number | null {
+  const trimmedAmount = amount.trim();
+  if (!trimmedAmount) {
+    return 1;
+  }
+
+  const amountNumber = Number(trimmedAmount);
+  return Number.isFinite(amountNumber) ? amountNumber : null;
+}
+
+function createMacroBaseline(log: FoodLog, foods: CommonFood[]): MacroBaseline {
+  const matchingFood = log.foodId ? foods.find((food) => food.id === log.foodId) : null;
+  if (matchingFood) {
+    return {
+      calories: matchingFood.calories,
+      protein: matchingFood.protein,
+      fat: matchingFood.fat,
+      carbs: matchingFood.carbs
+    };
+  }
+
+  const amountMultiplier = parseAmountMultiplier(log.amount);
+  if (amountMultiplier && amountMultiplier > 0) {
+    return {
+      calories: log.calories / amountMultiplier,
+      protein: log.protein / amountMultiplier,
+      fat: log.fat / amountMultiplier,
+      carbs: log.carbs / amountMultiplier
+    };
+  }
+
+  return {
+    calories: log.calories,
+    protein: log.protein,
+    fat: log.fat,
+    carbs: log.carbs
+  };
+}
+
+function scaleMacros(baseline: MacroBaseline, amount: string): FoodLogTotals | null {
+  const amountMultiplier = parseAmountMultiplier(amount);
+  if (amountMultiplier === null) {
+    return null;
+  }
+
+  return {
+    calories: roundMacro(baseline.calories * amountMultiplier),
+    protein: roundMacro(baseline.protein * amountMultiplier),
+    fat: roundMacro(baseline.fat * amountMultiplier),
+    carbs: roundMacro(baseline.carbs * amountMultiplier)
+  };
+}
+
+export function FoodLogManager({ logs, foods, today, onChanged }: FoodLogManagerProps) {
   const [selectedLog, setSelectedLog] = useState<FoodLog | null>(null);
+  const [macroBaseline, setMacroBaseline] = useState<MacroBaseline | null>(null);
   const [dateFilter, setDateFilter] = useState(today);
   const [mealFilter, setMealFilter] = useState("");
   const [query, setQuery] = useState("");
@@ -86,6 +146,7 @@ export function FoodLogManager({ logs, today, onChanged }: FoodLogManagerProps) 
 
   function editLog(log: FoodLog) {
     setSelectedLog(log);
+    setMacroBaseline(createMacroBaseline(log, foods));
     setMessage("");
     setError(null);
   }
@@ -96,10 +157,22 @@ export function FoodLogManager({ logs, today, onChanged }: FoodLogManagerProps) 
         return current;
       }
 
-      return {
+      const updatedLog = {
         ...current,
         [field]: macroFields.includes(field as (typeof macroFields)[number]) ? Number(value) || 0 : value
       };
+
+      if (field === "amount" && macroBaseline) {
+        const scaledMacros = scaleMacros(macroBaseline, value);
+        if (scaledMacros) {
+          return {
+            ...updatedLog,
+            ...scaledMacros
+          };
+        }
+      }
+
+      return updatedLog;
     });
   }
 
@@ -125,6 +198,7 @@ export function FoodLogManager({ logs, today, onChanged }: FoodLogManagerProps) 
 
       const updatedLog = (await response.json()) as FoodLog;
       setSelectedLog(updatedLog);
+      setMacroBaseline(createMacroBaseline(updatedLog, foods));
       setMessage("Food log updated.");
       await onChanged();
     } catch (saveError) {
@@ -153,6 +227,7 @@ export function FoodLogManager({ logs, today, onChanged }: FoodLogManagerProps) 
       }
 
       setSelectedLog(null);
+      setMacroBaseline(null);
       setMessage("Food log deleted.");
       await onChanged();
     } catch (deleteError) {
