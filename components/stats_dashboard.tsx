@@ -195,22 +195,22 @@ function CalorieBalanceChart({ rows }: { rows: DailySummary[] }) {
   }, [rows]);
 
   return (
-    <section className="animate-enter-soft rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+    <section className="relative animate-enter-soft rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="pr-0 sm:pr-44">
         <div>
           <h2 className="text-lg font-semibold">Calorie balance</h2>
           <p className="mt-1 text-sm text-slate-500">Daily difference from TDEE. Green hit the day&apos;s goal, amber is a partial cut day, red missed.</p>
         </div>
-        {hoveredRow ? (
-          <div className="rounded-md bg-slate-50 px-3 py-2 text-sm text-slate-700">
-            <span className="font-semibold">{hoveredRow.date}</span>
-            <span className="ml-2 text-slate-500">vs TDEE</span>
-            <span className={hoveredRow.calories > hoveredRow.dynamicTdee ? "ml-2 text-red-600" : "ml-2 text-emerald-600"}>
-              {round(hoveredRow.calories - hoveredRow.dynamicTdee)} kcal
-            </span>
-          </div>
-        ) : null}
       </div>
+      {hoveredRow ? (
+        <div className="pointer-events-none absolute right-4 top-4 z-10 rounded-md bg-slate-50 px-3 py-2 text-sm text-slate-700 shadow-sm">
+          <span className="font-semibold">{hoveredRow.date}</span>
+          <span className="ml-2 text-slate-500">vs TDEE</span>
+          <span className={hoveredRow.calories > hoveredRow.dynamicTdee ? "ml-2 text-red-600" : "ml-2 text-emerald-600"}>
+            {round(hoveredRow.calories - hoveredRow.dynamicTdee)} kcal
+          </span>
+        </div>
+      ) : null}
 
       <div ref={scrollRef} className="calorie-scrollbar mt-5 overflow-x-auto overflow-y-hidden pb-2">
         <div className="min-w-[720px]">
