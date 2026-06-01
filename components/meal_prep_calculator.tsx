@@ -91,6 +91,7 @@ export function MealPrepCalculator({ foods: providedFoods, onChanged }: MealPrep
   const [customIngredient, setCustomIngredient] = useState<CustomIngredientInput>(() => createEmptyCustomIngredient());
   const [isSavingIngredientId, setIsSavingIngredientId] = useState<string | null>(null);
   const [isCustomIngredientOpen, setIsCustomIngredientOpen] = useState(false);
+  const [isAddingCustomCategory, setIsAddingCustomCategory] = useState(false);
 
   useEffect(() => {
     if (providedFoods) {
@@ -117,6 +118,15 @@ export function MealPrepCalculator({ foods: providedFoods, onChanged }: MealPrep
         .sort((a, b) => a.localeCompare(b)),
     [foods]
   );
+
+  const customIngredientCategories = useMemo(() => {
+    const currentCategory = customIngredient.category.trim();
+    const categorySet = new Set(["Temporary", "Meal prep", ...categories]);
+    if (currentCategory) {
+      categorySet.add(currentCategory);
+    }
+    return Array.from(categorySet).sort((a, b) => a.localeCompare(b));
+  }, [categories, customIngredient.category]);
 
   const filteredFoods = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
@@ -192,6 +202,7 @@ export function MealPrepCalculator({ foods: providedFoods, onChanged }: MealPrep
     setError(null);
     addFood(customIngredientToFood());
     setCustomIngredient(createEmptyCustomIngredient());
+    setIsAddingCustomCategory(false);
     setIsCustomIngredientOpen(false);
   }
 
@@ -249,6 +260,7 @@ export function MealPrepCalculator({ foods: providedFoods, onChanged }: MealPrep
     const saved = await saveFoodToDatabase(customIngredientToFood());
     if (saved) {
       setCustomIngredient(createEmptyCustomIngredient());
+      setIsAddingCustomCategory(false);
       setIsCustomIngredientOpen(false);
     }
   }
@@ -631,7 +643,10 @@ export function MealPrepCalculator({ foods: providedFoods, onChanged }: MealPrep
               <button
                 className="rounded-md border border-slate-200 p-2 text-slate-600"
                 type="button"
-                onClick={() => setIsCustomIngredientOpen(false)}
+                onClick={() => {
+                  setIsAddingCustomCategory(false);
+                  setIsCustomIngredientOpen(false);
+                }}
               >
                 <X size={16} />
               </button>
@@ -650,11 +665,47 @@ export function MealPrepCalculator({ foods: providedFoods, onChanged }: MealPrep
               <div className="grid gap-3 sm:grid-cols-2">
                 <label className="grid gap-1 text-sm font-medium text-slate-700">
                   Category
-                  <input
-                    className="rounded-md border border-slate-300 px-3 py-2 font-normal"
-                    value={customIngredient.category}
-                    onChange={(event) => setCustomIngredient((current) => ({ ...current, category: event.target.value }))}
-                  />
+                  {isAddingCustomCategory ? (
+                    <div className="grid gap-2">
+                      <input
+                        className="rounded-md border border-slate-300 px-3 py-2 font-normal"
+                        placeholder="New category"
+                        value={customIngredient.category}
+                        onChange={(event) => setCustomIngredient((current) => ({ ...current, category: event.target.value }))}
+                      />
+                      <button
+                        className="w-fit rounded-md border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600"
+                        type="button"
+                        onClick={() => {
+                          setCustomIngredient((current) => ({ ...current, category: current.category.trim() || "Temporary" }));
+                          setIsAddingCustomCategory(false);
+                        }}
+                      >
+                        Use selected category list
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="grid gap-2">
+                      <select
+                        className="rounded-md border border-slate-300 px-3 py-2 font-normal"
+                        value={customIngredient.category}
+                        onChange={(event) => setCustomIngredient((current) => ({ ...current, category: event.target.value }))}
+                      >
+                        {customIngredientCategories.map((foodCategory) => (
+                          <option key={foodCategory} value={foodCategory}>
+                            {foodCategory}
+                          </option>
+                        ))}
+                      </select>
+                      <button
+                        className="w-fit rounded-md border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700"
+                        type="button"
+                        onClick={() => setIsAddingCustomCategory(true)}
+                      >
+                        + Add new category
+                      </button>
+                    </div>
+                  )}
                 </label>
                 <label className="grid gap-1 text-sm font-medium text-slate-700">
                   Serving label
