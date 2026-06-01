@@ -71,6 +71,13 @@ function isTemporaryFood(food: CommonFood): boolean {
   return food.id.startsWith("temp_");
 }
 
+function formatIngredientLine(ingredient: PrepIngredient): string {
+  const food = ingredient.food;
+  const servingText = food.serving ? ` ${food.serving}` : "";
+  const servingSizeText = food.servingSize ? ` (${food.servingSize})` : "";
+  return `- ${food.name}: ${roundMacro(ingredient.servings)}x${servingText}${servingSizeText}`;
+}
+
 export function MealPrepCalculator({ foods: providedFoods, onChanged }: MealPrepCalculatorProps) {
   const [loadedFoods, setLoadedFoods] = useState<CommonFood[]>([]);
   const foods = providedFoods ?? loadedFoods;
@@ -151,10 +158,18 @@ export function MealPrepCalculator({ foods: providedFoods, onChanged }: MealPrep
     };
   }, [servingCount, totals]);
 
-  const notes = useMemo(
-    () => ingredients.map((ingredient) => `${ingredient.food.name} x ${ingredient.servings}`).join("; "),
-    [ingredients]
-  );
+  const notes = useMemo(() => {
+    if (ingredients.length === 0) {
+      return "";
+    }
+
+    return [
+      `Meal prep: ${servingCount} portions total.`,
+      `Saved serving: ${servingLabel || "1 portion"}${servingSize ? ` (${servingSize})` : ""}.`,
+      "Ingredients:",
+      ...ingredients.map(formatIngredientLine)
+    ].join("\n");
+  }, [ingredients, servingCount, servingLabel, servingSize]);
 
   function addFood(food: CommonFood) {
     setMessage("");
