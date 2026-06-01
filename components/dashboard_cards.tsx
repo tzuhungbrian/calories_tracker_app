@@ -1,4 +1,4 @@
-import { Beef, Flame, Leaf, Wheat } from "lucide-react";
+import { Activity, Beef, Flame, Leaf, Target, Wheat } from "lucide-react";
 import type { DashboardData, GoalType, NutritionTotals } from "@/lib/types";
 
 type DashboardCardsProps = {
@@ -82,31 +82,62 @@ export function DashboardCards({ data }: DashboardCardsProps) {
   }
 
   return (
-    <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-      {labels.map((label) => {
-        const Icon = icons[label];
-        const status = cardStatus(label, data);
-        const tone = toneStyles[status.tone];
+    <section className="grid gap-3">
+      <div className="grid gap-3 md:grid-cols-3">
+        <div className="rounded-lg border border-blue-100 bg-blue-50/70 p-4 shadow-sm">
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-sm font-medium text-blue-700">Today&apos;s TDEE</p>
+            <Activity size={18} className="text-blue-700" />
+          </div>
+          <p className="mt-2 text-2xl font-semibold text-slate-900">{Math.round(data.dynamicTdee)} kcal</p>
+          <p className="mt-1 text-sm text-slate-500">Calculated from profile, steps, and activity.</p>
+        </div>
+        <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-sm font-medium text-slate-600">Calorie target</p>
+            <Target size={18} className="text-slate-600" />
+          </div>
+          <p className="mt-2 text-2xl font-semibold">{Math.round(data.targets.calories)} kcal</p>
+          <p className="mt-1 text-sm capitalize text-slate-500">{data.status?.goalType ?? "maintain"} mode</p>
+        </div>
+        <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-sm font-medium text-slate-600">TDEE balance</p>
+            <Flame size={18} className="text-slate-600" />
+          </div>
+          <p className={`mt-2 text-2xl font-semibold ${data.totals.calories > data.dynamicTdee ? "text-red-600" : "text-emerald-700"}`}>
+            {Math.round(data.totals.calories - data.dynamicTdee)} kcal
+          </p>
+          <p className="mt-1 text-sm text-slate-500">Calories eaten minus TDEE.</p>
+        </div>
+      </div>
 
-        return (
-          <div key={label} className={`animate-enter hover-lift rounded-lg border p-4 shadow-sm ${tone.card}`}>
-            <div className="flex items-center justify-between gap-3">
-              <p className="text-sm capitalize text-slate-500">{label}</p>
-              <div className={`rounded-md p-2 ${tone.icon}`}>
-                <Icon size={18} />
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        {labels.map((label) => {
+          const Icon = icons[label];
+          const status = cardStatus(label, data);
+          const tone = toneStyles[status.tone];
+
+          return (
+            <div key={label} className={`animate-enter hover-lift rounded-lg border p-4 shadow-sm ${tone.card}`}>
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-sm capitalize text-slate-500">{label}</p>
+                <div className={`rounded-md p-2 ${tone.icon}`}>
+                  <Icon size={18} />
+                </div>
+              </div>
+              <div className="mt-2 flex items-end justify-between gap-3">
+                <p className="text-2xl font-semibold">{Math.round(data.totals[label])}</p>
+                <p className="text-sm text-slate-500">{status.targetLabel}</p>
+              </div>
+              <div className="mt-3 flex items-center justify-between gap-2">
+                <p className={`text-sm font-medium ${tone.remaining}`}>Remaining: {Math.round(data.remaining[label])}</p>
+                <span className={`rounded-full px-2 py-1 text-xs font-semibold ${tone.badge}`}>{status.message}</span>
               </div>
             </div>
-            <div className="mt-2 flex items-end justify-between gap-3">
-              <p className="text-2xl font-semibold">{Math.round(data.totals[label])}</p>
-              <p className="text-sm text-slate-500">{status.targetLabel}</p>
-            </div>
-            <div className="mt-3 flex items-center justify-between gap-2">
-              <p className={`text-sm font-medium ${tone.remaining}`}>Remaining: {Math.round(data.remaining[label])}</p>
-              <span className={`rounded-full px-2 py-1 text-xs font-semibold ${tone.badge}`}>{status.message}</span>
-            </div>
-          </div>
-        );
-      })}
+          );
+        })}
+      </div>
     </section>
   );
 }

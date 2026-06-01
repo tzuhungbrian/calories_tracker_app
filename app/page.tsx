@@ -3,7 +3,6 @@
 import { BarChart3, CalendarCheck, Database, ReceiptText, RotateCcw, Settings, Sprout, Utensils } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { DailyStatusEditor } from "@/components/daily_status_editor";
-import { DashboardCards } from "@/components/dashboard_cards";
 import { FoodDatabaseManager } from "@/components/food_database_manager";
 import { FoodLogComposer } from "@/components/food_log_composer";
 import { FoodLogManager } from "@/components/food_log_manager";

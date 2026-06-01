@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { readSheetObjects, sheetTabs } from "@/lib/google_sheets";
 import {
   addTotals,
+  calculateDynamicTdee,
   calculateTargets,
   remainingTotals,
   rowToDailyStatus,
@@ -27,10 +28,12 @@ export async function GET(request: Request) {
   const status = statusRows.map(rowToDailyStatus).find((row) => row.date === date) ?? null;
   const settings = rowsToSettings(settingRows);
   const targets = calculateTargets(status, settings);
+  const dynamicTdee = calculateDynamicTdee(status, settings);
   const dashboard: DashboardData = {
     date,
     totals,
     targets,
+    dynamicTdee,
     remaining: remainingTotals(targets, totals),
     status
   };

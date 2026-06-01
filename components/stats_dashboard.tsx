@@ -60,6 +60,14 @@ function calorieBalanceColor(row: DailySummary): string {
   return row.calories <= row.calorieTarget ? "bg-emerald-500" : "bg-red-500";
 }
 
+function isCalorieGoalHit(row: DailySummary): boolean {
+  if (row.goalType === "bulk") {
+    return row.calories >= row.calorieTarget;
+  }
+
+  return row.calories <= row.calorieTarget;
+}
+
 function isHabitDone(row: DailySummary, key: HabitKey): boolean {
   if (key === "logged") {
     return row.calories > 0;
@@ -94,6 +102,7 @@ export function StatsDashboard({ rows, dashboard }: StatsDashboardProps) {
     () => ({
       calories: average(scopedRows.map((row) => row.calories)),
       target: average(scopedRows.map((row) => row.calorieTarget)),
+      dynamicTdee: average(scopedRows.map((row) => row.dynamicTdee)),
       protein: average(scopedRows.map((row) => row.protein)),
       proteinGoal: average(scopedRows.map((row) => row.proteinGoal)),
       fat: average(scopedRows.map((row) => row.fat)),
@@ -103,23 +112,10 @@ export function StatsDashboard({ rows, dashboard }: StatsDashboardProps) {
     [scopedRows]
   );
   const calorieHitRate = scopedRows.length
-    ? Math.round((scopedRows.filter((row) => row.calories > 0 && row.calories <= row.calorieTarget).length / scopedRows.length) * 100)
+    ? Math.round((scopedRows.filter((row) => row.calories > 0 && isCalorieGoalHit(row)).length / scopedRows.length) * 100)
     : 0;
   const trainingDays = scopedRows.filter((row) => row.strengthSession || row.basketballMinutes > 0).length;
   const currentProteinStreak = proteinStreak(scopedRows);
-  const macroCalories = {
-    protein: averages.protein * 4,
-    fat: averages.fat * 9,
-    carbs: averages.carbs * 4
-  };
-  const totalMacroCalories = Math.max(macroCalories.protein + macroCalories.fat + macroCalories.carbs, 1);
-  const estimatedFatTarget = averages.target ? Math.round((averages.target * 0.25) / 9) : 0;
-  const estimatedCarbTarget = averages.target ? Math.max(0, Math.round((averages.target - averages.proteinGoal * 4 - estimatedFatTarget * 9) / 4)) : 0;
-  const macroRings = [
-    { label: "Protein", grams: averages.protein, target: averages.proteinGoal, percent: (macroCalories.protein / totalMacroCalories) * 100, color: "#2563eb" },
-    { label: "Fat", grams: averages.fat, target: estimatedFatTarget, percent: (macroCalories.fat / totalMacroCalories) * 100, color: "#f59e0b" },
-    { label: "Carbs", grams: averages.carbs, target: estimatedCarbTarget, percent: (macroCalories.carbs / totalMacroCalories) * 100, color: "#f97316" }
-  ];
 
   return (
     <section className="grid gap-4">
@@ -129,7 +125,7 @@ export function StatsDashboard({ rows, dashboard }: StatsDashboardProps) {
             <BarChart3 size={20} />
             Dashboard
           </h2>
-          <p className="mt-1 text-sm text-slate-500">Nutrition balance, consistency, and macro patterns.</p>
+          <p className="mt-1 text-sm text-slate-500">Nutrition balance, consistency, and energy trend.</p>
         </div>
         <div className="inline-grid rounded-lg border border-slate-200 bg-slate-50 p-1 sm:grid-cols-3">
           {rangeOptions.map((option) => (
@@ -149,18 +145,18 @@ export function StatsDashboard({ rows, dashboard }: StatsDashboardProps) {
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard icon={<Flame size={18} />} label="Avg calories" value={`${round(averages.calories)} kcal`} sub={`Target ${round(averages.target)}`} />
-        <StatCard icon={<Target size={18} />} label="Target hit rate" value={`${calorieHitRate}%`} sub="Logged days at or under target" />
+        <StatCard icon={<Target size={18} />} label="Target hit rate" value={`${calorieHitRate}%`} sub="Logged days that matched the goal mode" />
         <StatCard icon={<Footprints size={18} />} label="Avg steps" value={`${round(averages.steps)}`} sub={`${trainingDays} training days`} />
         <StatCard icon={<Trophy size={18} />} label="Protein streak" value={`${currentProteinStreak} days`} sub={`Avg ${round(averages.protein)} / ${round(averages.proteinGoal)} g`} />
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(300px,0.6fr)]">
+      <div className="grid gap-4 xl:grid-cols-2">
         <CalorieBalanceChart rows={orderedRows} />
-        <MacroRings macros={macroRings} />
+        <HabitHeatmap rows={orderedRows.slice(-14)} />
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
-        <HabitHeatmap rows={orderedRows.slice(-14)} />
+      <div className="grid gap-4 xl:grid-cols-2">
+        <EnergyOutlook rows={scopedRows} averages={averages} />
         <ProteinStreakPanel rows={orderedRows.slice(-14)} />
       </div>
     </section>
@@ -243,62 +239,6 @@ function CalorieBalanceChart({ rows }: { rows: DailySummary[] }) {
   );
 }
 
-function MacroRings({ macros }: { macros: Array<{ label: string; grams: number; target: number; percent: number; color: string }> }) {
-  return (
-    <section className="animate-enter-soft rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-      <h2 className="text-lg font-semibold">Macro summary</h2>
-      <p className="mt-1 text-sm text-slate-500">Average intake compared with the current target model.</p>
-      <div className="mt-5 grid gap-4">
-        {macros.map((macro) => (
-          <div key={macro.label} className="grid grid-cols-[64px_1fr] items-center gap-4">
-            <ProgressRing color={macro.color} percent={macro.percent} />
-            <div>
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="font-semibold">{macro.label}</p>
-                  <p className="text-sm text-slate-500">
-                    {round(macro.grams)}g{macro.target ? ` / ${round(macro.target)}g` : ""} avg
-                  </p>
-                </div>
-                <p className="text-lg font-semibold" style={{ color: macro.color }}>
-                  {round(macro.percent)}%
-                </p>
-              </div>
-              <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-100">
-                <div className="h-full rounded-full" style={{ width: `${clamp(macro.percent, 6, 100)}%`, backgroundColor: macro.color }} />
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function ProgressRing({ color, percent }: { color: string; percent: number }) {
-  const radius = 23;
-  const circumference = 2 * Math.PI * radius;
-  const dashOffset = circumference - (clamp(percent, 0, 100) / 100) * circumference;
-
-  return (
-    <svg className="h-16 w-16 shrink-0" viewBox="0 0 60 60" role="img" aria-label={`${round(percent)} percent`}>
-      <circle cx="30" cy="30" r={radius} fill="none" stroke="#e2e8f0" strokeWidth="8" />
-      <circle
-        cx="30"
-        cy="30"
-        r={radius}
-        fill="none"
-        stroke={color}
-        strokeDasharray={circumference}
-        strokeDashoffset={dashOffset}
-        strokeLinecap="round"
-        strokeWidth="8"
-        transform="rotate(-90 30 30)"
-      />
-    </svg>
-  );
-}
-
 function HabitHeatmap({ rows }: { rows: DailySummary[] }) {
   return (
     <section className="animate-enter-soft rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
@@ -339,6 +279,63 @@ function HabitHeatmap({ rows }: { rows: DailySummary[] }) {
         </span>
       </div>
     </section>
+  );
+}
+
+function EnergyOutlook({
+  rows,
+  averages
+}: {
+  rows: DailySummary[];
+  averages: { calories: number; target: number; dynamicTdee: number; protein: number; proteinGoal: number; fat: number; carbs: number; steps: number };
+}) {
+  const loggedRows = rows.filter((row) => row.calories > 0);
+  const avgVsTdee = averages.calories - averages.dynamicTdee;
+  const avgVsTarget = averages.calories - averages.target;
+  const underTdeeDays = loggedRows.filter((row) => row.calories <= row.dynamicTdee).length;
+  const targetHitDays = loggedRows.filter(isCalorieGoalHit).length;
+  const insight =
+    avgVsTdee <= 0
+      ? "Your recent intake is below average TDEE, so weight trend should lean downward if logging is accurate."
+      : "Your recent intake is above average TDEE, so weight trend should lean upward unless activity is under-counted.";
+
+  return (
+    <section className="animate-enter-soft rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-semibold">Energy outlook</h2>
+          <p className="mt-1 text-sm text-slate-500">Recent intake compared with your dynamic TDEE and goal target.</p>
+        </div>
+        <Activity className="text-blue-700" size={22} />
+      </div>
+
+      <div className="mt-5 grid gap-3 sm:grid-cols-2">
+        <EnergyMetric label="Avg vs TDEE" value={`${round(avgVsTdee)} kcal/day`} tone={avgVsTdee <= 0 ? "good" : "warn"} />
+        <EnergyMetric label="Avg vs target" value={`${round(avgVsTarget)} kcal/day`} tone={Math.abs(avgVsTarget) <= 100 ? "good" : "neutral"} />
+        <EnergyMetric label="Below TDEE days" value={`${underTdeeDays}/${loggedRows.length || rows.length}`} tone={underTdeeDays >= Math.ceil(loggedRows.length / 2) ? "good" : "warn"} />
+        <EnergyMetric label="Goal matched days" value={`${targetHitDays}/${loggedRows.length || rows.length}`} tone={targetHitDays >= Math.ceil(loggedRows.length / 2) ? "good" : "warn"} />
+      </div>
+
+      <div className="mt-5 rounded-lg bg-slate-50 p-3 text-sm text-slate-600">
+        <p className="font-semibold text-slate-800">Read this first</p>
+        <p className="mt-1">{insight}</p>
+      </div>
+    </section>
+  );
+}
+
+function EnergyMetric({ label, value, tone }: { label: string; value: string; tone: "good" | "warn" | "neutral" }) {
+  const toneClasses = {
+    good: "bg-emerald-50 text-emerald-700",
+    warn: "bg-red-50 text-red-700",
+    neutral: "bg-blue-50 text-blue-700"
+  };
+
+  return (
+    <div className={`rounded-lg p-3 ${toneClasses[tone]}`}>
+      <p className="text-xs font-semibold uppercase tracking-[0.08em] opacity-75">{label}</p>
+      <p className="mt-2 text-xl font-semibold">{value}</p>
+    </div>
   );
 }
 

@@ -79,6 +79,7 @@ export type DashboardData = {
   date: string;
   totals: NutritionTotals;
   targets: NutritionTargets;
+  dynamicTdee: number;
   remaining: NutritionTotals;
   status: DailyStatus | null;
 };
