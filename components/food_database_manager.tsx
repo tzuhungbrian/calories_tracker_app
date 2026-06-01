@@ -1,12 +1,13 @@
 "use client";
 
-import { Calculator, Database, Plus, RotateCcw, Save, Search, Trash2 } from "lucide-react";
+import { AlertTriangle, Calculator, Database, FolderCog, Plus, RotateCcw, Save, Search, Sparkles, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { CategorySelect } from "@/components/category_select";
-import type { CommonFood } from "@/lib/types";
+import type { CommonFood, FoodLog } from "@/lib/types";
 
 type FoodDatabaseManagerProps = {
   foods: CommonFood[];
+  logs: FoodLog[];
   onChanged: () => Promise<void>;
 };
 
@@ -54,6 +55,8 @@ const defaultLabelScale: LabelScaleState = {
   carbs: 0
 };
 
+type QualityFilter = "all" | "duplicates" | "unused" | "ai";
+
 function roundMacro(value: number): number {
   return Math.round(value * 10) / 10;
 }
@@ -69,12 +72,49 @@ function calculateScaledMacros(labelScale: LabelScaleState): Pick<CommonFood, "c
   };
 }
 
-export function FoodDatabaseManager({ foods, onChanged }: FoodDatabaseManagerProps) {
+function normalizeFoodName(name: string): string {
+  return name.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+function isAiEstimatedFood(food: CommonFood): boolean {
+  return `${food.name} ${food.category} ${food.notes}`.toLowerCase().includes("ai estimated");
+}
+
+function servingStandard(food: CommonFood): string {
+  const servingText = `${food.serving} ${food.servingSize}`.toLowerCase();
+  if (servingText.includes("100 ml")) {
+    return "per 100 ml";
+  }
+  if (servingText.includes("100 g") || servingText.includes("100g")) {
+    return "per 100 g";
+  }
+  if (servingText.includes("pack") || servingText.includes("package")) {
+    return "per pack";
+  }
+  return "per serving";
+}
+
+function wasUsedRecently(food: CommonFood, logs: FoodLog[], dayWindow = 30): boolean {
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - dayWindow);
+  const normalizedFoodName = normalizeFoodName(food.name);
+
+  return logs.some((log) => {
+    const logDate = new Date(`${log.date}T12:00:00`);
+    const sameFood = (log.foodId && log.foodId === food.id) || normalizeFoodName(log.foodName) === normalizedFoodName;
+    return sameFood && logDate >= cutoff;
+  });
+}
+
+export function FoodDatabaseManager({ foods, logs, onChanged }: FoodDatabaseManagerProps) {
   const [form, setForm] = useState<FoodFormState>(emptyFood);
   const [selectedCategory, setSelectedCategory] = useState("");
+  const [qualityFilter, setQualityFilter] = useState<QualityFilter>("all");
   const [query, setQuery] = useState("");
   const [macroMode, setMacroMode] = useState<"total" | "label">("total");
   const [labelScale, setLabelScale] = useState<LabelScaleState>(defaultLabelScale);
+  const [renameFromCategory, setRenameFromCategory] = useState("");
+  const [renameToCategory, setRenameToCategory] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [isUndoing, setIsUndoing] = useState(false);
   const [lastAddedFood, setLastAddedFood] = useState<CommonFood | null>(null);
@@ -89,12 +129,57 @@ export function FoodDatabaseManager({ foods, onChanged }: FoodDatabaseManagerPro
     [foods]
   );
 
+  const duplicateNameSet = useMemo(() => {
+    const counts = foods.reduce<Record<string, number>>((result, food) => {
+      const key = normalizeFoodName(food.name);
+      result[key] = (result[key] ?? 0) + 1;
+      return result;
+    }, {});
+
+    return new Set(Object.entries(counts).filter(([, count]) => count > 1).map(([name]) => name));
+  }, [foods]);
+
+  const categoryStats = useMemo(
+    () =>
+      categories.map((category) => {
+        const categoryFoods = foods.filter((food) => (food.category || "Uncategorized") === category);
+        return {
+          category,
+          count: categoryFoods.length,
+          aiCount: categoryFoods.filter(isAiEstimatedFood).length,
+          unusedCount: categoryFoods.filter((food) => !wasUsedRecently(food, logs)).length
+        };
+      }),
+    [categories, foods, logs]
+  );
+
+  const qualityCounts = useMemo(
+    () => ({
+      duplicates: foods.filter((food) => duplicateNameSet.has(normalizeFoodName(food.name))).length,
+      unused: foods.filter((food) => !wasUsedRecently(food, logs)).length,
+      ai: foods.filter(isAiEstimatedFood).length
+    }),
+    [duplicateNameSet, foods, logs]
+  );
+
   const filteredFoods = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
     return foods
       .filter((food) => !selectedCategory || (food.category || "Uncategorized") === selectedCategory)
+      .filter((food) => {
+        if (qualityFilter === "duplicates") {
+          return duplicateNameSet.has(normalizeFoodName(food.name));
+        }
+        if (qualityFilter === "unused") {
+          return !wasUsedRecently(food, logs);
+        }
+        if (qualityFilter === "ai") {
+          return isAiEstimatedFood(food);
+        }
+        return true;
+      })
       .filter((food) => !normalizedQuery || food.name.toLowerCase().includes(normalizedQuery));
-  }, [foods, query, selectedCategory]);
+  }, [duplicateNameSet, foods, logs, qualityFilter, query, selectedCategory]);
 
   function editFood(food: CommonFood) {
     setForm(food);
@@ -235,6 +320,48 @@ export function FoodDatabaseManager({ foods, onChanged }: FoodDatabaseManagerPro
     }
   }
 
+  async function renameCategory() {
+    const from = renameFromCategory.trim();
+    const to = renameToCategory.trim();
+    if (!from || !to || from === to) {
+      return;
+    }
+
+    const foodsToUpdate = foods.filter((food) => (food.category || "Uncategorized") === from);
+    if (!foodsToUpdate.length || !window.confirm(`Rename category "${from}" to "${to}" for ${foodsToUpdate.length} foods?`)) {
+      return;
+    }
+
+    setIsSaving(true);
+    setError(null);
+    setMessage("");
+
+    try {
+      await Promise.all(
+        foodsToUpdate.map((food) =>
+          fetch("/api/foods", {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ ...food, category: to })
+          }).then((response) => {
+            if (!response.ok) {
+              throw new Error("Failed to rename category.");
+            }
+          })
+        )
+      );
+      await onChanged();
+      setSelectedCategory(to);
+      setRenameFromCategory("");
+      setRenameToCategory("");
+      setMessage(`Renamed ${foodsToUpdate.length} foods to ${to}.`);
+    } catch (renameError) {
+      setError(renameError instanceof Error ? renameError.message : "Failed to rename category.");
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
   return (
     <section className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_380px]">
       <div className="animate-enter rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
@@ -284,6 +411,50 @@ export function FoodDatabaseManager({ foods, onChanged }: FoodDatabaseManagerPro
           </label>
         </div>
 
+        <div className="mt-4 grid gap-2 sm:grid-cols-4">
+          <QualityButton active={qualityFilter === "all"} label="All foods" value={foods.length} onClick={() => setQualityFilter("all")} />
+          <QualityButton active={qualityFilter === "duplicates"} label="Duplicates" value={qualityCounts.duplicates} onClick={() => setQualityFilter("duplicates")} />
+          <QualityButton active={qualityFilter === "unused"} label="Unused 30d" value={qualityCounts.unused} onClick={() => setQualityFilter("unused")} />
+          <QualityButton active={qualityFilter === "ai"} label="AI estimated" value={qualityCounts.ai} onClick={() => setQualityFilter("ai")} />
+        </div>
+
+        <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-3">
+          <div className="flex items-center justify-between gap-3">
+            <p className="inline-flex items-center gap-2 text-sm font-semibold text-slate-800">
+              <FolderCog size={16} className="text-blue-700" />
+              Category management
+            </p>
+            <p className="text-xs text-slate-500">{categories.length} categories</p>
+          </div>
+          <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
+            {categoryStats.map((stat) => (
+              <button
+                key={stat.category}
+                className={`shrink-0 rounded-lg border px-3 py-2 text-left text-xs transition ${selectedCategory === stat.category ? "border-blue-200 bg-blue-50 text-blue-700" : "border-slate-200 bg-white text-slate-600"}`}
+                type="button"
+                onClick={() => setSelectedCategory(stat.category)}
+              >
+                <span className="block font-semibold">{stat.category}</span>
+                <span className="mt-1 block">{stat.count} foods / {stat.unusedCount} unused / {stat.aiCount} AI</span>
+              </button>
+            ))}
+          </div>
+          <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_1fr_auto]">
+            <select className="rounded-md border border-slate-300 px-3 py-2 text-sm" value={renameFromCategory} onChange={(event) => setRenameFromCategory(event.target.value)}>
+              <option value="">Rename from</option>
+              {categories.map((category) => (
+                <option key={category} value={category}>
+                  {category}
+                </option>
+              ))}
+            </select>
+            <input className="rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="New category name" value={renameToCategory} onChange={(event) => setRenameToCategory(event.target.value)} />
+            <button className="rounded-md bg-ink px-3 py-2 text-sm font-semibold text-white disabled:opacity-50" disabled={isSaving || !renameFromCategory || !renameToCategory} type="button" onClick={renameCategory}>
+              Rename
+            </button>
+          </div>
+        </div>
+
         <div className="mt-4 grid max-h-[620px] gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
           {filteredFoods.map((food) => (
             <button
@@ -300,6 +471,22 @@ export function FoodDatabaseManager({ foods, onChanged }: FoodDatabaseManagerPro
                 <span className="rounded-full bg-slate-50 px-2 py-1 text-xs font-semibold text-slate-600">{food.calories} kcal</span>
               </div>
               <p className="mt-2 text-sm text-slate-700">P {food.protein} / F {food.fat} / C {food.carbs}</p>
+              <div className="mt-3 flex flex-wrap gap-1.5">
+                <span className="rounded-full bg-slate-50 px-2 py-1 text-xs font-semibold text-slate-600">{servingStandard(food)}</span>
+                {duplicateNameSet.has(normalizeFoodName(food.name)) ? (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-700">
+                    <AlertTriangle size={12} />
+                    Duplicate
+                  </span>
+                ) : null}
+                {!wasUsedRecently(food, logs) ? <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-600">Unused 30d</span> : null}
+                {isAiEstimatedFood(food) ? (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-1 text-xs font-semibold text-blue-700">
+                    <Sparkles size={12} />
+                    AI
+                  </span>
+                ) : null}
+              </div>
             </button>
           ))}
         </div>
@@ -465,5 +652,18 @@ export function FoodDatabaseManager({ foods, onChanged }: FoodDatabaseManagerPro
         </div>
       </aside>
     </section>
+  );
+}
+
+function QualityButton({ active, label, value, onClick }: { active: boolean; label: string; value: number; onClick: () => void }) {
+  return (
+    <button
+      className={`rounded-lg border px-3 py-2 text-left transition ${active ? "border-blue-200 bg-blue-50 text-blue-700" : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"}`}
+      type="button"
+      onClick={onClick}
+    >
+      <span className="block text-xs font-semibold uppercase tracking-wide">{label}</span>
+      <span className="mt-1 block text-lg font-semibold">{value}</span>
+    </button>
   );
 }

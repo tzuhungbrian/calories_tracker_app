@@ -350,7 +350,7 @@ export default function HomePage() {
             </div>
           ) : activeTab === "stats" ? (
             <div className="animate-enter" key="stats-tab">
-              <StatsDashboard dashboard={dashboard} rows={summary} />
+              <StatsDashboard dashboard={dashboard} logs={foodLogs} rows={summary} />
             </div>
           ) : activeTab === "logs" ? (
             <div className="animate-enter" key="logs-tab">
@@ -358,7 +358,7 @@ export default function HomePage() {
             </div>
           ) : activeTab === "foods" ? (
             <div className="animate-enter" key="foods-tab">
-              <FoodDatabaseManager foods={commonFoods} onChanged={refreshData} />
+              <FoodDatabaseManager foods={commonFoods} logs={foodLogs} onChanged={refreshData} />
             </div>
           ) : activeTab === "settings" ? (
             <div className="animate-enter" key="settings-tab">
