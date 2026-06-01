@@ -215,7 +215,7 @@ function CalorieBalanceChart({ rows }: { rows: DailySummary[] }) {
 
       <div ref={scrollRef} className="calorie-scrollbar mt-5 overflow-x-auto overflow-y-hidden pb-2">
         <div className="min-w-[720px]">
-          <div className="relative flex h-52 gap-2 overflow-hidden border-y border-slate-100">
+          <div className="relative grid h-52 gap-2 overflow-hidden border-y border-slate-100" style={{ gridTemplateColumns: `repeat(${rows.length}, minmax(0, 1fr))` }}>
             <div className="absolute left-0 right-0 top-1/2 h-px bg-slate-300" />
             {rows.map((row) => {
               const balance = row.calories - row.dynamicTdee;
@@ -243,11 +243,11 @@ function CalorieBalanceChart({ rows }: { rows: DailySummary[] }) {
               );
             })}
           </div>
-          <div className="mt-3 flex h-12 gap-2 overflow-visible px-4">
+          <div className="mt-3 grid h-12 gap-2 overflow-visible" style={{ gridTemplateColumns: `repeat(${rows.length}, minmax(0, 1fr))` }}>
             {rows.map((row) => (
               <button
                 key={`${row.date}-label`}
-                className="h-12 flex-1 origin-top rotate-[-45deg] whitespace-nowrap text-center text-[10px] text-slate-500 transition hover:text-slate-800 focus:outline-none focus-visible:text-slate-900"
+                className="h-12 origin-center rotate-[-45deg] whitespace-nowrap text-center text-[10px] text-slate-500 transition hover:text-slate-800 focus:outline-none focus-visible:text-slate-900"
                 type="button"
                 title={`${row.date}: ${round(row.calories - row.dynamicTdee)} kcal vs TDEE, target ${round(row.calorieTarget)} kcal`}
                 onBlur={() => setHoveredDate(null)}
