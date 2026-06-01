@@ -1,6 +1,6 @@
 "use client";
 
-import { Activity, BarChart3, CheckCircle2, Flame, Footprints, Target, Trophy, Utensils } from "lucide-react";
+import { Activity, BarChart3, CheckCircle2, Flame, Footprints, Info, Target, Trophy, Utensils } from "lucide-react";
 import type { ReactNode } from "react";
 import { useMemo, useState } from "react";
 import { DashboardCards } from "@/components/dashboard_cards";
@@ -310,10 +310,30 @@ function EnergyOutlook({
       </div>
 
       <div className="mt-5 grid gap-3 sm:grid-cols-2">
-        <EnergyMetric label="Avg vs TDEE" value={`${round(avgVsTdee)} kcal/day`} tone={avgVsTdee <= 0 ? "good" : "warn"} />
-        <EnergyMetric label="Avg vs target" value={`${round(avgVsTarget)} kcal/day`} tone={Math.abs(avgVsTarget) <= 100 ? "good" : "neutral"} />
-        <EnergyMetric label="Below TDEE days" value={`${underTdeeDays}/${loggedRows.length || rows.length}`} tone={underTdeeDays >= Math.ceil(loggedRows.length / 2) ? "good" : "warn"} />
-        <EnergyMetric label="Goal matched days" value={`${targetHitDays}/${loggedRows.length || rows.length}`} tone={targetHitDays >= Math.ceil(loggedRows.length / 2) ? "good" : "warn"} />
+        <EnergyMetric
+          label="Avg vs TDEE"
+          value={`${round(avgVsTdee)} kcal/day`}
+          tone={avgVsTdee <= 0 ? "good" : "warn"}
+          description="Average calories eaten minus average dynamic TDEE in the selected date range. Negative means you ate below estimated maintenance."
+        />
+        <EnergyMetric
+          label="Avg vs target"
+          value={`${round(avgVsTarget)} kcal/day`}
+          tone={Math.abs(avgVsTarget) <= 100 ? "good" : "neutral"}
+          description="Average calories eaten minus average calorie target. This shows how closely your intake matched the selected goal mode."
+        />
+        <EnergyMetric
+          label="Below TDEE days"
+          value={`${underTdeeDays}/${loggedRows.length || rows.length}`}
+          tone={underTdeeDays >= Math.ceil(loggedRows.length / 2) ? "good" : "warn"}
+          description="Logged days where calories were at or below dynamic TDEE. Useful for seeing whether intake stayed below estimated maintenance."
+        />
+        <EnergyMetric
+          label="Goal matched days"
+          value={`${targetHitDays}/${loggedRows.length || rows.length}`}
+          tone={targetHitDays >= Math.ceil(loggedRows.length / 2) ? "good" : "warn"}
+          description="Logged days that matched the goal mode: cut and maintain count days at or below target, while bulk counts days at or above target."
+        />
       </div>
 
       <div className="mt-5 rounded-lg bg-slate-50 p-3 text-sm text-slate-600">
@@ -324,18 +344,59 @@ function EnergyOutlook({
   );
 }
 
-function EnergyMetric({ label, value, tone }: { label: string; value: string; tone: "good" | "warn" | "neutral" }) {
+function EnergyMetric({ label, value, tone, description }: { label: string; value: string; tone: "good" | "warn" | "neutral"; description: string }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [pressTimer, setPressTimer] = useState<number | null>(null);
   const toneClasses = {
     good: "bg-emerald-50 text-emerald-700",
     warn: "bg-red-50 text-red-700",
     neutral: "bg-blue-50 text-blue-700"
   };
 
+  function clearPressTimer() {
+    if (pressTimer) {
+      window.clearTimeout(pressTimer);
+      setPressTimer(null);
+    }
+  }
+
+  function startLongPress() {
+    clearPressTimer();
+    const timerId = window.setTimeout(() => setIsOpen(true), 450);
+    setPressTimer(timerId);
+  }
+
   return (
-    <div className={`rounded-lg p-3 ${toneClasses[tone]}`}>
-      <p className="text-xs font-semibold uppercase tracking-[0.08em] opacity-75">{label}</p>
+    <button
+      className={`group relative rounded-lg p-3 text-left outline-none transition hover:-translate-y-0.5 focus-visible:ring-2 focus-visible:ring-blue-500 ${toneClasses[tone]}`}
+      type="button"
+      title={description}
+      aria-label={`${label}: ${value}. ${description}`}
+      onBlur={() => setIsOpen(false)}
+      onClick={() => setIsOpen((current) => !current)}
+      onMouseEnter={() => setIsOpen(true)}
+      onMouseLeave={() => setIsOpen(false)}
+      onPointerCancel={() => {
+        clearPressTimer();
+        setIsOpen(false);
+      }}
+      onPointerDown={startLongPress}
+      onPointerUp={clearPressTimer}
+    >
+      <span className="flex items-start justify-between gap-2">
+        <span className="text-xs font-semibold uppercase tracking-[0.08em] opacity-75">{label}</span>
+        <Info size={14} className="mt-0.5 shrink-0 opacity-70" />
+      </span>
       <p className="mt-2 text-xl font-semibold">{value}</p>
-    </div>
+      <span
+        className={`pointer-events-none absolute bottom-[calc(100%+0.5rem)] left-0 z-20 w-64 rounded-lg bg-ink px-3 py-2 text-sm font-medium normal-case leading-snug text-white shadow-lg transition duration-150 ${
+          isOpen ? "translate-y-0 opacity-100" : "translate-y-1 opacity-0"
+        }`}
+        role="tooltip"
+      >
+        {description}
+      </span>
+    </button>
   );
 }
 
