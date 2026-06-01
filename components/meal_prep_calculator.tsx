@@ -555,7 +555,7 @@ export function MealPrepCalculator({ foods: providedFoods, onChanged }: MealPrep
                 Portions
                 <input className="w-full min-w-0 rounded-md border border-slate-300 px-3 py-2 font-normal" min="1" step="1" type="number" value={servingCount} onChange={(event) => setServingCount(Number(event.target.value) || 1)} />
               </label>
-              <CategorySelect categories={["Meal prep", ...categories]} value={category} onChange={setCategory} />
+              <CategorySelect compact categories={["Meal prep", ...categories]} value={category} onChange={setCategory} />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <label className="grid min-w-0 gap-1 text-sm font-medium text-slate-700">

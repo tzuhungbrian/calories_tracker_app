@@ -4,13 +4,14 @@ import { useMemo, useState } from "react";
 
 type CategorySelectProps = {
   categories: string[];
+  compact?: boolean;
   label?: string;
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
 };
 
-export function CategorySelect({ categories, label = "Category", value, onChange, placeholder = "New category" }: CategorySelectProps) {
+export function CategorySelect({ categories, compact = false, label = "Category", value, onChange, placeholder = "New category" }: CategorySelectProps) {
   const [isAddingCategory, setIsAddingCategory] = useState(false);
   const options = useMemo(() => {
     const categorySet = new Set(categories.filter(Boolean));
@@ -43,7 +44,7 @@ export function CategorySelect({ categories, label = "Category", value, onChange
           </button>
         </div>
       ) : (
-        <div className="grid gap-2">
+        <div className={compact ? "flex min-w-0 gap-2" : "grid gap-2"}>
           <select
             className="w-full min-w-0 rounded-md border border-slate-300 px-3 py-2 font-normal"
             value={value}
@@ -56,11 +57,13 @@ export function CategorySelect({ categories, label = "Category", value, onChange
             ))}
           </select>
           <button
-            className="w-fit rounded-md border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700"
+            aria-label="Add new category"
+            className={compact ? "shrink-0 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-700" : "w-fit rounded-md border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700"}
+            title="Add new category"
             type="button"
             onClick={() => setIsAddingCategory(true)}
           >
-            + Add new category
+            {compact ? "+" : "+ Add new category"}
           </button>
         </div>
       )}
