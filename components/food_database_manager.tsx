@@ -559,7 +559,7 @@ export function FoodDatabaseManager({ foods, logs, onChanged }: FoodDatabaseMana
           {filteredFoods.map((food) => (
             <div
               key={food.id}
-              className={`hover-lift rounded-lg border p-3 transition hover:border-accent hover:bg-blue-50 ${form.id === food.id ? "border-accent bg-blue-50" : selectedFoodIds.has(food.id) ? "border-blue-200 bg-blue-50/60" : "border-slate-200"}`}
+              className={`rounded-lg border p-3 transition hover:border-accent hover:bg-blue-50 hover:shadow-sm ${form.id === food.id ? "border-accent bg-blue-50" : selectedFoodIds.has(food.id) ? "border-blue-200 bg-blue-50/60" : "border-slate-200"}`}
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="flex min-w-0 items-start gap-3">

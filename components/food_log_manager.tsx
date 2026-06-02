@@ -451,7 +451,7 @@ export function FoodLogManager({ logs, foods, today, onChanged }: FoodLogManager
               return (
                 <div
                   key={log.id}
-                  className={`hover-lift rounded-lg border p-3 transition hover:border-accent hover:bg-blue-50 ${selectedLog?.id === log.id ? "border-accent bg-blue-50" : selectedLogIds.has(log.id) ? "border-blue-200 bg-blue-50/60" : "border-slate-200"}`}
+                  className={`rounded-lg border p-3 transition hover:border-accent hover:bg-blue-50 hover:shadow-sm ${selectedLog?.id === log.id ? "border-accent bg-blue-50" : selectedLogIds.has(log.id) ? "border-blue-200 bg-blue-50/60" : "border-slate-200"}`}
                 >
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                     <div className="flex items-start gap-3">

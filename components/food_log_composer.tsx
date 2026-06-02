@@ -306,7 +306,7 @@ export function FoodLogComposer({ foods, recentLogs = [], value, isSaving, onCha
               {filteredFoods.map((food) => (
                 <button
                   key={food.id}
-                  className={`hover-lift rounded-lg border p-3 text-left transition hover:border-accent hover:bg-blue-50 ${selectedFood?.id === food.id ? "border-accent bg-blue-50" : "border-slate-200"}`}
+                  className={`rounded-lg border p-3 text-left transition hover:border-accent hover:bg-blue-50 hover:shadow-sm ${selectedFood?.id === food.id ? "border-accent bg-blue-50" : "border-slate-200"}`}
                   type="button"
                   onClick={() => applyFood(food, 1)}
                 >

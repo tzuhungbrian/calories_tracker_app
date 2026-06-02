@@ -425,7 +425,7 @@ export function MealPrepCalculator({ foods: providedFoods, onChanged }: MealPrep
           {filteredFoods.map((food) => (
             <button
               key={food.id}
-              className={`hover-lift cursor-grab rounded-lg border p-3 text-left transition active:cursor-grabbing ${draggingFoodId === food.id ? "border-accent bg-blue-50 opacity-80 ring-2 ring-blue-100" : "border-slate-200 hover:border-accent hover:bg-blue-50"}`}
+              className={`cursor-grab rounded-lg border p-3 text-left transition active:cursor-grabbing ${draggingFoodId === food.id ? "border-accent bg-blue-50 opacity-80 ring-2 ring-blue-100" : "border-slate-200 hover:border-accent hover:bg-blue-50 hover:shadow-sm"}`}
               draggable
               type="button"
               onClick={() => addFood(food)}
