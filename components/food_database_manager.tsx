@@ -115,6 +115,7 @@ export function FoodDatabaseManager({ foods, logs, onChanged }: FoodDatabaseMana
   const [labelScale, setLabelScale] = useState<LabelScaleState>(defaultLabelScale);
   const [renameFromCategory, setRenameFromCategory] = useState("");
   const [renameToCategory, setRenameToCategory] = useState("");
+  const [isBatchMode, setIsBatchMode] = useState(false);
   const [selectedFoodIds, setSelectedFoodIds] = useState<Set<string>>(new Set());
   const [isSaving, setIsSaving] = useState(false);
   const [isUndoing, setIsUndoing] = useState(false);
@@ -209,6 +210,15 @@ export function FoodDatabaseManager({ foods, logs, onChanged }: FoodDatabaseMana
 
   function clearSelectedFoods() {
     setSelectedFoodIds(new Set());
+  }
+
+  function toggleBatchMode() {
+    setIsBatchMode((current) => {
+      if (current) {
+        clearSelectedFoods();
+      }
+      return !current;
+    });
   }
 
   function resetForm() {
@@ -433,12 +443,22 @@ export function FoodDatabaseManager({ foods, logs, onChanged }: FoodDatabaseMana
             </h2>
             <p className="mt-1 text-sm text-slate-500">Manage the saved foods used by logging and meal prep.</p>
           </div>
-          <button className="rounded-md bg-ink px-4 py-2 text-sm font-semibold text-white" type="button" onClick={resetForm}>
-            <span className="inline-flex items-center gap-2">
+          <div className="flex flex-wrap gap-2">
+            <button
+              className={`inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-semibold ${isBatchMode ? "bg-ink text-white" : "border border-slate-200 text-slate-600 hover:bg-slate-50"}`}
+              type="button"
+              onClick={toggleBatchMode}
+            >
+              <ListChecks size={16} />
+              {isBatchMode ? "Done" : "Batch"}
+            </button>
+            <button className="rounded-md bg-ink px-4 py-2 text-sm font-semibold text-white" type="button" onClick={resetForm}>
+              <span className="inline-flex items-center gap-2">
               <Plus size={16} />
               New food
-            </span>
-          </button>
+              </span>
+            </button>
+          </div>
         </div>
 
         <div className="mt-4 grid gap-3 sm:grid-cols-[220px_1fr]">
@@ -515,6 +535,7 @@ export function FoodDatabaseManager({ foods, logs, onChanged }: FoodDatabaseMana
           </div>
         </div>
 
+        {isBatchMode ? (
         <div className="mt-4 flex flex-col gap-2 rounded-lg border border-slate-200 bg-slate-50 p-3 sm:flex-row sm:items-center sm:justify-between">
           <p className="inline-flex items-center gap-2 text-sm font-semibold text-slate-700">
             <ListChecks size={16} className="text-blue-700" />
@@ -532,6 +553,7 @@ export function FoodDatabaseManager({ foods, logs, onChanged }: FoodDatabaseMana
             </button>
           </div>
         </div>
+        ) : null}
 
         <div className="mt-4 grid max-h-[620px] gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
           {filteredFoods.map((food) => (
@@ -541,14 +563,16 @@ export function FoodDatabaseManager({ foods, logs, onChanged }: FoodDatabaseMana
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="flex min-w-0 items-start gap-3">
-                  <input
-                    aria-label={`Select ${food.name}`}
-                    className="mt-1"
-                    checked={selectedFoodIds.has(food.id)}
-                    type="checkbox"
-                    onChange={() => toggleFoodSelection(food.id)}
-                  />
-                  <button className="min-w-0 text-left" type="button" onClick={() => editFood(food)}>
+                  {isBatchMode ? (
+                    <input
+                      aria-label={`Select ${food.name}`}
+                      className="mt-1"
+                      checked={selectedFoodIds.has(food.id)}
+                      type="checkbox"
+                      onChange={() => toggleFoodSelection(food.id)}
+                    />
+                  ) : null}
+                  <button className="min-w-0 text-left" type="button" onClick={() => (isBatchMode ? toggleFoodSelection(food.id) : editFood(food))}>
                     <p className="font-medium">{food.name}</p>
                     <p className="mt-1 text-xs text-slate-500">{food.category || "Uncategorized"} / {food.serving}</p>
                   </button>

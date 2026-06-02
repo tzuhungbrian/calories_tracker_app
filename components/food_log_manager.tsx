@@ -121,6 +121,7 @@ export function FoodLogManager({ logs, foods, today, onChanged }: FoodLogManager
   const [dateFilter, setDateFilter] = useState(today);
   const [mealFilter, setMealFilter] = useState("");
   const [query, setQuery] = useState("");
+  const [isBatchMode, setIsBatchMode] = useState(false);
   const [selectedLogIds, setSelectedLogIds] = useState<Set<string>>(new Set());
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState("");
@@ -178,6 +179,15 @@ export function FoodLogManager({ logs, foods, today, onChanged }: FoodLogManager
 
   function clearSelectedLogs() {
     setSelectedLogIds(new Set());
+  }
+
+  function toggleBatchMode() {
+    setIsBatchMode((current) => {
+      if (current) {
+        clearSelectedLogs();
+      }
+      return !current;
+    });
   }
 
   function updateField(field: keyof FoodLog, value: string) {
@@ -369,6 +379,14 @@ export function FoodLogManager({ logs, foods, today, onChanged }: FoodLogManager
             <span>F {Math.round(dayTotals.fat)}</span>
             <span>C {Math.round(dayTotals.carbs)}</span>
           </div>
+          <button
+            className={`inline-flex w-fit items-center gap-2 rounded-md px-3 py-2 text-sm font-semibold ${isBatchMode ? "bg-ink text-white" : "border border-slate-200 text-slate-600 hover:bg-slate-50"}`}
+            type="button"
+            onClick={toggleBatchMode}
+          >
+            <ListChecks size={16} />
+            {isBatchMode ? "Done" : "Batch"}
+          </button>
         </div>
 
         <div className="mt-4 grid gap-3 sm:grid-cols-[170px_170px_1fr]">
@@ -399,6 +417,7 @@ export function FoodLogManager({ logs, foods, today, onChanged }: FoodLogManager
           </label>
         </div>
 
+        {isBatchMode ? (
         <div className="mt-4 flex flex-col gap-2 rounded-lg border border-slate-200 bg-slate-50 p-3 sm:flex-row sm:items-center sm:justify-between">
           <p className="inline-flex items-center gap-2 text-sm font-semibold text-slate-700">
             <ListChecks size={16} className="text-blue-700" />
@@ -422,6 +441,7 @@ export function FoodLogManager({ logs, foods, today, onChanged }: FoodLogManager
             </button>
           </div>
         </div>
+        ) : null}
 
         <div className="mt-4 grid max-h-[640px] gap-2 overflow-y-auto pr-1">
           {visibleLogs.length > 0 ? (
@@ -435,14 +455,16 @@ export function FoodLogManager({ logs, foods, today, onChanged }: FoodLogManager
                 >
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                     <div className="flex items-start gap-3">
-                      <input
-                        aria-label={`Select ${log.foodName}`}
-                        className="mt-1"
-                        checked={selectedLogIds.has(log.id)}
-                        type="checkbox"
-                        onChange={() => toggleLogSelection(log.id)}
-                      />
-                      <button className="min-w-0 text-left" type="button" onClick={() => editLog(log)}>
+                      {isBatchMode ? (
+                        <input
+                          aria-label={`Select ${log.foodName}`}
+                          className="mt-1"
+                          checked={selectedLogIds.has(log.id)}
+                          type="checkbox"
+                          onChange={() => toggleLogSelection(log.id)}
+                        />
+                      ) : null}
+                      <button className="min-w-0 text-left" type="button" onClick={() => (isBatchMode ? toggleLogSelection(log.id) : editLog(log))}>
                         <p className="font-semibold">{log.foodName}</p>
                         <p className="mt-1 text-xs text-slate-500">
                           {log.date} / {log.meal || "No meal"} / {log.amount || "1 serving"}
