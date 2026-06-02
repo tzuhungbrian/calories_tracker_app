@@ -1,6 +1,6 @@
 "use client";
 
-import { Activity, BarChart3, Beef, CheckCircle2, Flame, Footprints, Target, Trophy, Utensils } from "lucide-react";
+import { Activity, ArrowRight, BarChart3, Beef, CheckCircle2, Flame, Footprints, Sparkles, Target, Trophy, Utensils } from "lucide-react";
 import type { ReactNode } from "react";
 import { useMemo, useState } from "react";
 import { DashboardCards } from "@/components/dashboard_cards";
@@ -72,6 +72,171 @@ function isGenericFoodName(name: string): boolean {
   return ["manual entry", "custom food", "ai estimated meal", "quick add", "unknown"].includes(normalized);
 }
 
+function localFatRange(target: number): { min: number; max: number } {
+  return {
+    min: Math.round(target * 0.8),
+    max: Math.round(target * 1.2)
+  };
+}
+
+function controlledCalories(row: DailySummary): boolean {
+  if (row.calories <= 0 || row.calorieTarget <= 0) {
+    return false;
+  }
+
+  return row.goalType === "bulk" ? row.calories >= row.calorieTarget : row.calories <= row.calorieTarget;
+}
+
+function calorieControlStreak(rows: DailySummary[]): number {
+  let streak = 0;
+
+  for (const row of rows) {
+    if (!controlledCalories(row)) {
+      break;
+    }
+    streak += 1;
+  }
+
+  return streak;
+}
+
+function signedCalories(value: number): string {
+  const rounded = round(value);
+  return rounded > 0 ? `+${rounded}` : `${rounded}`;
+}
+
+function todayDecision(data: DashboardData | null): { title: string; body: string; tone: "good" | "warn" | "neutral" } {
+  if (!data) {
+    return {
+      title: "Load today first",
+      body: "Once the sheet data loads, this card turns the numbers into a concrete next step.",
+      tone: "neutral"
+    };
+  }
+
+  const goalType = data.status?.goalType ?? "maintain";
+  const caloriesRemaining = data.remaining.calories;
+  const proteinRemaining = Math.max(data.targets.protein - data.totals.protein, 0);
+  const tdeeBalance = data.totals.calories - data.dynamicTdee;
+
+  if (data.totals.calories <= 0) {
+    return {
+      title: "Start with one clean log",
+      body: `Today's ${goalType} target is ${round(data.targets.calories)} kcal. Add your first meal so the plan can steer the rest of the day.`,
+      tone: "neutral"
+    };
+  }
+
+  if (goalType === "bulk") {
+    if (caloriesRemaining > 0) {
+      return {
+        title: "Fuel the bulk",
+        body: `${round(caloriesRemaining)} kcal left to reach target. Prioritize protein first, then add carbs around training.`,
+        tone: "warn"
+      };
+    }
+
+    return {
+      title: "Bulk target hit",
+      body: `You are ${Math.abs(round(caloriesRemaining))} kcal past target. Keep the rest easy and avoid turning a good surplus into noise.`,
+      tone: "good"
+    };
+  }
+
+  if (caloriesRemaining >= 0) {
+    return {
+      title: proteinRemaining > 10 ? "Protect the deficit with protein" : "Today is under control",
+      body:
+        proteinRemaining > 10
+          ? `${round(caloriesRemaining)} kcal left and ${round(proteinRemaining)}g protein still open. Make the next food protein-led.`
+          : `${round(caloriesRemaining)} kcal left and protein is handled. Keep dinner simple and you keep the win.`,
+      tone: "good"
+    };
+  }
+
+  if (goalType === "cut" && tdeeBalance <= 0) {
+    return {
+      title: "Partial win, do not spiral",
+      body: `You are ${Math.abs(round(caloriesRemaining))} kcal over cut target, but still ${Math.abs(round(tdeeBalance))} kcal below TDEE. Keep the next meal light.`,
+      tone: "neutral"
+    };
+  }
+
+  return {
+    title: "Damage control mode",
+    body: `You are ${Math.abs(round(caloriesRemaining))} kcal over target and ${signedCalories(tdeeBalance)} kcal vs TDEE. Go protein-heavy, low-fat, and stop snacking.`,
+    tone: "warn"
+  };
+}
+
+function nextMeal(data: DashboardData | null): { title: string; body: string; detail: string; tone: "good" | "warn" | "neutral" } {
+  if (!data) {
+    return {
+      title: "Next meal suggestion",
+      body: "Loading meal guidance.",
+      detail: "Needs today's targets.",
+      tone: "neutral"
+    };
+  }
+
+  const proteinRemaining = Math.max(data.targets.protein - data.totals.protein, 0);
+  const caloriesRemaining = data.remaining.calories;
+  const carbsRemaining = data.remaining.carbs;
+  const fatBand = localFatRange(data.targets.fat);
+
+  if (caloriesRemaining <= 0) {
+    return {
+      title: "Light recovery plate",
+      body: "Lean protein plus vegetables. Skip calorie-dense sauces and oils.",
+      detail: `${round(proteinRemaining)}g protein still useful`,
+      tone: "warn"
+    };
+  }
+
+  if (proteinRemaining >= 35 && caloriesRemaining >= 350) {
+    return {
+      title: "Lean protein meal",
+      body: "Chicken, fish, egg whites, Greek yogurt, tofu, or a saved prep meal.",
+      detail: `${round(proteinRemaining)}g protein left`,
+      tone: "good"
+    };
+  }
+
+  if (proteinRemaining >= 15 && caloriesRemaining < 350) {
+    return {
+      title: "Protein snack",
+      body: "Use a compact option so you hit protein without spending the whole calorie budget.",
+      detail: `${round(caloriesRemaining)} kcal left`,
+      tone: "good"
+    };
+  }
+
+  if (data.totals.fat > fatBand.max) {
+    return {
+      title: "Low-fat dinner",
+      body: "Fat is already high today. Choose lean protein and carbs, avoid oils, nuts, and fried foods.",
+      detail: `Fat range ${fatBand.min}-${fatBand.max}g`,
+      tone: "warn"
+    };
+  }
+
+  if (carbsRemaining > 80 && (data.status?.goalType === "bulk" || data.status?.basketballMinutes || data.status?.strengthSession)) {
+    return {
+      title: "Carb refill meal",
+      body: "Rice, potatoes, noodles, or fruit paired with a clear protein source.",
+      detail: `${round(carbsRemaining)}g carbs left`,
+      tone: "neutral"
+    };
+  }
+
+  return {
+    title: "Balanced plate",
+    body: "A protein anchor, one carb, and one vegetable keeps the rest of today boring in a good way.",
+    detail: `${round(caloriesRemaining)} kcal left`,
+    tone: "neutral"
+  };
+}
+
 export function StatsDashboard({ rows, dashboard, logs }: StatsDashboardProps) {
   const [dayRange, setDayRange] = useState(14);
   const exerciseStepGoal = dashboard?.exerciseStepGoal ?? 8000;
@@ -90,6 +255,11 @@ export function StatsDashboard({ rows, dashboard, logs }: StatsDashboardProps) {
   const cutSuccessRate = rate(cutRows.filter((row) => row.calories <= row.calorieTarget).length, cutRows.length);
   const proteinCompliance = rate(proteinRows.filter((row) => row.protein >= row.proteinGoal).length, proteinRows.length);
   const exerciseConsistency = rate(scopedRows.filter((row) => isHabitDone(row, "exercise", exerciseStepGoal)).length, scopedRows.length);
+  const decision = todayDecision(dashboard);
+  const mealSuggestion = nextMeal(dashboard);
+  const controlStreak = calorieControlStreak(rows);
+  const sevenDayProteinHits = recentSevenRows.filter((row) => row.calories > 0 && row.proteinGoal > 0 && row.protein >= row.proteinGoal).length;
+  const sevenDayExerciseHits = recentSevenRows.filter((row) => isHabitDone(row, "exercise", exerciseStepGoal)).length;
   const overageMeal = useMemo(() => {
     const totals = scopedLogs.filter((log) => overTargetDateSet.has(log.date)).reduce<Record<string, number>>((result, log) => {
       const meal = log.meal || "No meal";
@@ -133,6 +303,19 @@ export function StatsDashboard({ rows, dashboard, logs }: StatsDashboardProps) {
 
       <DashboardCards data={dashboard} />
 
+      <div className="grid gap-3 xl:grid-cols-[1.35fr_1fr_1fr]">
+        <CoachCard
+          icon={<Sparkles size={20} />}
+          label="Today's decision"
+          title={decision.title}
+          body={decision.body}
+          tone={decision.tone}
+          emphasis
+        />
+        <CoachCard icon={<Utensils size={20} />} label="Next best meal" title={mealSuggestion.title} body={mealSuggestion.body} detail={mealSuggestion.detail} tone={mealSuggestion.tone} />
+        <MomentumCard controlStreak={controlStreak} proteinHits={sevenDayProteinHits} exerciseHits={sevenDayExerciseHits} loggedDays={sevenLoggedRows.length} />
+      </div>
+
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
         <InsightCard icon={<Flame size={18} />} label="7-day avg vs TDEE" value={`${round(sevenDayBalance)} kcal/day`} sub={sevenDayBalance <= 0 ? "Recent intake is below maintenance." : "Recent intake is above maintenance."} tone={sevenDayBalance <= 0 ? "good" : "warn"} />
         <InsightCard icon={<Target size={18} />} label="Cut success" value={`${cutSuccessRate}%`} sub={`${cutRows.length} logged cut days in range`} tone={cutSuccessRate >= 70 ? "good" : "warn"} />
@@ -149,6 +332,92 @@ export function StatsDashboard({ rows, dashboard, logs }: StatsDashboardProps) {
         <ProteinStreakPanel rows={orderedRows.slice(-14)} />
       </div>
     </section>
+  );
+}
+
+function CoachCard({
+  icon,
+  label,
+  title,
+  body,
+  detail,
+  tone,
+  emphasis = false
+}: {
+  icon: ReactNode;
+  label: string;
+  title: string;
+  body: string;
+  detail?: string;
+  tone: "good" | "warn" | "neutral";
+  emphasis?: boolean;
+}) {
+  const styles = {
+    good: "border-emerald-200 bg-gradient-to-br from-emerald-50 to-white text-emerald-700 dark:border-emerald-900 dark:from-emerald-950/50 dark:to-slate-900 dark:text-emerald-300",
+    warn: "border-amber-200 bg-gradient-to-br from-amber-50 to-white text-amber-700 dark:border-amber-900 dark:from-amber-950/50 dark:to-slate-900 dark:text-amber-300",
+    neutral: "border-blue-200 bg-gradient-to-br from-blue-50 to-white text-blue-700 dark:border-blue-900 dark:from-blue-950/50 dark:to-slate-900 dark:text-blue-300"
+  };
+
+  return (
+    <section className={`animate-enter-soft hover-lift rounded-lg border p-5 shadow-sm ${styles[tone]} ${emphasis ? "min-h-[210px]" : ""}`}>
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white/85 shadow-sm dark:bg-slate-900/80">{icon}</div>
+          <div>
+            <p className="text-sm font-semibold opacity-80">{label}</p>
+            <h3 className={`${emphasis ? "text-2xl" : "text-xl"} mt-1 font-semibold text-ink`}>{title}</h3>
+          </div>
+        </div>
+        {detail ? <span className="rounded-full bg-white/80 px-3 py-1 text-xs font-semibold shadow-sm dark:bg-slate-900/80">{detail}</span> : null}
+      </div>
+      <p className="mt-4 max-w-2xl text-sm leading-6 text-slate-600">{body}</p>
+      {emphasis ? (
+        <div className="mt-5 inline-flex items-center gap-2 rounded-full bg-ink px-3 py-2 text-sm font-semibold text-white">
+          Make the next action obvious
+          <ArrowRight size={15} />
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+function MomentumCard({ controlStreak, proteinHits, exerciseHits, loggedDays }: { controlStreak: number; proteinHits: number; exerciseHits: number; loggedDays: number }) {
+  return (
+    <section className="animate-enter-soft hover-lift rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <p className="text-sm font-semibold text-slate-500">Momentum</p>
+          <h3 className="mt-1 text-xl font-semibold">{controlStreak > 0 ? `${controlStreak}-day control streak` : "Build today's streak"}</h3>
+        </div>
+        <div className="flex h-11 w-11 items-center justify-center rounded-full bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300">
+          <Activity size={20} />
+        </div>
+      </div>
+      <div className="mt-5 grid gap-3">
+        <MomentumRow label="Logged days" value={loggedDays} target={7} />
+        <MomentumRow label="Protein hits" value={proteinHits} target={7} />
+        <MomentumRow label="Exercise hits" value={exerciseHits} target={7} />
+      </div>
+      <p className="mt-4 text-sm text-slate-500">A small streak is easier to protect than motivation is to restart.</p>
+    </section>
+  );
+}
+
+function MomentumRow({ label, value, target }: { label: string; value: number; target: number }) {
+  const width = clamp((value / target) * 100, value > 0 ? 10 : 0, 100);
+
+  return (
+    <div>
+      <div className="mb-1.5 flex items-center justify-between gap-3 text-sm">
+        <span className="font-medium text-slate-600">{label}</span>
+        <span className="font-semibold text-slate-900">
+          {value}/{target}
+        </span>
+      </div>
+      <div className="h-2 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
+        <span className="block h-full rounded-full bg-blue-600" style={{ width: `${width}%` }} />
+      </div>
+    </div>
   );
 }
 
