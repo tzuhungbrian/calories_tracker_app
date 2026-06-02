@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, Calculator, Database, FolderCog, Plus, RotateCcw, Save, Search, Sparkles, Trash2 } from "lucide-react";
+import { AlertTriangle, Calculator, Database, FolderCog, ListChecks, Plus, RotateCcw, Save, Search, Sparkles, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { CategorySelect } from "@/components/category_select";
 import type { CommonFood, FoodLog } from "@/lib/types";
@@ -115,6 +115,7 @@ export function FoodDatabaseManager({ foods, logs, onChanged }: FoodDatabaseMana
   const [labelScale, setLabelScale] = useState<LabelScaleState>(defaultLabelScale);
   const [renameFromCategory, setRenameFromCategory] = useState("");
   const [renameToCategory, setRenameToCategory] = useState("");
+  const [selectedFoodIds, setSelectedFoodIds] = useState<Set<string>>(new Set());
   const [isSaving, setIsSaving] = useState(false);
   const [isUndoing, setIsUndoing] = useState(false);
   const [lastAddedFood, setLastAddedFood] = useState<CommonFood | null>(null);
@@ -188,6 +189,26 @@ export function FoodDatabaseManager({ foods, logs, onChanged }: FoodDatabaseMana
     setLastAddedFood(null);
     setMessage("");
     setError(null);
+  }
+
+  function toggleFoodSelection(foodId: string) {
+    setSelectedFoodIds((current) => {
+      const next = new Set(current);
+      if (next.has(foodId)) {
+        next.delete(foodId);
+      } else {
+        next.add(foodId);
+      }
+      return next;
+    });
+  }
+
+  function selectVisibleFoods() {
+    setSelectedFoodIds(new Set(filteredFoods.map((food) => food.id).filter(Boolean)));
+  }
+
+  function clearSelectedFoods() {
+    setSelectedFoodIds(new Set());
   }
 
   function resetForm() {
@@ -293,6 +314,43 @@ export function FoodDatabaseManager({ foods, logs, onChanged }: FoodDatabaseMana
     }
   }
 
+  async function deleteSelectedFoods() {
+    const selectedFoods = foods.filter((food) => selectedFoodIds.has(food.id));
+    if (!selectedFoods.length || !window.confirm(`Delete ${selectedFoods.length} selected foods? Existing logs will keep their saved macro values.`)) {
+      return;
+    }
+
+    setIsSaving(true);
+    setError(null);
+    setMessage("");
+
+    try {
+      await Promise.all(
+        selectedFoods.map((food) =>
+          fetch(`/api/foods?id=${encodeURIComponent(food.id)}`, {
+            method: "DELETE"
+          }).then((response) => {
+            if (!response.ok) {
+              throw new Error("Failed to delete selected foods.");
+            }
+          })
+        )
+      );
+
+      if (form.id && selectedFoodIds.has(form.id)) {
+        setForm(emptyFood);
+      }
+      clearSelectedFoods();
+      setLastAddedFood(null);
+      setMessage(`Deleted ${selectedFoods.length} foods.`);
+      await onChanged();
+    } catch (deleteError) {
+      setError(deleteError instanceof Error ? deleteError.message : "Failed to delete selected foods.");
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
   async function undoLastAddedFood() {
     if (!lastAddedFood) {
       return;
@@ -361,6 +419,8 @@ export function FoodDatabaseManager({ foods, logs, onChanged }: FoodDatabaseMana
       setIsSaving(false);
     }
   }
+
+  const selectedFoodCount = selectedFoodIds.size;
 
   return (
     <section className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_380px]">
@@ -455,18 +515,43 @@ export function FoodDatabaseManager({ foods, logs, onChanged }: FoodDatabaseMana
           </div>
         </div>
 
+        <div className="mt-4 flex flex-col gap-2 rounded-lg border border-slate-200 bg-slate-50 p-3 sm:flex-row sm:items-center sm:justify-between">
+          <p className="inline-flex items-center gap-2 text-sm font-semibold text-slate-700">
+            <ListChecks size={16} className="text-blue-700" />
+            {selectedFoodCount} selected
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <button className="rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-600" type="button" onClick={selectVisibleFoods}>
+              Select visible
+            </button>
+            <button className="rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-600 disabled:opacity-50" disabled={!selectedFoodCount} type="button" onClick={clearSelectedFoods}>
+              Clear
+            </button>
+            <button className="rounded-md border border-red-200 bg-white px-3 py-2 text-sm font-semibold text-red-600 disabled:opacity-50" disabled={isSaving || !selectedFoodCount} type="button" onClick={deleteSelectedFoods}>
+              Delete selected
+            </button>
+          </div>
+        </div>
+
         <div className="mt-4 grid max-h-[620px] gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
           {filteredFoods.map((food) => (
-            <button
+            <div
               key={food.id}
-              className={`hover-lift rounded-lg border p-3 text-left transition hover:border-accent hover:bg-blue-50 ${form.id === food.id ? "border-accent bg-blue-50" : "border-slate-200"}`}
-              type="button"
-              onClick={() => editFood(food)}
+              className={`hover-lift rounded-lg border p-3 transition hover:border-accent hover:bg-blue-50 ${form.id === food.id ? "border-accent bg-blue-50" : selectedFoodIds.has(food.id) ? "border-blue-200 bg-blue-50/60" : "border-slate-200"}`}
             >
               <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="font-medium">{food.name}</p>
-                  <p className="mt-1 text-xs text-slate-500">{food.category || "Uncategorized"} / {food.serving}</p>
+                <div className="flex min-w-0 items-start gap-3">
+                  <input
+                    aria-label={`Select ${food.name}`}
+                    className="mt-1"
+                    checked={selectedFoodIds.has(food.id)}
+                    type="checkbox"
+                    onChange={() => toggleFoodSelection(food.id)}
+                  />
+                  <button className="min-w-0 text-left" type="button" onClick={() => editFood(food)}>
+                    <p className="font-medium">{food.name}</p>
+                    <p className="mt-1 text-xs text-slate-500">{food.category || "Uncategorized"} / {food.serving}</p>
+                  </button>
                 </div>
                 <span className="rounded-full bg-slate-50 px-2 py-1 text-xs font-semibold text-slate-600">{food.calories} kcal</span>
               </div>
@@ -487,7 +572,7 @@ export function FoodDatabaseManager({ foods, logs, onChanged }: FoodDatabaseMana
                   </span>
                 ) : null}
               </div>
-            </button>
+            </div>
           ))}
         </div>
       </div>

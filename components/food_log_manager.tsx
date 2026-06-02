@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarDays, Pencil, Save, Search, Trash2, Utensils } from "lucide-react";
+import { CalendarDays, Copy, ListChecks, Pencil, Save, Search, Trash2, Utensils } from "lucide-react";
 import { useMemo, useState } from "react";
 import type { CommonFood, FoodLog } from "@/lib/types";
 
@@ -121,6 +121,7 @@ export function FoodLogManager({ logs, foods, today, onChanged }: FoodLogManager
   const [dateFilter, setDateFilter] = useState(today);
   const [mealFilter, setMealFilter] = useState("");
   const [query, setQuery] = useState("");
+  const [selectedLogIds, setSelectedLogIds] = useState<Set<string>>(new Set());
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -157,6 +158,26 @@ export function FoodLogManager({ logs, foods, today, onChanged }: FoodLogManager
     setMacroBaseline(createMacroBaseline(log, foods));
     setMessage("");
     setError(null);
+  }
+
+  function toggleLogSelection(logId: string) {
+    setSelectedLogIds((current) => {
+      const next = new Set(current);
+      if (next.has(logId)) {
+        next.delete(logId);
+      } else {
+        next.add(logId);
+      }
+      return next;
+    });
+  }
+
+  function selectVisibleLogs() {
+    setSelectedLogIds(new Set(visibleLogs.map((log) => log.id).filter(Boolean)));
+  }
+
+  function clearSelectedLogs() {
+    setSelectedLogIds(new Set());
   }
 
   function updateField(field: keyof FoodLog, value: string) {
@@ -245,6 +266,92 @@ export function FoodLogManager({ logs, foods, today, onChanged }: FoodLogManager
     }
   }
 
+  async function deleteSelectedLogs() {
+    const selectedLogs = logs.filter((log) => selectedLogIds.has(log.id));
+    if (!selectedLogs.length || !window.confirm(`Delete ${selectedLogs.length} selected food logs?`)) {
+      return;
+    }
+
+    setIsSaving(true);
+    setMessage("");
+    setError(null);
+
+    try {
+      await Promise.all(
+        selectedLogs.map((log) =>
+          fetch(`/api/daily_log?id=${encodeURIComponent(log.id)}`, {
+            method: "DELETE"
+          }).then((response) => {
+            if (!response.ok) {
+              throw new Error("Failed to delete selected food logs.");
+            }
+          })
+        )
+      );
+
+      if (selectedLog && selectedLogIds.has(selectedLog.id)) {
+        setSelectedLog(null);
+        setMacroBaseline(null);
+      }
+      clearSelectedLogs();
+      setMessage(`Deleted ${selectedLogs.length} food logs.`);
+      await onChanged();
+    } catch (deleteError) {
+      setError(deleteError instanceof Error ? deleteError.message : "Failed to delete selected food logs.");
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  async function copySelectedLogsToToday() {
+    const selectedLogs = logs.filter((log) => selectedLogIds.has(log.id));
+    if (!selectedLogs.length || !window.confirm(`Copy ${selectedLogs.length} selected food logs to ${today}?`)) {
+      return;
+    }
+
+    setIsSaving(true);
+    setMessage("");
+    setError(null);
+
+    try {
+      await Promise.all(
+        selectedLogs.map((log) =>
+          fetch("/api/daily_log", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              date: today,
+              meal: log.meal,
+              foodId: log.foodId,
+              foodName: log.foodName,
+              amount: log.amount,
+              calories: log.calories,
+              protein: log.protein,
+              fat: log.fat,
+              carbs: log.carbs,
+              notes: log.notes,
+              isAiEstimated: log.isAiEstimated
+            })
+          }).then((response) => {
+            if (!response.ok) {
+              throw new Error("Failed to copy selected food logs.");
+            }
+          })
+        )
+      );
+
+      clearSelectedLogs();
+      setMessage(`Copied ${selectedLogs.length} food logs to today.`);
+      await onChanged();
+    } catch (copyError) {
+      setError(copyError instanceof Error ? copyError.message : "Failed to copy selected food logs.");
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  const selectedLogCount = selectedLogIds.size;
+
   return (
     <section className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_380px]">
       <div className="animate-enter rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
@@ -292,24 +399,55 @@ export function FoodLogManager({ logs, foods, today, onChanged }: FoodLogManager
           </label>
         </div>
 
+        <div className="mt-4 flex flex-col gap-2 rounded-lg border border-slate-200 bg-slate-50 p-3 sm:flex-row sm:items-center sm:justify-between">
+          <p className="inline-flex items-center gap-2 text-sm font-semibold text-slate-700">
+            <ListChecks size={16} className="text-blue-700" />
+            {selectedLogCount} selected
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <button className="rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-600" type="button" onClick={selectVisibleLogs}>
+              Select visible
+            </button>
+            <button className="rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-600 disabled:opacity-50" disabled={!selectedLogCount} type="button" onClick={clearSelectedLogs}>
+              Clear
+            </button>
+            <button className="rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-700 disabled:opacity-50" disabled={isSaving || !selectedLogCount} type="button" onClick={copySelectedLogsToToday}>
+              <span className="inline-flex items-center gap-1.5">
+                <Copy size={15} />
+                Copy to today
+              </span>
+            </button>
+            <button className="rounded-md border border-red-200 bg-white px-3 py-2 text-sm font-semibold text-red-600 disabled:opacity-50" disabled={isSaving || !selectedLogCount} type="button" onClick={deleteSelectedLogs}>
+              Delete selected
+            </button>
+          </div>
+        </div>
+
         <div className="mt-4 grid max-h-[640px] gap-2 overflow-y-auto pr-1">
           {visibleLogs.length > 0 ? (
             visibleLogs.map((log) => {
               const logDayTotals = totalsByDate[log.date] ?? emptyTotals();
 
               return (
-                <button
+                <div
                   key={log.id}
-                  className={`hover-lift rounded-lg border p-3 text-left transition hover:border-accent hover:bg-blue-50 ${selectedLog?.id === log.id ? "border-accent bg-blue-50" : "border-slate-200"}`}
-                  type="button"
-                  onClick={() => editLog(log)}
+                  className={`hover-lift rounded-lg border p-3 transition hover:border-accent hover:bg-blue-50 ${selectedLog?.id === log.id ? "border-accent bg-blue-50" : selectedLogIds.has(log.id) ? "border-blue-200 bg-blue-50/60" : "border-slate-200"}`}
                 >
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                    <div>
-                      <p className="font-semibold">{log.foodName}</p>
-                      <p className="mt-1 text-xs text-slate-500">
-                        {log.date} / {log.meal || "No meal"} / {log.amount || "1 serving"}
-                      </p>
+                    <div className="flex items-start gap-3">
+                      <input
+                        aria-label={`Select ${log.foodName}`}
+                        className="mt-1"
+                        checked={selectedLogIds.has(log.id)}
+                        type="checkbox"
+                        onChange={() => toggleLogSelection(log.id)}
+                      />
+                      <button className="min-w-0 text-left" type="button" onClick={() => editLog(log)}>
+                        <p className="font-semibold">{log.foodName}</p>
+                        <p className="mt-1 text-xs text-slate-500">
+                          {log.date} / {log.meal || "No meal"} / {log.amount || "1 serving"}
+                        </p>
+                      </button>
                     </div>
                     <span className="w-fit rounded-full bg-slate-50 px-2 py-1 text-xs font-semibold text-slate-600">{Math.round(log.calories)} kcal</span>
                   </div>
@@ -324,7 +462,7 @@ export function FoodLogManager({ logs, foods, today, onChanged }: FoodLogManager
                     <PercentChip label="Fat" percent={percentOfDay(log.fat, logDayTotals.fat)} />
                     <PercentChip label="Carbs" percent={percentOfDay(log.carbs, logDayTotals.carbs)} />
                   </div>
-                </button>
+                </div>
               );
             })
           ) : (
