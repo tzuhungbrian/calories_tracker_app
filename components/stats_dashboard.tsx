@@ -459,13 +459,20 @@ function MomentumRow({ label, value, target }: { label: string; value: number; t
 
 function MacroRatioPanel({ ratio, dayRange }: { ratio: ReturnType<typeof macroRatio>; dayRange: number }) {
   const ratioRows = [
-    { key: "protein", label: "Protein", value: ratio.protein, grams: ratio.avgProtein, color: "bg-emerald-500", text: "text-emerald-700", soft: "bg-emerald-50" },
-    { key: "fat", label: "Fat", value: ratio.fat, grams: ratio.avgFat, color: "bg-amber-500", text: "text-amber-700", soft: "bg-amber-50" },
-    { key: "carbs", label: "Carbs", value: ratio.carbs, grams: ratio.avgCarbs, color: "bg-blue-500", text: "text-blue-700", soft: "bg-blue-50" }
+    { key: "protein", label: "Protein", value: ratio.protein, grams: ratio.avgProtein, color: "bg-emerald-500", text: "text-emerald-700", hex: "#10b981" },
+    { key: "fat", label: "Fat", value: ratio.fat, grams: ratio.avgFat, color: "bg-amber-500", text: "text-amber-700", hex: "#f59e0b" },
+    { key: "carbs", label: "Carbs", value: ratio.carbs, grams: ratio.avgCarbs, color: "bg-blue-500", text: "text-blue-700", hex: "#3b82f6" }
   ];
+  const dominant = ratioRows.reduce((winner, item) => (item.value > winner.value ? item : winner), ratioRows[0]);
+  const proteinEnd = ratio.protein;
+  const fatEnd = ratio.protein + ratio.fat;
+  const hasMacroSplit = ratio.protein + ratio.fat + ratio.carbs > 0;
+  const pieStyle = {
+    background: `conic-gradient(${ratioRows[0].hex} 0% ${proteinEnd}%, ${ratioRows[1].hex} ${proteinEnd}% ${fatEnd}%, ${ratioRows[2].hex} ${fatEnd}% 100%)`
+  };
 
   return (
-    <section className="animate-enter-soft rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+    <section className="animate-enter-soft rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
       <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <div>
           <h2 className="inline-flex items-center gap-2 text-lg font-semibold">
@@ -477,25 +484,33 @@ function MacroRatioPanel({ ratio, dayRange }: { ratio: ReturnType<typeof macroRa
         <span className="w-fit rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">{ratio.loggedDays} logged days</span>
       </div>
 
-      {ratio.loggedDays > 0 ? (
-        <>
-          <div className="mt-5 flex h-5 overflow-hidden rounded-full bg-slate-100">
-            {ratioRows.map((item) => (
-              <span key={item.key} className={`${item.color} transition-all`} style={{ width: `${item.value}%` }} title={`${item.label}: ${item.value}%`} />
-            ))}
-          </div>
-          <div className="mt-4 grid gap-3 md:grid-cols-3">
-            {ratioRows.map((item) => (
-              <div key={item.key} className={`rounded-lg ${item.soft} p-4 dark:bg-slate-800`}>
-                <div className="flex items-center justify-between gap-3">
-                  <span className="text-sm font-semibold text-slate-600">{item.label}</span>
-                  <span className={`text-2xl font-semibold ${item.text}`}>{item.value}%</span>
+      {ratio.loggedDays > 0 && hasMacroSplit ? (
+        <div className="mt-4 grid gap-4 md:grid-cols-[160px_minmax(0,1fr)] md:items-center">
+          <div className="flex justify-center md:justify-start">
+            <div className="relative h-36 w-36 rounded-full shadow-sm" style={pieStyle} role="img" aria-label={`Average macro ratio: protein ${ratio.protein}%, fat ${ratio.fat}%, carbs ${ratio.carbs}%`}>
+              <div className="absolute inset-8 grid place-items-center rounded-full bg-white text-center shadow-inner dark:bg-slate-900">
+                <div>
+                  <p className={`text-xl font-semibold ${dominant.text}`}>{dominant.value}%</p>
+                  <p className="mt-0.5 text-[11px] font-semibold text-slate-500">{dominant.label} lead</p>
                 </div>
-                <p className="mt-2 text-sm text-slate-500">Avg {round(item.grams)}g / day</p>
+              </div>
+            </div>
+          </div>
+          <div className="grid gap-2">
+            {ratioRows.map((item) => (
+              <div key={item.key} className="flex items-center justify-between gap-3 rounded-lg bg-slate-50 px-3 py-2 dark:bg-slate-800">
+                <div className="flex min-w-0 items-center gap-2">
+                  <span className={`h-3 w-3 shrink-0 rounded-full ${item.color}`} />
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-slate-700">{item.label}</p>
+                    <p className="text-xs text-slate-500">Avg {round(item.grams)}g / day</p>
+                  </div>
+                </div>
+                <p className={`text-lg font-semibold ${item.text}`}>{item.value}%</p>
               </div>
             ))}
           </div>
-        </>
+        </div>
       ) : (
         <div className="mt-5 rounded-lg border border-dashed border-slate-300 p-5 text-center text-sm text-slate-500">Log food to see your average macro split.</div>
       )}
