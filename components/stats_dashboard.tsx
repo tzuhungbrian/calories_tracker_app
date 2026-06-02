@@ -10,6 +10,7 @@ type StatsDashboardProps = {
   rows: DailySummary[];
   dashboard: DashboardData | null;
   logs: FoodLog[];
+  onLogNextMeal: () => void;
 };
 
 type HabitKey = "logged" | "protein" | "creatine" | "exercise";
@@ -237,7 +238,7 @@ function nextMeal(data: DashboardData | null): { title: string; body: string; de
   };
 }
 
-export function StatsDashboard({ rows, dashboard, logs }: StatsDashboardProps) {
+export function StatsDashboard({ rows, dashboard, logs, onLogNextMeal }: StatsDashboardProps) {
   const [dayRange, setDayRange] = useState(14);
   const exerciseStepGoal = dashboard?.exerciseStepGoal ?? 8000;
   const scopedRows = useMemo(() => rows.slice(0, dayRange), [dayRange, rows]);
@@ -310,6 +311,8 @@ export function StatsDashboard({ rows, dashboard, logs }: StatsDashboardProps) {
           title={decision.title}
           body={decision.body}
           tone={decision.tone}
+          actionLabel="Log next meal"
+          onAction={onLogNextMeal}
           emphasis
         />
         <CoachCard icon={<Utensils size={20} />} label="Next best meal" title={mealSuggestion.title} body={mealSuggestion.body} detail={mealSuggestion.detail} tone={mealSuggestion.tone} />
@@ -342,6 +345,8 @@ function CoachCard({
   body,
   detail,
   tone,
+  actionLabel,
+  onAction,
   emphasis = false
 }: {
   icon: ReactNode;
@@ -350,6 +355,8 @@ function CoachCard({
   body: string;
   detail?: string;
   tone: "good" | "warn" | "neutral";
+  actionLabel?: string;
+  onAction?: () => void;
   emphasis?: boolean;
 }) {
   const styles = {
@@ -371,11 +378,11 @@ function CoachCard({
         {detail ? <span className="rounded-full bg-white/80 px-3 py-1 text-xs font-semibold shadow-sm dark:bg-slate-900/80">{detail}</span> : null}
       </div>
       <p className="mt-4 max-w-2xl text-sm leading-6 text-slate-600">{body}</p>
-      {emphasis ? (
-        <div className="mt-5 inline-flex items-center gap-2 rounded-full bg-ink px-3 py-2 text-sm font-semibold text-white">
-          Make the next action obvious
+      {actionLabel && onAction ? (
+        <button className="mt-5 inline-flex items-center gap-2 rounded-full bg-ink px-3 py-2 text-sm font-semibold text-white hover:bg-slate-800" type="button" onClick={onAction}>
+          {actionLabel}
           <ArrowRight size={15} />
-        </div>
+        </button>
       ) : null}
     </section>
   );

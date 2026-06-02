@@ -350,7 +350,7 @@ export default function HomePage() {
             </div>
           ) : activeTab === "stats" ? (
             <div className="animate-enter" key="stats-tab">
-              <StatsDashboard dashboard={dashboard} logs={foodLogs} rows={summary} />
+              <StatsDashboard dashboard={dashboard} logs={foodLogs} rows={summary} onLogNextMeal={() => setActiveTab("dashboard")} />
             </div>
           ) : activeTab === "logs" ? (
             <div className="animate-enter" key="logs-tab">
