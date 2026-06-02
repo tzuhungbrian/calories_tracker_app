@@ -310,6 +310,7 @@ function nutrientValue(label: NutrientKey, value: number): string {
 
 export function StatsDashboard({ rows, dashboard, logs, onLogNextMeal }: StatsDashboardProps) {
   const [dayRange, setDayRange] = useState(14);
+  const [showMoreInsights, setShowMoreInsights] = useState(false);
   const exerciseStepGoal = dashboard?.exerciseStepGoal ?? 8000;
   const scopedRows = useMemo(() => rows.slice(0, dayRange), [dayRange, rows]);
   const orderedRows = useMemo(() => [...scopedRows].reverse(), [scopedRows]);
@@ -392,35 +393,44 @@ export function StatsDashboard({ rows, dashboard, logs, onLogNextMeal }: StatsDa
 
       <EnergyBalancePanel rows={recentSevenOrderedRows} />
 
-      <details className="group rounded-lg border border-slate-200 bg-white shadow-sm">
-        <summary className="flex cursor-pointer list-none items-center justify-between gap-4 p-4 [&::-webkit-details-marker]:hidden">
+      <section className="rounded-lg border border-slate-200 bg-white shadow-sm">
+        <button
+          className="flex w-full items-center justify-between gap-4 rounded-lg p-4 text-left hover:bg-slate-50"
+          type="button"
+          aria-expanded={showMoreInsights}
+          onClick={() => setShowMoreInsights((current) => !current)}
+        >
           <div>
             <h2 className="text-lg font-semibold">More insights</h2>
             <p className="mt-1 text-sm text-slate-500">Patterns, macro split, habits, and deeper weekly context.</p>
           </div>
-          <ChevronDown className="shrink-0 text-slate-500 transition-transform group-open:rotate-180" size={20} />
-        </summary>
-        <div className="grid gap-4 border-t border-slate-200 p-4">
-          <div className="grid gap-4 xl:grid-cols-[0.95fr_1.05fr]">
-            <MacroRatioPanel ratio={averageMacroRatio} dayRange={dayRange} />
-            <MomentumCard controlStreak={controlStreak} proteinHits={sevenDayProteinHits} exerciseHits={sevenDayExerciseHits} loggedDays={sevenLoggedRows.length} />
-          </div>
+          <ChevronDown className={`shrink-0 text-slate-500 transition-transform duration-300 ease-out ${showMoreInsights ? "rotate-180" : ""}`} size={20} />
+        </button>
+        <div className={`grid transition-[grid-template-rows] duration-300 ease-out ${showMoreInsights ? "grid-rows-[1fr]" : "grid-rows-[0fr]"}`}>
+          <div className="overflow-hidden">
+            <div className={`grid gap-4 border-t border-slate-200 p-4 transition-opacity duration-200 ease-out ${showMoreInsights ? "opacity-100 delay-100" : "pointer-events-none opacity-0"}`}>
+              <div className="grid gap-4 xl:grid-cols-[0.95fr_1.05fr]">
+                <MacroRatioPanel ratio={averageMacroRatio} dayRange={dayRange} />
+                <MomentumCard controlStreak={controlStreak} proteinHits={sevenDayProteinHits} exerciseHits={sevenDayExerciseHits} loggedDays={sevenLoggedRows.length} />
+              </div>
 
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-            <InsightCard icon={<Flame size={18} />} label="7-day avg vs TDEE" value={`${round(sevenDayBalance)} kcal/day`} sub={sevenDayBalance <= 0 ? "Recent intake is below maintenance." : "Recent intake is above maintenance."} tone={sevenDayBalance <= 0 ? "good" : "warn"} />
-            <InsightCard icon={<Target size={18} />} label="Cut success" value={`${cutSuccessRate}%`} sub={`${cutRows.length} logged cut days in range`} tone={cutSuccessRate >= 70 ? "good" : "warn"} />
-            <InsightCard icon={<Beef size={18} />} label="Protein compliance" value={`${proteinCompliance}%`} sub={`${currentProteinStreak} day current streak`} tone={proteinCompliance >= 80 ? "good" : "warn"} />
-            <InsightCard icon={<Footprints size={18} />} label="Exercise consistency" value={`${exerciseConsistency}%`} sub={`${exerciseDays} exercise days, goal ${round(exerciseStepGoal)} steps`} tone={exerciseConsistency >= 70 ? "good" : "neutral"} />
-            <InsightCard icon={<Utensils size={18} />} label="Over-target meal" value={overageMeal ? overageMeal[0] : "No overage"} sub={overageMeal ? `${round(overageMeal[1])} kcal on over-target days` : "No meal stands out as causing over-target days."} tone={overageMeal ? "warn" : "good"} />
-            <InsightCard icon={<Trophy size={18} />} label="Main protein source" value={mainProteinSource ? mainProteinSource[0] : "Mixed manual logs"} sub={mainProteinSource ? `${round(mainProteinSource[1])}g from this food in selected range` : "No specific saved food stands out. Manual entries are excluded from this card."} tone="good" />
-          </div>
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                <InsightCard icon={<Flame size={18} />} label="7-day avg vs TDEE" value={`${round(sevenDayBalance)} kcal/day`} sub={sevenDayBalance <= 0 ? "Recent intake is below maintenance." : "Recent intake is above maintenance."} tone={sevenDayBalance <= 0 ? "good" : "warn"} />
+                <InsightCard icon={<Target size={18} />} label="Cut success" value={`${cutSuccessRate}%`} sub={`${cutRows.length} logged cut days in range`} tone={cutSuccessRate >= 70 ? "good" : "warn"} />
+                <InsightCard icon={<Beef size={18} />} label="Protein compliance" value={`${proteinCompliance}%`} sub={`${currentProteinStreak} day current streak`} tone={proteinCompliance >= 80 ? "good" : "warn"} />
+                <InsightCard icon={<Footprints size={18} />} label="Exercise consistency" value={`${exerciseConsistency}%`} sub={`${exerciseDays} exercise days, goal ${round(exerciseStepGoal)} steps`} tone={exerciseConsistency >= 70 ? "good" : "neutral"} />
+                <InsightCard icon={<Utensils size={18} />} label="Over-target meal" value={overageMeal ? overageMeal[0] : "No overage"} sub={overageMeal ? `${round(overageMeal[1])} kcal on over-target days` : "No meal stands out as causing over-target days."} tone={overageMeal ? "warn" : "good"} />
+                <InsightCard icon={<Trophy size={18} />} label="Main protein source" value={mainProteinSource ? mainProteinSource[0] : "Mixed manual logs"} sub={mainProteinSource ? `${round(mainProteinSource[1])}g from this food in selected range` : "No specific saved food stands out. Manual entries are excluded from this card."} tone="good" />
+              </div>
 
-          <div className="grid gap-4 xl:grid-cols-2">
-            <HabitHeatmap rows={orderedRows.slice(-14)} exerciseStepGoal={exerciseStepGoal} />
-            <ProteinStreakPanel rows={orderedRows.slice(-14)} />
+              <div className="grid gap-4 xl:grid-cols-2">
+                <HabitHeatmap rows={orderedRows.slice(-14)} exerciseStepGoal={exerciseStepGoal} />
+                <ProteinStreakPanel rows={orderedRows.slice(-14)} />
+              </div>
+            </div>
           </div>
         </div>
-      </details>
+      </section>
     </section>
   );
 }
