@@ -1,9 +1,8 @@
 "use client";
 
-import { Activity, ArrowRight, BarChart3, Beef, CheckCircle2, Flame, Footprints, PieChart, Sparkles, Target, Trophy, Utensils } from "lucide-react";
+import { Activity, ArrowRight, BarChart3, Beef, CheckCircle2, ChevronDown, Flame, Footprints, Leaf, PieChart, Sparkles, Target, Trophy, Utensils, Wheat } from "lucide-react";
 import type { ReactNode } from "react";
 import { useMemo, useState } from "react";
-import { DashboardCards } from "@/components/dashboard_cards";
 import type { DailySummary, DashboardData, FoodLog } from "@/lib/types";
 
 type StatsDashboardProps = {
@@ -14,8 +13,16 @@ type StatsDashboardProps = {
 };
 
 type HabitKey = "logged" | "protein" | "creatine" | "exercise";
+type NutrientKey = "calories" | "protein" | "fat" | "carbs";
 
 const rangeOptions = [7, 14, 30];
+const nutrientKeys: NutrientKey[] = ["calories", "protein", "fat", "carbs"];
+const nutrientIcons = {
+  calories: Flame,
+  protein: Beef,
+  fat: Leaf,
+  carbs: Wheat
+};
 const habitRows: Array<{ key: HabitKey; label: string }> = [
   { key: "logged", label: "Logged" },
   { key: "protein", label: "Protein" },
@@ -264,12 +271,50 @@ function nextMeal(data: DashboardData | null): { title: string; body: string; de
   };
 }
 
+function nutrientStatus(label: NutrientKey, data: DashboardData): { tone: "good" | "warn" | "neutral"; message: string; detail: string } {
+  const total = data.totals[label];
+  const target = data.targets[label];
+  const remaining = data.remaining[label];
+  const goalType = data.status?.goalType ?? "maintain";
+
+  if (label === "protein") {
+    return total >= target
+      ? { tone: "good", message: "Hit", detail: `target ${round(target)}g` }
+      : { tone: "warn", message: "Low", detail: `${round(Math.max(target - total, 0))}g to go` };
+  }
+
+  if (label === "fat") {
+    const range = localFatRange(target);
+    const inRange = total >= range.min && total <= range.max;
+    return {
+      tone: inRange ? "good" : "warn",
+      message: inRange ? "In range" : total < range.min ? "Low" : "High",
+      detail: `${range.min}-${range.max}g range`
+    };
+  }
+
+  if (goalType === "bulk") {
+    return remaining <= 0
+      ? { tone: "good", message: "Hit", detail: `${round(Math.abs(remaining))}${label === "calories" ? " kcal" : "g"} over` }
+      : { tone: "warn", message: "Needs more", detail: `${round(remaining)}${label === "calories" ? " kcal" : "g"} left` };
+  }
+
+  return remaining >= 0
+    ? { tone: "good", message: "On target", detail: `${round(remaining)}${label === "calories" ? " kcal" : "g"} left` }
+    : { tone: "warn", message: "Over", detail: `${round(Math.abs(remaining))}${label === "calories" ? " kcal" : "g"} over` };
+}
+
+function nutrientValue(label: NutrientKey, value: number): string {
+  return `${round(value)}${label === "calories" ? " kcal" : "g"}`;
+}
+
 export function StatsDashboard({ rows, dashboard, logs, onLogNextMeal }: StatsDashboardProps) {
   const [dayRange, setDayRange] = useState(14);
   const exerciseStepGoal = dashboard?.exerciseStepGoal ?? 8000;
   const scopedRows = useMemo(() => rows.slice(0, dayRange), [dayRange, rows]);
   const orderedRows = useMemo(() => [...scopedRows].reverse(), [scopedRows]);
   const recentSevenRows = useMemo(() => rows.slice(0, 7), [rows]);
+  const recentSevenOrderedRows = useMemo(() => [...recentSevenRows].reverse(), [recentSevenRows]);
   const scopedDateSet = useMemo(() => new Set(scopedRows.map((row) => row.date)), [scopedRows]);
   const scopedLogs = useMemo(() => logs.filter((log) => scopedDateSet.has(log.date)), [logs, scopedDateSet]);
   const exerciseDays = scopedRows.filter((row) => row.strengthSession || row.basketballMinutes > 0 || row.steps > exerciseStepGoal).length;
@@ -329,9 +374,7 @@ export function StatsDashboard({ rows, dashboard, logs, onLogNextMeal }: StatsDa
         </div>
       </div>
 
-      <DashboardCards data={dashboard} />
-
-      <div className="grid gap-3 xl:grid-cols-[1.35fr_1fr_1fr]">
+      <div className="grid gap-3 xl:grid-cols-[1.25fr_0.85fr]">
         <CoachCard
           icon={<Sparkles size={20} />}
           label="Today's decision"
@@ -343,25 +386,99 @@ export function StatsDashboard({ rows, dashboard, logs, onLogNextMeal }: StatsDa
           emphasis
         />
         <CoachCard icon={<Utensils size={20} />} label="Next best meal" title={mealSuggestion.title} body={mealSuggestion.body} detail={mealSuggestion.detail} tone={mealSuggestion.tone} />
-        <MomentumCard controlStreak={controlStreak} proteinHits={sevenDayProteinHits} exerciseHits={sevenDayExerciseHits} loggedDays={sevenLoggedRows.length} />
       </div>
 
-      <MacroRatioPanel ratio={averageMacroRatio} dayRange={dayRange} />
+      <CompactNutritionSummary data={dashboard} />
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-        <InsightCard icon={<Flame size={18} />} label="7-day avg vs TDEE" value={`${round(sevenDayBalance)} kcal/day`} sub={sevenDayBalance <= 0 ? "Recent intake is below maintenance." : "Recent intake is above maintenance."} tone={sevenDayBalance <= 0 ? "good" : "warn"} />
-        <InsightCard icon={<Target size={18} />} label="Cut success" value={`${cutSuccessRate}%`} sub={`${cutRows.length} logged cut days in range`} tone={cutSuccessRate >= 70 ? "good" : "warn"} />
-        <InsightCard icon={<Beef size={18} />} label="Protein compliance" value={`${proteinCompliance}%`} sub={`${currentProteinStreak} day current streak`} tone={proteinCompliance >= 80 ? "good" : "warn"} />
-        <InsightCard icon={<Footprints size={18} />} label="Exercise consistency" value={`${exerciseConsistency}%`} sub={`${exerciseDays} exercise days, goal ${round(exerciseStepGoal)} steps`} tone={exerciseConsistency >= 70 ? "good" : "neutral"} />
-        <InsightCard icon={<Utensils size={18} />} label="Over-target meal" value={overageMeal ? overageMeal[0] : "No overage"} sub={overageMeal ? `${round(overageMeal[1])} kcal on over-target days` : "No meal stands out as causing over-target days."} tone={overageMeal ? "warn" : "good"} />
-        <InsightCard icon={<Trophy size={18} />} label="Main protein source" value={mainProteinSource ? mainProteinSource[0] : "Mixed manual logs"} sub={mainProteinSource ? `${round(mainProteinSource[1])}g from this food in selected range` : "No specific saved food stands out. Manual entries are excluded from this card."} tone="good" />
+      <EnergyBalancePanel rows={recentSevenOrderedRows} />
+
+      <details className="group rounded-lg border border-slate-200 bg-white shadow-sm">
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-4 p-4 [&::-webkit-details-marker]:hidden">
+          <div>
+            <h2 className="text-lg font-semibold">More insights</h2>
+            <p className="mt-1 text-sm text-slate-500">Patterns, macro split, habits, and deeper weekly context.</p>
+          </div>
+          <ChevronDown className="shrink-0 text-slate-500 transition-transform group-open:rotate-180" size={20} />
+        </summary>
+        <div className="grid gap-4 border-t border-slate-200 p-4">
+          <div className="grid gap-4 xl:grid-cols-[0.95fr_1.05fr]">
+            <MacroRatioPanel ratio={averageMacroRatio} dayRange={dayRange} />
+            <MomentumCard controlStreak={controlStreak} proteinHits={sevenDayProteinHits} exerciseHits={sevenDayExerciseHits} loggedDays={sevenLoggedRows.length} />
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            <InsightCard icon={<Flame size={18} />} label="7-day avg vs TDEE" value={`${round(sevenDayBalance)} kcal/day`} sub={sevenDayBalance <= 0 ? "Recent intake is below maintenance." : "Recent intake is above maintenance."} tone={sevenDayBalance <= 0 ? "good" : "warn"} />
+            <InsightCard icon={<Target size={18} />} label="Cut success" value={`${cutSuccessRate}%`} sub={`${cutRows.length} logged cut days in range`} tone={cutSuccessRate >= 70 ? "good" : "warn"} />
+            <InsightCard icon={<Beef size={18} />} label="Protein compliance" value={`${proteinCompliance}%`} sub={`${currentProteinStreak} day current streak`} tone={proteinCompliance >= 80 ? "good" : "warn"} />
+            <InsightCard icon={<Footprints size={18} />} label="Exercise consistency" value={`${exerciseConsistency}%`} sub={`${exerciseDays} exercise days, goal ${round(exerciseStepGoal)} steps`} tone={exerciseConsistency >= 70 ? "good" : "neutral"} />
+            <InsightCard icon={<Utensils size={18} />} label="Over-target meal" value={overageMeal ? overageMeal[0] : "No overage"} sub={overageMeal ? `${round(overageMeal[1])} kcal on over-target days` : "No meal stands out as causing over-target days."} tone={overageMeal ? "warn" : "good"} />
+            <InsightCard icon={<Trophy size={18} />} label="Main protein source" value={mainProteinSource ? mainProteinSource[0] : "Mixed manual logs"} sub={mainProteinSource ? `${round(mainProteinSource[1])}g from this food in selected range` : "No specific saved food stands out. Manual entries are excluded from this card."} tone="good" />
+          </div>
+
+          <div className="grid gap-4 xl:grid-cols-2">
+            <HabitHeatmap rows={orderedRows.slice(-14)} exerciseStepGoal={exerciseStepGoal} />
+            <ProteinStreakPanel rows={orderedRows.slice(-14)} />
+          </div>
+        </div>
+      </details>
+    </section>
+  );
+}
+
+function CompactNutritionSummary({ data }: { data: DashboardData | null }) {
+  if (!data) {
+    return <section className="rounded-lg border border-slate-200 bg-white p-4 text-sm text-slate-500 shadow-sm">Loading today&apos;s nutrition summary...</section>;
+  }
+
+  const tdeeBalance = data.totals.calories - data.dynamicTdee;
+  const goalType = data.status?.goalType ?? "maintain";
+
+  return (
+    <section className="animate-enter-soft rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div>
+          <h2 className="text-lg font-semibold">Today at a glance</h2>
+          <p className="mt-1 text-sm text-slate-500">Compact macro status for today, with target and TDEE context kept in view.</p>
+        </div>
+        <div className="flex flex-wrap gap-2 text-xs font-semibold">
+          <span className="rounded-full bg-slate-100 px-2.5 py-1 capitalize text-slate-600">{goalType} mode</span>
+          <span className="rounded-full bg-blue-50 px-2.5 py-1 text-blue-700">TDEE {round(data.dynamicTdee)} kcal</span>
+          <span className="rounded-full bg-slate-100 px-2.5 py-1 text-slate-600">Target {round(data.targets.calories)} kcal</span>
+          <span className={`rounded-full px-2.5 py-1 ${tdeeBalance <= 0 ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>vs TDEE {signedCalories(tdeeBalance)} kcal</span>
+        </div>
       </div>
 
-      <EnergyBalancePanel rows={orderedRows} />
+      <div className="mt-4 grid gap-2 md:grid-cols-2 xl:grid-cols-4">
+        {nutrientKeys.map((key) => {
+          const Icon = nutrientIcons[key];
+          const status = nutrientStatus(key, data);
+          const tone = {
+            good: "border-emerald-100 bg-emerald-50/60 text-emerald-700",
+            warn: "border-red-100 bg-red-50/60 text-red-700",
+            neutral: "border-blue-100 bg-blue-50/60 text-blue-700"
+          }[status.tone];
 
-      <div className="grid gap-4 xl:grid-cols-2">
-        <HabitHeatmap rows={orderedRows.slice(-14)} exerciseStepGoal={exerciseStepGoal} />
-        <ProteinStreakPanel rows={orderedRows.slice(-14)} />
+          return (
+            <div key={key} className={`rounded-lg border px-3 py-2.5 ${tone}`}>
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex min-w-0 items-center gap-2">
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-white/80 dark:bg-slate-900/80">
+                    <Icon size={16} />
+                  </span>
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold capitalize">{key}</p>
+                    <p className="text-xs text-slate-500">{status.detail}</p>
+                  </div>
+                </div>
+                <span className="rounded-full bg-white/80 px-2 py-0.5 text-[11px] font-semibold dark:bg-slate-900/80">{status.message}</span>
+              </div>
+              <div className="mt-2 flex items-end justify-between gap-3">
+                <p className="text-xl font-semibold text-ink">{nutrientValue(key, data.totals[key])}</p>
+                <p className="text-xs text-slate-500">of {nutrientValue(key, data.targets[key])}</p>
+              </div>
+            </div>
+          );
+        })}
       </div>
     </section>
   );
