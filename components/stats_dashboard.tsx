@@ -1,6 +1,6 @@
 "use client";
 
-import { Activity, ArrowRight, BarChart3, Beef, CheckCircle2, Flame, Footprints, Sparkles, Target, Trophy, Utensils } from "lucide-react";
+import { Activity, ArrowRight, BarChart3, Beef, CheckCircle2, Flame, Footprints, PieChart, Sparkles, Target, Trophy, Utensils } from "lucide-react";
 import type { ReactNode } from "react";
 import { useMemo, useState } from "react";
 import { DashboardCards } from "@/components/dashboard_cards";
@@ -104,6 +104,32 @@ function calorieControlStreak(rows: DailySummary[]): number {
 function signedCalories(value: number): string {
   const rounded = round(value);
   return rounded > 0 ? `+${rounded}` : `${rounded}`;
+}
+
+function macroRatio(rows: DailySummary[]): { protein: number; fat: number; carbs: number; avgProtein: number; avgFat: number; avgCarbs: number; loggedDays: number } {
+  const loggedRows = rows.filter((row) => row.calories > 0);
+  const totals = loggedRows.reduce(
+    (result, row) => ({
+      protein: result.protein + row.protein,
+      fat: result.fat + row.fat,
+      carbs: result.carbs + row.carbs
+    }),
+    { protein: 0, fat: 0, carbs: 0 }
+  );
+  const proteinCalories = totals.protein * 4;
+  const fatCalories = totals.fat * 9;
+  const carbCalories = totals.carbs * 4;
+  const macroCalories = proteinCalories + fatCalories + carbCalories;
+
+  return {
+    protein: macroCalories ? Math.round((proteinCalories / macroCalories) * 100) : 0,
+    fat: macroCalories ? Math.round((fatCalories / macroCalories) * 100) : 0,
+    carbs: macroCalories ? Math.round((carbCalories / macroCalories) * 100) : 0,
+    avgProtein: loggedRows.length ? totals.protein / loggedRows.length : 0,
+    avgFat: loggedRows.length ? totals.fat / loggedRows.length : 0,
+    avgCarbs: loggedRows.length ? totals.carbs / loggedRows.length : 0,
+    loggedDays: loggedRows.length
+  };
 }
 
 function todayDecision(data: DashboardData | null): { title: string; body: string; tone: "good" | "warn" | "neutral" } {
@@ -256,6 +282,7 @@ export function StatsDashboard({ rows, dashboard, logs, onLogNextMeal }: StatsDa
   const cutSuccessRate = rate(cutRows.filter((row) => row.calories <= row.calorieTarget).length, cutRows.length);
   const proteinCompliance = rate(proteinRows.filter((row) => row.protein >= row.proteinGoal).length, proteinRows.length);
   const exerciseConsistency = rate(scopedRows.filter((row) => isHabitDone(row, "exercise", exerciseStepGoal)).length, scopedRows.length);
+  const averageMacroRatio = useMemo(() => macroRatio(scopedRows), [scopedRows]);
   const decision = todayDecision(dashboard);
   const mealSuggestion = nextMeal(dashboard);
   const controlStreak = calorieControlStreak(rows);
@@ -318,6 +345,8 @@ export function StatsDashboard({ rows, dashboard, logs, onLogNextMeal }: StatsDa
         <CoachCard icon={<Utensils size={20} />} label="Next best meal" title={mealSuggestion.title} body={mealSuggestion.body} detail={mealSuggestion.detail} tone={mealSuggestion.tone} />
         <MomentumCard controlStreak={controlStreak} proteinHits={sevenDayProteinHits} exerciseHits={sevenDayExerciseHits} loggedDays={sevenLoggedRows.length} />
       </div>
+
+      <MacroRatioPanel ratio={averageMacroRatio} dayRange={dayRange} />
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
         <InsightCard icon={<Flame size={18} />} label="7-day avg vs TDEE" value={`${round(sevenDayBalance)} kcal/day`} sub={sevenDayBalance <= 0 ? "Recent intake is below maintenance." : "Recent intake is above maintenance."} tone={sevenDayBalance <= 0 ? "good" : "warn"} />
@@ -425,6 +454,52 @@ function MomentumRow({ label, value, target }: { label: string; value: number; t
         <span className="block h-full rounded-full bg-blue-600" style={{ width: `${width}%` }} />
       </div>
     </div>
+  );
+}
+
+function MacroRatioPanel({ ratio, dayRange }: { ratio: ReturnType<typeof macroRatio>; dayRange: number }) {
+  const ratioRows = [
+    { key: "protein", label: "Protein", value: ratio.protein, grams: ratio.avgProtein, color: "bg-emerald-500", text: "text-emerald-700", soft: "bg-emerald-50" },
+    { key: "fat", label: "Fat", value: ratio.fat, grams: ratio.avgFat, color: "bg-amber-500", text: "text-amber-700", soft: "bg-amber-50" },
+    { key: "carbs", label: "Carbs", value: ratio.carbs, grams: ratio.avgCarbs, color: "bg-blue-500", text: "text-blue-700", soft: "bg-blue-50" }
+  ];
+
+  return (
+    <section className="animate-enter-soft rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+        <div>
+          <h2 className="inline-flex items-center gap-2 text-lg font-semibold">
+            <PieChart size={20} />
+            Average macro ratio
+          </h2>
+          <p className="mt-1 text-sm text-slate-500">Energy share from protein, fat, and carbs across the selected {dayRange}-day range.</p>
+        </div>
+        <span className="w-fit rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">{ratio.loggedDays} logged days</span>
+      </div>
+
+      {ratio.loggedDays > 0 ? (
+        <>
+          <div className="mt-5 flex h-5 overflow-hidden rounded-full bg-slate-100">
+            {ratioRows.map((item) => (
+              <span key={item.key} className={`${item.color} transition-all`} style={{ width: `${item.value}%` }} title={`${item.label}: ${item.value}%`} />
+            ))}
+          </div>
+          <div className="mt-4 grid gap-3 md:grid-cols-3">
+            {ratioRows.map((item) => (
+              <div key={item.key} className={`rounded-lg ${item.soft} p-4 dark:bg-slate-800`}>
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-sm font-semibold text-slate-600">{item.label}</span>
+                  <span className={`text-2xl font-semibold ${item.text}`}>{item.value}%</span>
+                </div>
+                <p className="mt-2 text-sm text-slate-500">Avg {round(item.grams)}g / day</p>
+              </div>
+            ))}
+          </div>
+        </>
+      ) : (
+        <div className="mt-5 rounded-lg border border-dashed border-slate-300 p-5 text-center text-sm text-slate-500">Log food to see your average macro split.</div>
+      )}
+    </section>
   );
 }
 
