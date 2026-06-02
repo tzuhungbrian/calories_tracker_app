@@ -67,6 +67,11 @@ function rate(hitCount: number, total: number): number {
   return total ? Math.round((hitCount / total) * 100) : 0;
 }
 
+function isGenericFoodName(name: string): boolean {
+  const normalized = name.trim().toLowerCase();
+  return ["manual entry", "custom food", "ai estimated meal", "quick add", "unknown"].includes(normalized);
+}
+
 export function StatsDashboard({ rows, dashboard, logs }: StatsDashboardProps) {
   const [dayRange, setDayRange] = useState(14);
   const exerciseStepGoal = dashboard?.exerciseStepGoal ?? 8000;
@@ -93,8 +98,9 @@ export function StatsDashboard({ rows, dashboard, logs }: StatsDashboardProps) {
     }, {});
     return Object.entries(totals).sort((a, b) => b[1] - a[1])[0] ?? null;
   }, [overTargetDateSet, scopedLogs]);
-  const topProteinFood = useMemo(() => {
-    const totals = scopedLogs.reduce<Record<string, number>>((result, log) => {
+  const mainProteinSource = useMemo(() => {
+    const clearFoodLogs = scopedLogs.filter((log) => log.protein > 0 && !isGenericFoodName(log.foodName));
+    const totals = clearFoodLogs.reduce<Record<string, number>>((result, log) => {
       result[log.foodName] = (result[log.foodName] ?? 0) + log.protein;
       return result;
     }, {});
@@ -133,7 +139,7 @@ export function StatsDashboard({ rows, dashboard, logs }: StatsDashboardProps) {
         <InsightCard icon={<Beef size={18} />} label="Protein compliance" value={`${proteinCompliance}%`} sub={`${currentProteinStreak} day current streak`} tone={proteinCompliance >= 80 ? "good" : "warn"} />
         <InsightCard icon={<Footprints size={18} />} label="Exercise consistency" value={`${exerciseConsistency}%`} sub={`${exerciseDays} exercise days, goal ${round(exerciseStepGoal)} steps`} tone={exerciseConsistency >= 70 ? "good" : "neutral"} />
         <InsightCard icon={<Utensils size={18} />} label="Over-target meal" value={overageMeal ? overageMeal[0] : "No overage"} sub={overageMeal ? `${round(overageMeal[1])} kcal on over-target days` : "No meal stands out as causing over-target days."} tone={overageMeal ? "warn" : "good"} />
-        <InsightCard icon={<Trophy size={18} />} label="Top protein food" value={topProteinFood ? topProteinFood[0] : "No data"} sub={topProteinFood ? `${round(topProteinFood[1])}g protein in selected range` : "Log protein foods to see what carries the target."} tone="good" />
+        <InsightCard icon={<Trophy size={18} />} label="Main protein source" value={mainProteinSource ? mainProteinSource[0] : "Mixed manual logs"} sub={mainProteinSource ? `${round(mainProteinSource[1])}g from this food in selected range` : "No specific saved food stands out. Manual entries are excluded from this card."} tone="good" />
       </div>
 
       <EnergyBalancePanel rows={orderedRows} />
