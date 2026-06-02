@@ -33,6 +33,10 @@ function round(value: number): number {
   return Math.round(value);
 }
 
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(Math.max(value, min), max);
+}
+
 function isHabitDone(row: DailySummary, key: HabitKey, exerciseStepGoal = 8000): boolean {
   if (key === "logged") {
     return row.calories > 0;
@@ -132,9 +136,71 @@ export function StatsDashboard({ rows, dashboard, logs }: StatsDashboardProps) {
         <InsightCard icon={<Trophy size={18} />} label="Top protein food" value={topProteinFood ? topProteinFood[0] : "No data"} sub={topProteinFood ? `${round(topProteinFood[1])}g protein in selected range` : "Log protein foods to see what carries the target."} tone="good" />
       </div>
 
+      <EnergyBalancePanel rows={orderedRows} />
+
       <div className="grid gap-4 xl:grid-cols-2">
         <HabitHeatmap rows={orderedRows.slice(-14)} exerciseStepGoal={exerciseStepGoal} />
         <ProteinStreakPanel rows={orderedRows.slice(-14)} />
+      </div>
+    </section>
+  );
+}
+
+function EnergyBalancePanel({ rows }: { rows: DailySummary[] }) {
+  const loggedRows = rows.filter((row) => row.calories > 0);
+  const totalBalance = loggedRows.reduce((sum, row) => sum + row.calories - row.dynamicTdee, 0);
+  const deficitDays = loggedRows.filter((row) => row.calories <= row.dynamicTdee).length;
+  const surplusDays = loggedRows.length - deficitDays;
+  const maxAbsBalance = Math.max(...loggedRows.map((row) => Math.abs(row.calories - row.dynamicTdee)), 250);
+
+  return (
+    <section className="animate-enter-soft rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h2 className="inline-flex items-center gap-2 text-lg font-semibold">
+            <Flame size={20} />
+            Recent energy balance
+          </h2>
+          <p className="mt-1 text-sm text-slate-500">Daily calories minus dynamic TDEE. Green is deficit, amber is surplus.</p>
+        </div>
+        <div className={`w-fit rounded-full px-3 py-1.5 text-sm font-semibold ${totalBalance <= 0 ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>
+          {totalBalance <= 0 ? "Net deficit" : "Net surplus"} {Math.abs(round(totalBalance))} kcal
+        </div>
+      </div>
+
+      <div className="mt-4 grid gap-2">
+        {loggedRows.length > 0 ? (
+          loggedRows.map((row) => {
+            const balance = row.calories - row.dynamicTdee;
+            const isDeficit = balance <= 0;
+            const width = clamp((Math.abs(balance) / maxAbsBalance) * 100, 6, 100);
+
+            return (
+              <div key={row.date} className="grid grid-cols-[56px_minmax(0,1fr)_86px] items-center gap-3">
+                <p className="text-xs font-semibold text-slate-500">{row.date.slice(5)}</p>
+                <div className="relative h-6 overflow-hidden rounded-full bg-slate-100">
+                  <span
+                    className={`absolute bottom-0 top-0 rounded-full ${isDeficit ? "right-1/2 bg-emerald-500" : "left-1/2 bg-amber-500"}`}
+                    style={{ width: `${width / 2}%` }}
+                  />
+                  <span className="absolute bottom-0 left-1/2 top-0 w-px bg-slate-300" />
+                </div>
+                <p className={`text-right text-sm font-semibold ${isDeficit ? "text-emerald-700" : "text-amber-700"}`}>
+                  {balance > 0 ? "+" : ""}
+                  {round(balance)}
+                </p>
+              </div>
+            );
+          })
+        ) : (
+          <div className="rounded-lg border border-dashed border-slate-300 p-5 text-center text-sm text-slate-500">Log calories to see daily deficit and surplus.</div>
+        )}
+      </div>
+
+      <div className="mt-4 flex flex-wrap gap-2 text-xs font-semibold text-slate-500">
+        <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-emerald-700">{deficitDays} deficit days</span>
+        <span className="rounded-full bg-amber-50 px-2.5 py-1 text-amber-700">{surplusDays} surplus days</span>
+        <span className="rounded-full bg-slate-100 px-2.5 py-1">{loggedRows.length} logged days</span>
       </div>
     </section>
   );
