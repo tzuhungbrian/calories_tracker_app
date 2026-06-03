@@ -1,7 +1,7 @@
 "use client";
 
 import { CheckCircle2, CookingPot, Database, GripVertical, Minus, Plus, RotateCcw, Search, Trash2, Utensils, X } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { DragEvent } from "react";
 import { CategorySelect } from "@/components/category_select";
 import type { CommonFood, NutritionTotals } from "@/lib/types";
@@ -27,6 +27,10 @@ type CustomIngredientInput = {
 type MealPrepCalculatorProps = {
   foods?: CommonFood[];
   onChanged?: () => Promise<void>;
+  editRequest?: {
+    food: CommonFood;
+    requestId: number;
+  } | null;
 };
 
 const macroCards: Array<{ key: keyof NutritionTotals; label: string; unit: string }> = [
@@ -78,7 +82,38 @@ function formatIngredientLine(ingredient: PrepIngredient): string {
   return `- ${food.name}: ${roundMacro(ingredient.servings)}x${servingText}${servingSizeText}`;
 }
 
-export function MealPrepCalculator({ foods: providedFoods, onChanged }: MealPrepCalculatorProps) {
+function parseMealPrepNotes(food: CommonFood, foods: CommonFood[]): { ingredients: PrepIngredient[]; servingCount: number; servingLabel: string; servingSize: string } {
+  const lines = food.notes.split(/\r?\n/).map((line) => line.trim());
+  const portionLine = lines.find((line) => line.toLowerCase().startsWith("meal prep:"));
+  const servingLine = lines.find((line) => line.toLowerCase().startsWith("saved serving:"));
+  const servingCount = Number(portionLine?.match(/(\d+(?:\.\d+)?)/)?.[1]) || 1;
+  const servingMatch = servingLine?.match(/^Saved serving:\s*(.*?)(?:\s*\((.*)\))?\.$/i);
+  const servingLabel = servingMatch?.[1]?.trim() || food.serving || "1 portion";
+  const servingSize = servingMatch?.[2]?.trim() || food.servingSize || "";
+  const ingredientLines = lines.filter((line) => line.startsWith("- "));
+
+  const ingredients = ingredientLines.flatMap((line) => {
+    const match = line.match(/^-\s*(.*?):\s*(\d+(?:\.\d+)?)x/i);
+    if (!match) {
+      return [];
+    }
+
+    const ingredientName = match[1].trim();
+    const servings = Number(match[2]) || 1;
+    const matchedFood = foods.find((candidate) => candidate.id !== food.id && candidate.name.trim().toLowerCase() === ingredientName.toLowerCase());
+
+    if (!matchedFood) {
+      return [];
+    }
+
+    return [{ id: crypto.randomUUID(), food: matchedFood, servings }];
+  });
+
+  return { ingredients, servingCount, servingLabel, servingSize };
+}
+
+export function MealPrepCalculator({ foods: providedFoods, onChanged, editRequest }: MealPrepCalculatorProps) {
+  const appliedEditRequestId = useRef<number | null>(null);
   const [loadedFoods, setLoadedFoods] = useState<CommonFood[]>([]);
   const foods = providedFoods ?? loadedFoods;
   const [selectedCategory, setSelectedCategory] = useState("");
@@ -96,6 +131,7 @@ export function MealPrepCalculator({ foods: providedFoods, onChanged }: MealPrep
   const [draggingFoodId, setDraggingFoodId] = useState<string | null>(null);
   const [isBasketActive, setIsBasketActive] = useState(false);
   const [lastAddedFood, setLastAddedFood] = useState<CommonFood | null>(null);
+  const [editingFoodId, setEditingFoodId] = useState<string | null>(null);
   const [customIngredient, setCustomIngredient] = useState<CustomIngredientInput>(() => createEmptyCustomIngredient());
   const [isSavingIngredientId, setIsSavingIngredientId] = useState<string | null>(null);
   const [isCustomIngredientOpen, setIsCustomIngredientOpen] = useState(false);
@@ -117,6 +153,28 @@ export function MealPrepCalculator({ foods: providedFoods, onChanged }: MealPrep
         setError(loadError instanceof Error ? loadError.message : "Failed to load common foods.");
       });
   }, [providedFoods]);
+
+  useEffect(() => {
+    if (!editRequest || foods.length === 0) {
+      return;
+    }
+    if (appliedEditRequestId.current === editRequest.requestId) {
+      return;
+    }
+
+    const parsed = parseMealPrepNotes(editRequest.food, foods);
+    appliedEditRequestId.current = editRequest.requestId;
+    setMealName(editRequest.food.name);
+    setCategory(editRequest.food.category || "Meal prep");
+    setServingLabel(parsed.servingLabel);
+    setServingSize(parsed.servingSize);
+    setServingCount(parsed.servingCount);
+    setIngredients(parsed.ingredients);
+    setEditingFoodId(editRequest.food.id);
+    setLastAddedFood(null);
+    setError(parsed.ingredients.length ? null : "Meal prep notes were found, but no ingredients matched foods in the database.");
+    setMessage(parsed.ingredients.length ? `Loaded ${editRequest.food.name} for meal prep editing.` : "");
+  }, [editRequest, foods]);
 
   const categories = useMemo(
     () =>
@@ -300,6 +358,19 @@ export function MealPrepCalculator({ foods: providedFoods, onChanged }: MealPrep
     );
   }
 
+  function resetMealPrepEditor() {
+    setMealName("");
+    setCategory("Meal prep");
+    setServingLabel("1 portion");
+    setServingSize("");
+    setServingCount(4);
+    setIngredients([]);
+    setEditingFoodId(null);
+    setLastAddedFood(null);
+    setMessage("");
+    setError(null);
+  }
+
   async function saveMealToFoods() {
     setIsSaving(true);
     setError(null);
@@ -307,9 +378,10 @@ export function MealPrepCalculator({ foods: providedFoods, onChanged }: MealPrep
 
     try {
       const response = await fetch("/api/foods", {
-        method: "POST",
+        method: editingFoodId ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          id: editingFoodId ?? undefined,
           name: mealName,
           category,
           serving: servingLabel,
@@ -328,8 +400,9 @@ export function MealPrepCalculator({ foods: providedFoods, onChanged }: MealPrep
 
       const savedFood = (await response.json()) as CommonFood;
       await onChanged?.();
-      setLastAddedFood(savedFood);
-      setMessage(`Saved ${savedFood.name} to foods database.`);
+      setLastAddedFood(editingFoodId ? null : savedFood);
+      setMessage(editingFoodId ? `Updated ${savedFood.name} in foods database.` : `Saved ${savedFood.name} to foods database.`);
+      setEditingFoodId(null);
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : "Failed to save meal to foods database.");
     } finally {
@@ -540,10 +613,20 @@ export function MealPrepCalculator({ foods: providedFoods, onChanged }: MealPrep
 
       <aside className="flex flex-col gap-4">
         <div className="animate-enter rounded-lg border border-slate-200 bg-white p-4 shadow-sm xl:sticky xl:top-6">
-          <h2 className="inline-flex items-center gap-2 text-lg font-semibold">
-            <Utensils size={20} />
-            Save meal
-          </h2>
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h2 className="inline-flex items-center gap-2 text-lg font-semibold">
+                <Utensils size={20} />
+                Save meal
+              </h2>
+              {editingFoodId ? <p className="mt-1 text-xs font-semibold text-blue-700">Editing an existing database food. Saving will update it.</p> : null}
+            </div>
+            {editingFoodId ? (
+              <button className="rounded-md border border-slate-200 px-2.5 py-1.5 text-xs font-semibold text-slate-600" type="button" onClick={resetMealPrepEditor}>
+                Cancel edit
+              </button>
+            ) : null}
+          </div>
           <p className="mt-1 text-sm text-slate-500">Name the finished prep and save one portion as a reusable database food.</p>
           <div className="mt-4 grid gap-3">
             <label className="grid min-w-0 gap-1 text-sm font-medium text-slate-700">
@@ -599,7 +682,7 @@ export function MealPrepCalculator({ foods: providedFoods, onChanged }: MealPrep
             <button className="rounded-md bg-accent px-4 py-2 font-semibold text-white disabled:opacity-60" disabled={!canSave || isSaving} type="button" onClick={saveMealToFoods}>
               <span className="inline-flex items-center justify-center gap-2">
                 <Database size={16} />
-                {isSaving ? "Saving..." : "Save to foods database"}
+                {isSaving ? "Saving..." : editingFoodId ? "Update foods database" : "Save to foods database"}
               </span>
             </button>
           </div>

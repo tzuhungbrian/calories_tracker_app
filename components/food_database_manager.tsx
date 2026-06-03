@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, Calculator, Database, FolderCog, ListChecks, Plus, RotateCcw, Save, Search, Sparkles, Trash2 } from "lucide-react";
+import { AlertTriangle, Calculator, CookingPot, Database, FolderCog, ListChecks, Plus, RotateCcw, Save, Search, Sparkles, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { CategorySelect } from "@/components/category_select";
 import type { CommonFood, FoodLog } from "@/lib/types";
@@ -9,6 +9,7 @@ type FoodDatabaseManagerProps = {
   foods: CommonFood[];
   logs: FoodLog[];
   onChanged: () => Promise<void>;
+  onEditMealPrep: (food: CommonFood) => void;
 };
 
 type FoodFormState = Omit<CommonFood, "id"> & { id?: string };
@@ -80,6 +81,11 @@ function isAiEstimatedFood(food: CommonFood): boolean {
   return `${food.name} ${food.category} ${food.notes}`.toLowerCase().includes("ai estimated");
 }
 
+function isMealPrepFood(food: CommonFood): boolean {
+  const notes = food.notes.toLowerCase();
+  return notes.includes("meal prep:") && notes.includes("ingredients:");
+}
+
 function servingStandard(food: CommonFood): string {
   const servingText = `${food.serving} ${food.servingSize}`.toLowerCase();
   if (servingText.includes("100 ml")) {
@@ -106,7 +112,7 @@ function wasUsedRecently(food: CommonFood, logs: FoodLog[], dayWindow = 30): boo
   });
 }
 
-export function FoodDatabaseManager({ foods, logs, onChanged }: FoodDatabaseManagerProps) {
+export function FoodDatabaseManager({ foods, logs, onChanged, onEditMealPrep }: FoodDatabaseManagerProps) {
   const [form, setForm] = useState<FoodFormState>(emptyFood);
   const [selectedCategory, setSelectedCategory] = useState("");
   const [qualityFilter, setQualityFilter] = useState<QualityFilter>("all");
@@ -582,6 +588,16 @@ export function FoodDatabaseManager({ foods, logs, onChanged }: FoodDatabaseMana
               <p className="mt-2 text-sm text-slate-700">P {food.protein} / F {food.fat} / C {food.carbs}</p>
               <div className="mt-3 flex flex-wrap gap-1.5">
                 <span className="rounded-full bg-slate-50 px-2 py-1 text-xs font-semibold text-slate-600">{servingStandard(food)}</span>
+                {isMealPrepFood(food) ? (
+                  <button
+                    className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-1 text-xs font-semibold text-blue-700"
+                    type="button"
+                    onClick={() => onEditMealPrep(food)}
+                  >
+                    <CookingPot size={12} />
+                    Edit in meal prep
+                  </button>
+                ) : null}
                 {duplicateNameSet.has(normalizeFoodName(food.name)) ? (
                   <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-700">
                     <AlertTriangle size={12} />
@@ -755,6 +771,14 @@ export function FoodDatabaseManager({ foods, logs, onChanged }: FoodDatabaseMana
               <span className="inline-flex items-center gap-2">
                 <Trash2 size={16} />
                 Delete
+              </span>
+            </button>
+          ) : null}
+          {form.id && isMealPrepFood(form as CommonFood) ? (
+            <button className="rounded-md border border-blue-200 px-4 py-2 font-semibold text-blue-700 disabled:opacity-60" disabled={isSaving} type="button" onClick={() => onEditMealPrep(form as CommonFood)}>
+              <span className="inline-flex items-center gap-2">
+                <CookingPot size={16} />
+                Edit in meal prep
               </span>
             </button>
           ) : null}

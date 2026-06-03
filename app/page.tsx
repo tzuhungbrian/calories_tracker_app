@@ -71,6 +71,7 @@ export default function HomePage() {
   const [isUndoingDatabaseFood, setIsUndoingDatabaseFood] = useState(false);
   const [lastAddedDatabaseFood, setLastAddedDatabaseFood] = useState<CommonFood | null>(null);
   const [databaseFoodMessage, setDatabaseFoodMessage] = useState("");
+  const [mealPrepEditRequest, setMealPrepEditRequest] = useState<{ food: CommonFood; requestId: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const refreshData = useCallback(async () => {
@@ -246,6 +247,11 @@ export default function HomePage() {
     }
   }
 
+  function editFoodAsMealPrep(food: CommonFood) {
+    setMealPrepEditRequest({ food, requestId: Date.now() });
+    setActiveTab("prep");
+  }
+
   const activeTabIndex = tabs.findIndex((tab) => tab.id === activeTab);
 
   return (
@@ -358,7 +364,7 @@ export default function HomePage() {
             </div>
           ) : activeTab === "foods" ? (
             <div className="animate-enter" key="foods-tab">
-              <FoodDatabaseManager foods={commonFoods} logs={foodLogs} onChanged={refreshData} />
+              <FoodDatabaseManager foods={commonFoods} logs={foodLogs} onChanged={refreshData} onEditMealPrep={editFoodAsMealPrep} />
             </div>
           ) : activeTab === "settings" ? (
             <div className="animate-enter" key="settings-tab">
@@ -366,7 +372,7 @@ export default function HomePage() {
             </div>
           ) : (
             <div className="animate-enter" key="prep-tab">
-              <MealPrepCalculator foods={commonFoods} onChanged={refreshData} />
+              <MealPrepCalculator editRequest={mealPrepEditRequest} foods={commonFoods} onChanged={refreshData} />
             </div>
           )}
         </section>
