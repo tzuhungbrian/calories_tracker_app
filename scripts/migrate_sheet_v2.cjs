@@ -20,9 +20,20 @@ for (const line of fs.readFileSync(".env.local", "utf8").split(/\r?\n/)) {
 }
 
 const spreadsheetId = env.GOOGLE_SHEET_ID;
+
+function getPrivateKey() {
+  const key = String(env.GOOGLE_PRIVATE_KEY || "").trim();
+  const unquoted =
+    (key.startsWith("\"") && key.endsWith("\"")) || (key.startsWith("'") && key.endsWith("'"))
+      ? key.slice(1, -1)
+      : key;
+
+  return unquoted.replace(/\\r\\n/g, "\n").replace(/\\n/g, "\n").replace(/\r\n/g, "\n");
+}
+
 const auth = new google.auth.JWT({
   email: env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
-  key: (env.GOOGLE_PRIVATE_KEY || "").replace(/\\n/g, "\n"),
+  key: getPrivateKey(),
   scopes: ["https://www.googleapis.com/auth/spreadsheets"]
 });
 const sheets = google.sheets({ version: "v4", auth });

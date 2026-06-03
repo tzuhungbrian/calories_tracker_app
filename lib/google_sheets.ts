@@ -19,7 +19,13 @@ export const sheetTabs = {
 };
 
 function getPrivateKey(): string {
-  return (process.env.GOOGLE_PRIVATE_KEY || "").replace(/\\n/g, "\n");
+  const key = (process.env.GOOGLE_PRIVATE_KEY || "").trim();
+  const unquoted =
+    (key.startsWith('"') && key.endsWith('"')) || (key.startsWith("'") && key.endsWith("'"))
+      ? key.slice(1, -1)
+      : key;
+
+  return unquoted.replace(/\\r\\n/g, "\n").replace(/\\n/g, "\n").replace(/\r\n/g, "\n");
 }
 
 function getSheetsClient(): sheets_v4.Sheets {
