@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, Clipboard, Download, Sparkles } from "lucide-react";
+import { Check, ChevronDown, Clipboard, Download, Sparkles } from "lucide-react";
 import { useMemo, useState } from "react";
 import type { DailyStatus, DashboardData, FoodLog, NutritionTotals } from "@/lib/types";
 
@@ -133,9 +133,9 @@ function copyTextFallback(content: string): boolean {
 export function AiDietExport({ today, dashboard, logs, status }: AiDietExportProps) {
   const [isCopied, setIsCopied] = useState(false);
   const [copyError, setCopyError] = useState("");
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const todayLogs = useMemo(() => logs.filter((log) => log.date === today), [logs, today]);
   const exportText = useMemo(() => buildAiDietPrompt(today, dashboard, todayLogs, status), [dashboard, status, today, todayLogs]);
-  const previewLines = exportText.split("\n").slice(0, 11).join("\n");
 
   async function copyExportText() {
     setCopyError("");
@@ -160,51 +160,58 @@ export function AiDietExport({ today, dashboard, logs, status }: AiDietExportPro
   }
 
   return (
-    <section className="hover-lift animate-enter-soft overflow-hidden rounded-lg border border-violet-100 bg-white shadow-sm dark:border-violet-900/70">
-      <div className="grid gap-0 lg:grid-cols-[minmax(0,1fr)_360px]">
-        <div className="p-4 sm:p-5">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-            <div>
-              <h2 className="inline-flex items-center gap-2 text-lg font-semibold">
-                <Sparkles size={20} className="text-violet-600 dark:text-violet-300" />
-                AI diet export
-              </h2>
-              <p className="mt-1 text-sm text-slate-500">
-                One tap turns today&apos;s log into a clean prompt for ChatGPT or your macro-estimation flow.
-              </p>
-            </div>
-            <div className="inline-flex w-fit rounded-full bg-violet-50 px-3 py-1 text-xs font-semibold text-violet-700 dark:bg-violet-950/60 dark:text-violet-200">
-              {todayLogs.length} food{todayLogs.length === 1 ? "" : "s"} today
-            </div>
+    <section className="animate-enter-soft overflow-hidden rounded-lg border border-violet-100 bg-white shadow-sm dark:border-violet-900/70">
+      <div className="flex flex-col gap-2 px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex min-w-0 items-center gap-2.5">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-violet-50 text-violet-700 dark:bg-violet-950/60 dark:text-violet-200">
+            <Sparkles size={18} />
           </div>
-
-          <div className="mt-4 grid gap-2 sm:grid-cols-2">
-            <button
-              className="inline-flex items-center justify-center gap-2 rounded-lg bg-ink px-4 py-3 text-sm font-semibold text-white shadow-sm hover:-translate-y-0.5 hover:shadow-md"
-              type="button"
-              onClick={copyExportText}
-            >
-              {isCopied ? <Check size={17} /> : <Clipboard size={17} />}
-              {isCopied ? "Copied for AI" : "Copy AI-ready log"}
-            </button>
-            <button
-              className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700 hover:-translate-y-0.5 hover:bg-white hover:shadow-sm dark:bg-slate-800 dark:hover:bg-slate-700"
-              type="button"
-              onClick={downloadExportText}
-            >
-              <Download size={17} />
-              Download .txt
-            </button>
+          <div className="min-w-0">
+            <h2 className="truncate text-sm font-semibold">AI diet export</h2>
+            <p className="truncate text-xs text-slate-500">
+              {todayLogs.length} food{todayLogs.length === 1 ? "" : "s"} today · AI-ready prompt
+            </p>
           </div>
-
-          {copyError ? <p className="mt-3 text-sm font-medium text-red-600 dark:text-red-300">{copyError}</p> : null}
         </div>
 
-        <div className="border-t border-violet-100 bg-violet-50/60 p-4 dark:border-violet-900/70 dark:bg-violet-950/20 lg:border-l lg:border-t-0">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-violet-700 dark:text-violet-200">Preview</p>
-          <pre className="mt-3 max-h-44 overflow-hidden whitespace-pre-wrap rounded-lg border border-violet-100 bg-white/80 p-3 text-xs leading-5 text-slate-600 dark:border-violet-900/70 dark:bg-slate-900/70 dark:text-slate-300">
-            {previewLines}
-          </pre>
+        <div className="flex shrink-0 items-center gap-2">
+          <button
+            className="inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-ink px-3 text-sm font-semibold text-white shadow-sm hover:-translate-y-0.5 hover:shadow-md"
+            type="button"
+            onClick={copyExportText}
+          >
+            {isCopied ? <Check size={16} /> : <Clipboard size={16} />}
+            {isCopied ? "Copied" : "Copy"}
+          </button>
+          <button
+            className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-slate-700 hover:-translate-y-0.5 hover:bg-white hover:shadow-sm dark:bg-slate-800 dark:hover:bg-slate-700"
+            type="button"
+            onClick={downloadExportText}
+          >
+            <Download size={16} />
+            <span className="hidden sm:inline">.txt</span>
+          </button>
+          <button
+            className="inline-flex h-9 items-center justify-center gap-1 rounded-lg border border-violet-100 bg-violet-50 px-3 text-xs font-semibold text-violet-700 hover:bg-violet-100 dark:border-violet-900/70 dark:bg-violet-950/40 dark:text-violet-200"
+            type="button"
+            aria-expanded={isPreviewOpen}
+            onClick={() => setIsPreviewOpen((current) => !current)}
+          >
+            Preview
+            <ChevronDown size={15} className={`transition-transform duration-200 ${isPreviewOpen ? "rotate-180" : ""}`} />
+          </button>
+        </div>
+      </div>
+
+      {copyError ? <p className="px-3 pb-2 text-sm font-medium text-red-600 dark:text-red-300">{copyError}</p> : null}
+
+      <div className={`grid transition-[grid-template-rows] duration-300 ease-out ${isPreviewOpen ? "grid-rows-[1fr]" : "grid-rows-[0fr]"}`}>
+        <div className="min-h-0 overflow-hidden">
+          <div className="border-t border-violet-100 bg-violet-50/50 p-3 dark:border-violet-900/70 dark:bg-violet-950/20">
+            <pre className="max-h-52 overflow-auto whitespace-pre-wrap rounded-lg border border-violet-100 bg-white/85 p-3 text-xs leading-5 text-slate-600 dark:border-violet-900/70 dark:bg-slate-900/70 dark:text-slate-300">
+              {exportText}
+            </pre>
+          </div>
         </div>
       </div>
     </section>
