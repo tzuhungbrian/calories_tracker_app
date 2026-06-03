@@ -2,6 +2,7 @@
 
 import { BarChart3, CalendarCheck, Database, ReceiptText, RotateCcw, Settings, Sprout, Utensils } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
+import { AiDietExport } from "@/components/ai_diet_export";
 import { DailyStatusEditor } from "@/components/daily_status_editor";
 import { DailyReview } from "@/components/daily_review";
 import { FoodDatabaseManager } from "@/components/food_database_manager";
@@ -326,6 +327,7 @@ export default function HomePage() {
                 <p className="mt-1 text-sm text-slate-500">Log food, update activity, and keep today accurate.</p>
               </section>
               <DailyReview dashboard={dashboard} status={dailyStatus} />
+              <AiDietExport today={today} dashboard={dashboard} logs={foodLogs} status={dailyStatus} />
               {databaseFoodMessage ? (
                 <div className="flex flex-col gap-3 rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm font-semibold text-emerald-700 sm:flex-row sm:items-center sm:justify-between">
                   <span>{databaseFoodMessage}</span>
