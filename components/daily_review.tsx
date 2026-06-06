@@ -5,6 +5,7 @@ import type { DailyStatus, DashboardData } from "@/lib/types";
 type DailyReviewProps = {
   dashboard: DashboardData | null;
   status: DailyStatus;
+  compact?: boolean;
 };
 
 function round(value: number): number {
@@ -82,9 +83,9 @@ function exerciseGuidance(data: DashboardData, status: DailyStatus): { title: st
   };
 }
 
-export function DailyReview({ dashboard, status }: DailyReviewProps) {
+export function DailyReview({ dashboard, status, compact = false }: DailyReviewProps) {
   if (!dashboard) {
-    return <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">Loading daily review...</section>;
+    return <section className={`border border-slate-200 bg-white p-4 shadow-sm ${compact ? "rounded-2xl" : "rounded-lg"}`}>Loading daily review...</section>;
   }
 
   const effectiveStatus = dashboard.status ?? status;
@@ -94,8 +95,8 @@ export function DailyReview({ dashboard, status }: DailyReviewProps) {
   const mode = effectiveStatus.goalType ?? "maintain";
 
   return (
-    <section className="animate-enter rounded-lg border border-blue-100 bg-white p-4 shadow-sm">
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+    <section className={`animate-enter border border-blue-100 bg-white p-4 shadow-sm ${compact ? "rounded-2xl" : "rounded-lg"}`}>
+      <div className={`flex flex-col gap-3 ${compact ? "" : "lg:flex-row lg:items-start lg:justify-between"}`}>
         <div>
           <h2 className="inline-flex items-center gap-2 text-lg font-semibold">
             <Lightbulb size={20} className="text-blue-700" />
@@ -109,7 +110,7 @@ export function DailyReview({ dashboard, status }: DailyReviewProps) {
         </div>
       </div>
 
-      <div className="mt-4 grid gap-3 md:grid-cols-3">
+      <div className={`mt-4 grid gap-3 ${compact ? "grid-cols-1" : "md:grid-cols-3"}`}>
         <ReviewCard icon={<Flame size={18} />} title={calorie.title} body={calorie.body} tone={calorie.tone} />
         <ReviewCard icon={<Beef size={18} />} title={protein.title} body={protein.body} tone={protein.tone} />
         <ReviewCard icon={<Footprints size={18} />} title={exercise.title} body={exercise.body} tone={exercise.tone} />

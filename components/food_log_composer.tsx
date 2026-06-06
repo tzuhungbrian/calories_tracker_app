@@ -930,7 +930,7 @@ export function FoodLogComposer({ foods, recentLogs = [], value, isSaving, onCha
         </div>
       ) : null}
 
-      <div className={`mt-5 grid gap-3 ${entryMode === "saved" ? "xl:grid-cols-[180px_minmax(0,1fr)_auto]" : "xl:grid-cols-[minmax(0,1fr)_auto]"} xl:items-end`}>
+      <div className={`mt-5 grid gap-3 ${entryMode === "saved" ? "2xl:grid-cols-[180px_minmax(0,1fr)_auto]" : "2xl:grid-cols-[minmax(0,1fr)_auto]"} 2xl:items-end`}>
         {entryMode === "saved" ? (
           <label className="grid gap-1 text-sm font-medium text-slate-700">
             Servings

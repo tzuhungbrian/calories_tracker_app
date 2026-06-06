@@ -13,6 +13,7 @@ import { MealPrepCalculator } from "@/components/meal_prep_calculator";
 import { SettingsPanel } from "@/components/settings_panel";
 import { StatsDashboard } from "@/components/stats_dashboard";
 import { ThemeToggle } from "@/components/theme_toggle";
+import { TodayDesktopWorkbench } from "@/components/today_desktop_workbench";
 import { dateKey } from "@/lib/date";
 import type { CommonFood, DailyStatus, DailySummary, DashboardData, FoodLog, FoodLogInput } from "@/lib/types";
 
@@ -313,10 +314,6 @@ export default function HomePage() {
 
           {activeTab === "dashboard" ? (
             <div className="flex flex-col gap-6 animate-enter" key="dashboard-tab">
-              <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-                <h2 className="text-lg font-semibold">Today</h2>
-                <p className="mt-1 text-sm text-slate-500">Log food, update activity, and keep today accurate.</p>
-              </section>
               {databaseFoodMessage ? (
                 <div className="flex flex-col gap-3 rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm font-semibold text-emerald-700 sm:flex-row sm:items-center sm:justify-between">
                   <span>{databaseFoodMessage}</span>
@@ -333,19 +330,43 @@ export default function HomePage() {
                   ) : null}
                 </div>
               ) : null}
-              <section className="grid gap-4 xl:grid-cols-[1fr_360px]">
-                <FoodLogComposer foods={commonFoods} recentLogs={foodLogs} value={foodLog} isSaving={isSavingFood} onChange={setFoodLog} onSubmit={saveFoodLog} />
-                <DailyStatusEditor
-                  value={dailyStatus}
-                  today={today}
-                  isSaving={isSavingStatus}
-                  onChange={setDailyStatus}
-                  onDateSelect={loadDailyStatusForDate}
-                  onSubmit={saveDailyStatus}
-                />
-              </section>
-              <DailyReview dashboard={dashboard} status={dailyStatus} />
-              <AiDietExport today={today} dashboard={dashboard} logs={foodLogs} status={dailyStatus} />
+
+              <div className="flex flex-col gap-6 xl:hidden">
+                <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+                  <h2 className="text-lg font-semibold">Today</h2>
+                  <p className="mt-1 text-sm text-slate-500">Log food, update activity, and keep today accurate.</p>
+                </section>
+                <section className="grid gap-4">
+                  <FoodLogComposer foods={commonFoods} recentLogs={foodLogs} value={foodLog} isSaving={isSavingFood} onChange={setFoodLog} onSubmit={saveFoodLog} />
+                  <DailyStatusEditor
+                    value={dailyStatus}
+                    today={today}
+                    isSaving={isSavingStatus}
+                    onChange={setDailyStatus}
+                    onDateSelect={loadDailyStatusForDate}
+                    onSubmit={saveDailyStatus}
+                  />
+                </section>
+                <DailyReview dashboard={dashboard} status={dailyStatus} />
+                <AiDietExport today={today} dashboard={dashboard} logs={foodLogs} status={dailyStatus} />
+              </div>
+
+              <TodayDesktopWorkbench
+                today={today}
+                dashboard={dashboard}
+                foods={commonFoods}
+                logs={foodLogs}
+                foodLog={foodLog}
+                dailyStatus={dailyStatus}
+                isSavingFood={isSavingFood}
+                isSavingStatus={isSavingStatus}
+                onFoodLogChange={setFoodLog}
+                onFoodLogSubmit={saveFoodLog}
+                onDailyStatusChange={setDailyStatus}
+                onDailyStatusDateSelect={loadDailyStatusForDate}
+                onDailyStatusSubmit={saveDailyStatus}
+                onOpenLogs={() => selectTab("logs")}
+              />
             </div>
           ) : activeTab === "stats" ? (
             <div className="animate-enter" key="stats-tab">
