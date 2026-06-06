@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { LogoutButton } from "@/components/logout_button";
 import { MealPrepCalculator } from "@/components/meal_prep_calculator";
 import { ThemeToggle } from "@/components/theme_toggle";
 
@@ -15,6 +16,7 @@ export default function PrepCalculatorPage() {
             Back to dashboard
           </Link>
           <ThemeToggle />
+          <LogoutButton compact />
         </div>
       </header>
       <MealPrepCalculator />

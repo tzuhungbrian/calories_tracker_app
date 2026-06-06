@@ -15,7 +15,7 @@ Personal nutrition tracker for Brian. The app uses Next.js, TypeScript, Tailwind
 - Browser code renders the app and calls internal `/api/*` endpoints.
 - Google Sheets access is isolated to server-side Next.js route handlers through `lib/google_sheets.ts`.
 - Google credentials are read only from server environment variables.
-- Basic Auth is enforced by `middleware.ts` for pages and API routes.
+- A custom login page is enforced by `middleware.ts` for pages and API routes.
 - Static Next.js assets are excluded from Basic Auth so the app can load correctly.
 
 ## Local Development
@@ -131,11 +131,11 @@ npm install
 ```
 
 7. Deploy.
-8. Open the deployed URL and sign in with the configured Basic Auth username and password.
+8. Open the deployed URL and sign in with the configured app username and password.
 
-## Basic Auth
+## App Login
 
-`middleware.ts` protects both pages and API routes using:
+`middleware.ts` protects both pages and API routes using a signed HttpOnly session cookie. Users sign in through `/login` with:
 
 ```text
 APP_USERNAME
@@ -143,6 +143,8 @@ APP_PASSWORD
 ```
 
 If either variable is missing, protected requests return `500` so the deployment does not accidentally become public.
+
+The login form uses standard `username` and `current-password` autocomplete attributes so browser password managers and Bitwarden can fill it normally.
 
 The middleware does not protect static Next.js assets such as `/_next/static/*`, `/_next/image/*`, `favicon.ico`, or common public asset file extensions.
 

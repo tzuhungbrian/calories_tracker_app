@@ -8,6 +8,7 @@ import { DailyReview } from "@/components/daily_review";
 import { FoodDatabaseManager } from "@/components/food_database_manager";
 import { FoodLogComposer } from "@/components/food_log_composer";
 import { FoodLogManager } from "@/components/food_log_manager";
+import { LogoutButton } from "@/components/logout_button";
 import { MealPrepCalculator } from "@/components/meal_prep_calculator";
 import { SettingsPanel } from "@/components/settings_panel";
 import { StatsDashboard } from "@/components/stats_dashboard";
@@ -281,6 +282,7 @@ export default function HomePage() {
             <ThemeToggle />
             <span className="text-sm font-medium text-slate-600">Theme</span>
           </div>
+          <LogoutButton />
         </aside>
 
         <section className="flex min-w-0 flex-1 flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8">
@@ -313,6 +315,7 @@ export default function HomePage() {
                 </div>
               </div>
               <ThemeToggle />
+              <LogoutButton compact />
             </div>
           </header>
 
