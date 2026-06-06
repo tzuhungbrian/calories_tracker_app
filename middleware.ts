@@ -1,18 +1,11 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
+import { AUTH_SESSION_COOKIE, getAuthSecret, verifySessionToken } from "@/lib/auth";
 
-function unauthorizedResponse(): Response {
-  return new Response("Authentication required.", {
-    status: 401,
-    headers: {
-      "Cache-Control": "no-store",
-      "WWW-Authenticate": 'Basic realm="Calories Tracker", charset="UTF-8"'
-    }
-  });
-}
+const publicPaths = new Set(["/login", "/api/auth/login", "/api/auth/logout"]);
 
 function authNotConfiguredResponse(): Response {
-  return new Response("Basic Auth is not configured.", {
+  return new Response("Authentication is not configured.", {
     status: 500,
     headers: {
       "Cache-Control": "no-store"
@@ -20,40 +13,50 @@ function authNotConfiguredResponse(): Response {
   });
 }
 
-function parseBasicAuth(header: string | null): { username: string; password: string } | null {
-  if (!header?.startsWith("Basic ")) {
-    return null;
-  }
-
-  try {
-    const decoded = atob(header.slice("Basic ".length));
-    const separatorIndex = decoded.indexOf(":");
-
-    if (separatorIndex < 0) {
-      return null;
+function apiUnauthorizedResponse(): Response {
+  return NextResponse.json(
+    { error: "Authentication required." },
+    {
+      status: 401,
+      headers: {
+        "Cache-Control": "no-store"
+      }
     }
-
-    return {
-      username: decoded.slice(0, separatorIndex),
-      password: decoded.slice(separatorIndex + 1)
-    };
-  } catch {
-    return null;
-  }
+  );
 }
 
-export function middleware(request: NextRequest) {
+function loginRedirect(request: NextRequest): NextResponse {
+  const loginUrl = new URL("/login", request.url);
+  const nextPath = `${request.nextUrl.pathname}${request.nextUrl.search}`;
+
+  if (nextPath !== "/") {
+    loginUrl.searchParams.set("next", nextPath);
+  }
+
+  return NextResponse.redirect(loginUrl);
+}
+
+export async function middleware(request: NextRequest) {
   const expectedUsername = process.env.APP_USERNAME;
   const expectedPassword = process.env.APP_PASSWORD;
+  const pathname = request.nextUrl.pathname;
 
   if (!expectedUsername || !expectedPassword) {
     return authNotConfiguredResponse();
   }
 
-  const credentials = parseBasicAuth(request.headers.get("authorization"));
+  const isAuthenticated = await verifySessionToken(request.cookies.get(AUTH_SESSION_COOKIE)?.value, getAuthSecret(expectedUsername, expectedPassword));
 
-  if (credentials?.username !== expectedUsername || credentials.password !== expectedPassword) {
-    return unauthorizedResponse();
+  if (publicPaths.has(pathname)) {
+    if (pathname === "/login" && isAuthenticated) {
+      return NextResponse.redirect(new URL("/", request.url));
+    }
+
+    return NextResponse.next();
+  }
+
+  if (!isAuthenticated) {
+    return pathname.startsWith("/api/") ? apiUnauthorizedResponse() : loginRedirect(request);
   }
 
   return NextResponse.next();
