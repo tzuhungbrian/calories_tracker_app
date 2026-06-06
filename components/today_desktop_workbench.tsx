@@ -174,34 +174,57 @@ export function TodayDesktopWorkbench({
   const nextAction = buildNextAction(dashboard, effectiveStatus, todayLogs);
   const caloriesTone = calorieTone(dashboard);
   const proteinTone: Tone = dashboard && dashboard.remaining.protein <= 0 ? "good" : dashboard ? "warn" : "neutral";
-  const exerciseTone: Tone = dashboard && exerciseDone(effectiveStatus, dashboard.exerciseStepGoal || 8000) ? "good" : dashboard ? "warn" : "neutral";
   const calorieProgress = dashboard && dashboard.targets.calories > 0 ? clamp((dashboard.totals.calories / dashboard.targets.calories) * 100, 0, 125) : 0;
   const proteinProgress = dashboard && dashboard.targets.protein > 0 ? clamp((dashboard.totals.protein / dashboard.targets.protein) * 100, 0, 125) : 0;
 
   return (
-    <div className="hidden animate-enter gap-5 xl:grid xl:grid-cols-[minmax(250px,290px)_minmax(0,1fr)_minmax(310px,360px)] xl:items-start">
-      <aside className="sticky top-6 grid gap-4">
+    <div className="hidden animate-enter gap-5 xl:grid xl:grid-cols-[minmax(0,1fr)_360px] xl:items-start">
+      <section className="grid min-w-0 gap-4">
         <section className={`rounded-2xl border p-4 shadow-sm ${toneStyles[nextAction.tone].card}`}>
-          <div className="flex items-start gap-3">
-            <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl ${toneStyles[nextAction.tone].icon}`}>
-              <Target size={21} />
+          <div className="flex flex-col gap-4 2xl:flex-row 2xl:items-center 2xl:justify-between">
+            <div className="flex min-w-0 items-start gap-3">
+              <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl ${toneStyles[nextAction.tone].icon}`}>
+                <Target size={21} />
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Today command</p>
+                <h2 className="mt-1 text-xl font-semibold leading-6">{nextAction.title}</h2>
+                <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">{nextAction.body}</p>
+              </div>
             </div>
-            <div className="min-w-0">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Today command</p>
-              <h2 className="mt-1 text-xl font-semibold leading-6">{nextAction.title}</h2>
-            </div>
+            <button
+              className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-ink px-5 py-3 text-sm font-semibold text-white shadow-sm hover:-translate-y-0.5 hover:shadow-md"
+              type="button"
+              onClick={focusFoodEntry}
+            >
+              <Utensils size={17} />
+              Log next food
+            </button>
           </div>
-          <p className="mt-3 text-sm leading-6 text-slate-600">{nextAction.body}</p>
-          <button
-            className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-ink px-4 py-3 text-sm font-semibold text-white shadow-sm hover:-translate-y-0.5 hover:shadow-md"
-            type="button"
-            onClick={focusFoodEntry}
-          >
-            <Utensils size={17} />
-            Log next food
-          </button>
         </section>
 
+        <section id="today-food-entry" className="grid min-w-0 gap-4">
+          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-blue-700">Daily workflow</p>
+                <h2 className="mt-0.5 text-xl font-semibold">Add food</h2>
+                <p className="mt-1 text-sm text-slate-500">Pick a meal, choose a food, confirm the macros.</p>
+              </div>
+              <div className="inline-flex w-fit items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-sm font-semibold text-slate-600">
+                <ClipboardList size={16} />
+                {todayLogs.length} logged today
+              </div>
+            </div>
+          </div>
+          <FoodLogComposer foods={foods} recentLogs={logs} value={foodLog} isSaving={isSavingFood} onChange={onFoodLogChange} onSubmit={onFoodLogSubmit} />
+        </section>
+
+        <DailyReview dashboard={dashboard} status={dailyStatus} />
+        <AiDietExport today={today} dashboard={dashboard} logs={logs} status={dailyStatus} />
+      </section>
+
+      <aside className="sticky top-6 grid gap-4">
         <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
           <div className="flex items-center justify-between gap-3">
             <div>
@@ -242,29 +265,7 @@ export function TodayDesktopWorkbench({
           onDateSelect={onDailyStatusDateSelect}
           onSubmit={onDailyStatusSubmit}
         />
-      </aside>
-
-      <section id="today-food-entry" className="grid min-w-0 gap-4">
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-          <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-blue-700">Daily workflow</p>
-              <h2 className="mt-0.5 text-xl font-semibold">Log food, then check the right rail.</h2>
-              <p className="mt-1 text-sm text-slate-500">Meal first, food second, macro check last.</p>
-            </div>
-            <div className="inline-flex w-fit items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-sm font-semibold text-slate-600">
-              <ClipboardList size={16} />
-              {todayLogs.length} logged today
-            </div>
-          </div>
-        </div>
-        <FoodLogComposer foods={foods} recentLogs={logs} value={foodLog} isSaving={isSavingFood} onChange={onFoodLogChange} onSubmit={onFoodLogSubmit} />
-      </section>
-
-      <aside className="sticky top-6 grid gap-4">
         <TodayLogRail logs={todayLogs} dashboard={dashboard} onOpenLogs={onOpenLogs} />
-        <DailyReview dashboard={dashboard} status={dailyStatus} compact />
-        <AiDietExport today={today} dashboard={dashboard} logs={logs} status={dailyStatus} />
       </aside>
     </div>
   );
