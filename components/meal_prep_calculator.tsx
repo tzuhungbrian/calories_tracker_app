@@ -441,10 +441,10 @@ export function MealPrepCalculator({ foods: providedFoods, onChanged, editReques
   const canUseCustomIngredient = Boolean(customIngredient.name.trim());
 
   return (
-    <section className="grid gap-4 xl:grid-cols-[minmax(280px,0.85fr)_minmax(360px,1.15fr)_360px]">
+    <section className="grid min-w-0 gap-4 xl:grid-cols-[minmax(280px,0.85fr)_minmax(360px,1.15fr)_360px]">
       {error ? <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800 xl:col-span-3">{error}</div> : null}
 
-      <div className="animate-enter rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="animate-enter min-w-0 overflow-hidden rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
         <div>
           <h2 className="inline-flex items-center gap-2 text-lg font-semibold">
             <Search size={20} />
@@ -494,7 +494,7 @@ export function MealPrepCalculator({ foods: providedFoods, onChanged, editReques
           </span>
         </button>
 
-        <div className="mt-4 grid max-h-[640px] gap-2 overflow-y-auto pr-1">
+        <div className="mt-4 grid max-h-[640px] min-w-0 gap-2 overflow-y-auto pr-1">
           {filteredFoods.map((food) => (
             <button
               key={food.id}
@@ -525,7 +525,7 @@ export function MealPrepCalculator({ foods: providedFoods, onChanged, editReques
       </div>
 
       <div
-        className={`animate-enter rounded-lg border bg-white p-4 shadow-sm transition ${isBasketActive ? "border-blue-300 bg-blue-50/60 ring-4 ring-blue-100" : "border-slate-200"}`}
+        className={`animate-enter min-w-0 overflow-hidden rounded-lg border bg-white p-4 shadow-sm transition ${isBasketActive ? "border-blue-300 bg-blue-50/60 ring-4 ring-blue-100" : "border-slate-200"}`}
         onDragEnter={(event) => {
           event.preventDefault();
           setIsBasketActive(true);
@@ -611,7 +611,7 @@ export function MealPrepCalculator({ foods: providedFoods, onChanged, editReques
         </div>
       </div>
 
-      <aside className="flex flex-col gap-4">
+      <aside className="flex min-w-0 flex-col gap-4">
         <div className="animate-enter rounded-lg border border-slate-200 bg-white p-4 shadow-sm xl:sticky xl:top-6">
           <div className="flex items-start justify-between gap-3">
             <div>
