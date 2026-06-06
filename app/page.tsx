@@ -1,6 +1,6 @@
 "use client";
 
-import { BarChart3, CalendarCheck, Database, ReceiptText, RotateCcw, Settings, Sprout, Utensils } from "lucide-react";
+import { BarChart3, CalendarCheck, Database, MoreHorizontal, ReceiptText, RotateCcw, Settings, Sprout, Utensils, X } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { AiDietExport } from "@/components/ai_diet_export";
 import { DailyStatusEditor } from "@/components/daily_status_editor";
@@ -26,6 +26,9 @@ const tabs = [
 ] as const;
 
 type AppTab = (typeof tabs)[number]["id"];
+
+const mobilePrimaryTabIds: AppTab[] = ["stats", "dashboard", "logs"];
+const mobileMoreTabIds: AppTab[] = ["foods", "prep", "settings"];
 
 function getTodayKey(): string {
   return dateKey();
@@ -74,6 +77,7 @@ export default function HomePage() {
   const [lastAddedDatabaseFood, setLastAddedDatabaseFood] = useState<CommonFood | null>(null);
   const [databaseFoodMessage, setDatabaseFoodMessage] = useState("");
   const [mealPrepEditRequest, setMealPrepEditRequest] = useState<{ food: CommonFood; requestId: number } | null>(null);
+  const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const refreshData = useCallback(async () => {
@@ -252,13 +256,22 @@ export default function HomePage() {
   function editFoodAsMealPrep(food: CommonFood) {
     setMealPrepEditRequest({ food, requestId: Date.now() });
     setActiveTab("prep");
+    setIsMoreMenuOpen(false);
   }
 
-  const activeTabIndex = tabs.findIndex((tab) => tab.id === activeTab);
+  function selectTab(tabId: AppTab) {
+    setActiveTab(tabId);
+    setIsMoreMenuOpen(false);
+  }
+
+  const mobilePrimaryTabs = tabs.filter((tab) => mobilePrimaryTabIds.includes(tab.id));
+  const mobileMoreTabs = tabs.filter((tab) => mobileMoreTabIds.includes(tab.id));
+  const isMoreTabActive = mobileMoreTabIds.includes(activeTab);
+  const activeMoreTab = tabs.find((tab) => tab.id === activeTab && mobileMoreTabIds.includes(tab.id));
 
   return (
-    <main className="min-h-screen bg-slate-50 text-ink">
-      <div className="mx-auto flex min-h-screen w-full max-w-[1500px]">
+    <main className="min-h-screen overflow-x-hidden bg-slate-50 text-ink">
+      <div className="mx-auto flex min-h-screen w-full max-w-[1500px] overflow-x-hidden">
         <aside className="sticky top-0 hidden h-screen w-48 shrink-0 flex-col border-r border-slate-200 bg-white px-3 py-6 lg:flex">
           <div className="mb-10 flex justify-center">
             <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-50 text-blue-700">
@@ -271,7 +284,7 @@ export default function HomePage() {
                 key={id}
                 className={`flex items-center gap-3 rounded-lg px-3 py-3 text-left text-sm font-semibold transition ${activeTab === id ? "bg-blue-50 text-blue-700 shadow-sm" : "text-slate-600 hover:bg-slate-50 hover:text-ink"}`}
                 type="button"
-                onClick={() => setActiveTab(id)}
+                onClick={() => selectTab(id)}
               >
                 <Icon size={20} />
                 {label}
@@ -285,37 +298,12 @@ export default function HomePage() {
           <LogoutButton />
         </aside>
 
-        <section className="flex min-w-0 flex-1 flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8">
+        <section className="flex min-w-0 flex-1 flex-col gap-5 px-4 pb-[calc(6.5rem+env(safe-area-inset-bottom))] pt-5 sm:px-6 lg:gap-6 lg:px-8 lg:py-6">
           <header className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
             <div>
               <p className="text-sm font-medium text-blue-700">{today}</p>
-              <h1 className="mt-1 text-3xl font-semibold tracking-tight">Brian&apos;s nutrition tracker</h1>
+              <h1 className="mt-1 text-2xl font-semibold tracking-tight sm:text-3xl">Brian&apos;s nutrition tracker</h1>
               <p className="mt-1 text-sm text-slate-500">Track your progress and build healthy habits.</p>
-            </div>
-            <div className="flex w-full flex-wrap gap-2 lg:hidden">
-              <div className="max-w-full overflow-x-auto">
-                <div className="relative inline-grid min-w-[780px] grid-cols-6 overflow-hidden rounded-lg border border-slate-200 bg-white p-1 shadow-sm sm:min-w-0">
-                  <span
-                    className="pointer-events-none absolute bottom-1 left-1 top-1 w-[calc((100%_-_0.5rem)/6)] rounded-md bg-ink shadow-sm transition-transform duration-300 ease-out"
-                    style={{ transform: `translateX(${Math.max(activeTabIndex, 0) * 100}%)` }}
-                  />
-                  {tabs.map(({ id, label, icon: Icon }) => (
-                    <button
-                      key={id}
-                      className={`relative z-10 rounded-md px-4 py-2 text-sm font-semibold transition-colors duration-300 ${activeTab === id ? "text-white" : "text-slate-600 hover:text-ink"}`}
-                      type="button"
-                      onClick={() => setActiveTab(id)}
-                    >
-                      <span className="inline-flex items-center justify-center gap-2">
-                        <Icon size={16} />
-                        {label}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <ThemeToggle />
-              <LogoutButton compact />
             </div>
           </header>
 
@@ -329,8 +317,6 @@ export default function HomePage() {
                 <h2 className="text-lg font-semibold">Today</h2>
                 <p className="mt-1 text-sm text-slate-500">Log food, update activity, and keep today accurate.</p>
               </section>
-              <DailyReview dashboard={dashboard} status={dailyStatus} />
-              <AiDietExport today={today} dashboard={dashboard} logs={foodLogs} status={dailyStatus} />
               {databaseFoodMessage ? (
                 <div className="flex flex-col gap-3 rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm font-semibold text-emerald-700 sm:flex-row sm:items-center sm:justify-between">
                   <span>{databaseFoodMessage}</span>
@@ -358,10 +344,12 @@ export default function HomePage() {
                   onSubmit={saveDailyStatus}
                 />
               </section>
+              <DailyReview dashboard={dashboard} status={dailyStatus} />
+              <AiDietExport today={today} dashboard={dashboard} logs={foodLogs} status={dailyStatus} />
             </div>
           ) : activeTab === "stats" ? (
             <div className="animate-enter" key="stats-tab">
-              <StatsDashboard dashboard={dashboard} logs={foodLogs} rows={summary} onLogNextMeal={() => setActiveTab("dashboard")} />
+              <StatsDashboard dashboard={dashboard} logs={foodLogs} rows={summary} onLogNextMeal={() => selectTab("dashboard")} />
             </div>
           ) : activeTab === "logs" ? (
             <div className="animate-enter" key="logs-tab">
@@ -382,6 +370,87 @@ export default function HomePage() {
           )}
         </section>
       </div>
+
+      {isMoreMenuOpen ? (
+        <div className="fixed inset-0 z-40 lg:hidden" role="presentation">
+          <button
+            aria-label="Close navigation menu"
+            className="absolute inset-0 h-full w-full bg-slate-950/50 backdrop-blur-sm"
+            type="button"
+            onClick={() => setIsMoreMenuOpen(false)}
+          />
+          <div className="mobile-sheet-enter absolute inset-x-0 bottom-0 rounded-t-2xl border border-slate-200 bg-white px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-4 shadow-2xl dark:border-slate-700 dark:bg-slate-900">
+            <div className="mx-auto mb-3 h-1.5 w-12 rounded-full bg-slate-200 dark:bg-slate-700" />
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">More</p>
+                <h2 className="text-lg font-semibold">{activeMoreTab ? activeMoreTab.label : "Tools and settings"}</h2>
+              </div>
+              <button
+                aria-label="Close more menu"
+                className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 text-slate-600 dark:border-slate-700 dark:text-slate-200"
+                type="button"
+                onClick={() => setIsMoreMenuOpen(false)}
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <div className="mt-4 grid gap-2">
+              {mobileMoreTabs.map(({ id, label, icon: Icon }) => (
+                <button
+                  key={id}
+                  aria-label={label}
+                  className={`flex items-center justify-between rounded-xl border px-4 py-3 text-left transition ${activeTab === id ? "border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-900 dark:bg-blue-950/40 dark:text-blue-200" : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"}`}
+                  type="button"
+                  onClick={() => selectTab(id)}
+                >
+                  <span className="inline-flex items-center gap-3 text-sm font-semibold">
+                    <Icon size={19} />
+                    {label}
+                  </span>
+                  <span aria-hidden="true" className="text-xs font-medium text-slate-400">{activeTab === id ? "Open" : "Go"}</span>
+                </button>
+              ))}
+            </div>
+            <div className="mt-4 flex items-center justify-between rounded-xl bg-slate-50 p-3 dark:bg-slate-800">
+              <span className="text-sm font-semibold text-slate-600 dark:text-slate-200">App controls</span>
+              <div className="flex gap-2">
+                <ThemeToggle />
+                <LogoutButton compact />
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white/95 px-3 pb-[calc(0.55rem+env(safe-area-inset-bottom))] pt-2 shadow-[0_-16px_40px_rgba(15,23,42,0.12)] backdrop-blur-xl dark:border-slate-800 dark:bg-slate-950/95 lg:hidden">
+        <div className="mx-auto grid max-w-md grid-cols-4 gap-1">
+          {mobilePrimaryTabs.map(({ id, label, icon: Icon }) => {
+            const isActive = activeTab === id;
+            return (
+              <button
+                key={id}
+                className={`relative flex min-h-14 flex-col items-center justify-center gap-1 rounded-xl px-2 text-[11px] font-semibold transition ${isActive ? "text-blue-700 dark:text-blue-200" : "text-slate-500 hover:bg-slate-50 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100"}`}
+                type="button"
+                onClick={() => selectTab(id)}
+              >
+                <span className={`absolute inset-x-3 top-1 h-9 rounded-full transition-all duration-300 ease-out ${isActive ? "bg-blue-50 opacity-100 dark:bg-blue-950/70" : "opacity-0"}`} />
+                <Icon className="relative z-10" size={21} />
+                <span className="relative z-10">{label}</span>
+              </button>
+            );
+          })}
+          <button
+            className={`relative flex min-h-14 flex-col items-center justify-center gap-1 rounded-xl px-2 text-[11px] font-semibold transition ${isMoreTabActive || isMoreMenuOpen ? "text-blue-700 dark:text-blue-200" : "text-slate-500 hover:bg-slate-50 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100"}`}
+            type="button"
+            onClick={() => setIsMoreMenuOpen((current) => !current)}
+          >
+            <span className={`absolute inset-x-3 top-1 h-9 rounded-full transition-all duration-300 ease-out ${isMoreTabActive || isMoreMenuOpen ? "bg-blue-50 opacity-100 dark:bg-blue-950/70" : "opacity-0"}`} />
+            <MoreHorizontal className="relative z-10" size={22} />
+            <span className="relative z-10">{activeMoreTab?.label ?? "More"}</span>
+          </button>
+        </div>
+      </nav>
     </main>
   );
 }

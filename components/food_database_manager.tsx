@@ -439,8 +439,8 @@ export function FoodDatabaseManager({ foods, logs, onChanged, onEditMealPrep }: 
   const selectedFoodCount = selectedFoodIds.size;
 
   return (
-    <section className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_380px]">
-      <div className="animate-enter rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+    <section className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1fr)_380px]">
+      <div className="animate-enter min-w-0 overflow-hidden rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 className="inline-flex items-center gap-2 text-lg font-semibold">
@@ -561,7 +561,7 @@ export function FoodDatabaseManager({ foods, logs, onChanged, onEditMealPrep }: 
         </div>
         ) : null}
 
-        <div className="mt-4 grid max-h-[620px] gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
+        <div className="mt-4 grid max-h-[620px] min-w-0 gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
           {filteredFoods.map((food) => (
             <div
               key={food.id}
@@ -617,7 +617,7 @@ export function FoodDatabaseManager({ foods, logs, onChanged, onEditMealPrep }: 
         </div>
       </div>
 
-      <aside className="animate-enter rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+      <aside className="animate-enter min-w-0 overflow-hidden rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
         <h2 className="inline-flex items-center gap-2 text-lg font-semibold">
           {form.id ? <Save size={20} /> : <Plus size={20} />}
           {form.id ? "Edit food" : "Add food"}
