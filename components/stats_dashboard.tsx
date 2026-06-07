@@ -1,6 +1,6 @@
 "use client";
 
-import { Activity, ArrowRight, BarChart3, Beef, CheckCircle2, ChevronDown, Flame, Footprints, Leaf, PieChart, Sparkles, Target, Trophy, Utensils, Wheat } from "lucide-react";
+import { Activity, BarChart3, Beef, CheckCircle2, ChevronDown, Flame, Footprints, Leaf, PieChart, Target, Trophy, Utensils, Wheat } from "lucide-react";
 import type { ReactNode } from "react";
 import { useMemo, useState } from "react";
 import type { DailySummary, DashboardData, FoodLog } from "@/lib/types";
@@ -9,7 +9,6 @@ type StatsDashboardProps = {
   rows: DailySummary[];
   dashboard: DashboardData | null;
   logs: FoodLog[];
-  onLogNextMeal: () => void;
 };
 
 type HabitKey = "logged" | "protein" | "creatine" | "exercise";
@@ -139,138 +138,6 @@ function macroRatio(rows: DailySummary[]): { protein: number; fat: number; carbs
   };
 }
 
-function todayDecision(data: DashboardData | null): { title: string; body: string; tone: "good" | "warn" | "neutral" } {
-  if (!data) {
-    return {
-      title: "Load today first",
-      body: "Once the sheet data loads, this card turns the numbers into a concrete next step.",
-      tone: "neutral"
-    };
-  }
-
-  const goalType = data.status?.goalType ?? "maintain";
-  const caloriesRemaining = data.remaining.calories;
-  const proteinRemaining = Math.max(data.targets.protein - data.totals.protein, 0);
-  const tdeeBalance = data.totals.calories - data.dynamicTdee;
-
-  if (data.totals.calories <= 0) {
-    return {
-      title: "Start with one clean log",
-      body: `Today's ${goalType} target is ${round(data.targets.calories)} kcal. Add your first meal so the plan can steer the rest of the day.`,
-      tone: "neutral"
-    };
-  }
-
-  if (goalType === "bulk") {
-    if (caloriesRemaining > 0) {
-      return {
-        title: "Fuel the bulk",
-        body: `${round(caloriesRemaining)} kcal left to reach target. Prioritize protein first, then add carbs around training.`,
-        tone: "warn"
-      };
-    }
-
-    return {
-      title: "Bulk target hit",
-      body: `You are ${Math.abs(round(caloriesRemaining))} kcal past target. Keep the rest easy and avoid turning a good surplus into noise.`,
-      tone: "good"
-    };
-  }
-
-  if (caloriesRemaining >= 0) {
-    return {
-      title: proteinRemaining > 10 ? "Protect the deficit with protein" : "Today is under control",
-      body:
-        proteinRemaining > 10
-          ? `${round(caloriesRemaining)} kcal left and ${round(proteinRemaining)}g protein still open. Make the next food protein-led.`
-          : `${round(caloriesRemaining)} kcal left and protein is handled. Keep dinner simple and you keep the win.`,
-      tone: "good"
-    };
-  }
-
-  if (goalType === "cut" && tdeeBalance <= 0) {
-    return {
-      title: "Partial win, do not spiral",
-      body: `You are ${Math.abs(round(caloriesRemaining))} kcal over cut target, but still ${Math.abs(round(tdeeBalance))} kcal below TDEE. Keep the next meal light.`,
-      tone: "neutral"
-    };
-  }
-
-  return {
-    title: "Damage control mode",
-    body: `You are ${Math.abs(round(caloriesRemaining))} kcal over target and ${signedCalories(tdeeBalance)} kcal vs TDEE. Go protein-heavy, low-fat, and stop snacking.`,
-    tone: "warn"
-  };
-}
-
-function nextMeal(data: DashboardData | null): { title: string; body: string; detail: string; tone: "good" | "warn" | "neutral" } {
-  if (!data) {
-    return {
-      title: "Next meal suggestion",
-      body: "Loading meal guidance.",
-      detail: "Needs today's targets.",
-      tone: "neutral"
-    };
-  }
-
-  const proteinRemaining = Math.max(data.targets.protein - data.totals.protein, 0);
-  const caloriesRemaining = data.remaining.calories;
-  const carbsRemaining = data.remaining.carbs;
-  const fatBand = localFatRange(data.targets.fat);
-
-  if (caloriesRemaining <= 0) {
-    return {
-      title: "Light recovery plate",
-      body: "Lean protein plus vegetables. Skip calorie-dense sauces and oils.",
-      detail: `${round(proteinRemaining)}g protein still useful`,
-      tone: "warn"
-    };
-  }
-
-  if (proteinRemaining >= 35 && caloriesRemaining >= 350) {
-    return {
-      title: "Lean protein meal",
-      body: "Chicken, fish, egg whites, Greek yogurt, tofu, or a saved prep meal.",
-      detail: `${round(proteinRemaining)}g protein left`,
-      tone: "good"
-    };
-  }
-
-  if (proteinRemaining >= 15 && caloriesRemaining < 350) {
-    return {
-      title: "Protein snack",
-      body: "Use a compact option so you hit protein without spending the whole calorie budget.",
-      detail: `${round(caloriesRemaining)} kcal left`,
-      tone: "good"
-    };
-  }
-
-  if (data.totals.fat > fatBand.max) {
-    return {
-      title: "Low-fat dinner",
-      body: "Fat is already high today. Choose lean protein and carbs, avoid oils, nuts, and fried foods.",
-      detail: `Fat range ${fatBand.min}-${fatBand.max}g`,
-      tone: "warn"
-    };
-  }
-
-  if (carbsRemaining > 80 && (data.status?.goalType === "bulk" || data.status?.basketballMinutes || data.status?.strengthSession)) {
-    return {
-      title: "Carb refill meal",
-      body: "Rice, potatoes, noodles, or fruit paired with a clear protein source.",
-      detail: `${round(carbsRemaining)}g carbs left`,
-      tone: "neutral"
-    };
-  }
-
-  return {
-    title: "Balanced plate",
-    body: "A protein anchor, one carb, and one vegetable keeps the rest of today boring in a good way.",
-    detail: `${round(caloriesRemaining)} kcal left`,
-    tone: "neutral"
-  };
-}
-
 function nutrientStatus(label: NutrientKey, data: DashboardData): { tone: "good" | "warn" | "neutral"; message: string; detail: string } {
   const total = data.totals[label];
   const target = data.targets[label];
@@ -308,7 +175,7 @@ function nutrientValue(label: NutrientKey, value: number): string {
   return `${round(value)}${label === "calories" ? " kcal" : "g"}`;
 }
 
-export function StatsDashboard({ rows, dashboard, logs, onLogNextMeal }: StatsDashboardProps) {
+export function StatsDashboard({ rows, dashboard, logs }: StatsDashboardProps) {
   const [dayRange, setDayRange] = useState(14);
   const [showMoreInsights, setShowMoreInsights] = useState(false);
   const exerciseStepGoal = dashboard?.exerciseStepGoal ?? 8000;
@@ -329,8 +196,6 @@ export function StatsDashboard({ rows, dashboard, logs, onLogNextMeal }: StatsDa
   const proteinCompliance = rate(proteinRows.filter((row) => row.protein >= row.proteinGoal).length, proteinRows.length);
   const exerciseConsistency = rate(scopedRows.filter((row) => isHabitDone(row, "exercise", exerciseStepGoal)).length, scopedRows.length);
   const averageMacroRatio = useMemo(() => macroRatio(scopedRows), [scopedRows]);
-  const decision = todayDecision(dashboard);
-  const mealSuggestion = nextMeal(dashboard);
   const controlStreak = calorieControlStreak(rows);
   const sevenDayProteinHits = recentSevenRows.filter((row) => row.calories > 0 && row.proteinGoal > 0 && row.protein >= row.proteinGoal).length;
   const sevenDayExerciseHits = recentSevenRows.filter((row) => isHabitDone(row, "exercise", exerciseStepGoal)).length;
@@ -375,23 +240,26 @@ export function StatsDashboard({ rows, dashboard, logs, onLogNextMeal }: StatsDa
         </div>
       </div>
 
-      <div className="grid gap-3 xl:grid-cols-[1.25fr_0.85fr]">
-        <CoachCard
-          icon={<Sparkles size={20} />}
-          label="Today's decision"
-          title={decision.title}
-          body={decision.body}
-          tone={decision.tone}
-          actionLabel="Log next meal"
-          onAction={onLogNextMeal}
-          emphasis
-        />
-        <CoachCard icon={<Utensils size={20} />} label="Next best meal" title={mealSuggestion.title} body={mealSuggestion.body} detail={mealSuggestion.detail} tone={mealSuggestion.tone} />
-      </div>
-
       <CompactNutritionSummary data={dashboard} />
 
-      <EnergyBalancePanel rows={recentSevenOrderedRows} />
+      <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
+        <EnergyBalancePanel rows={recentSevenOrderedRows} />
+        <section className="animate-enter-soft rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-semibold">Key signals</h2>
+              <p className="mt-1 text-sm text-slate-500">The checks that matter more than meal suggestions.</p>
+            </div>
+            <Target className="shrink-0 text-blue-700" size={22} />
+          </div>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <SignalCard icon={<Flame size={18} />} label="7-day avg vs TDEE" value={`${round(sevenDayBalance)} kcal/day`} sub={sevenDayBalance <= 0 ? "Below maintenance recently" : "Above maintenance recently"} tone={sevenDayBalance <= 0 ? "good" : "warn"} />
+            <SignalCard icon={<Beef size={18} />} label="Protein compliance" value={`${proteinCompliance}%`} sub={`${currentProteinStreak} day current streak`} tone={proteinCompliance >= 80 ? "good" : "warn"} />
+            <SignalCard icon={<Footprints size={18} />} label="Exercise consistency" value={`${exerciseConsistency}%`} sub={`${exerciseDays} exercise days, goal ${round(exerciseStepGoal)} steps`} tone={exerciseConsistency >= 70 ? "good" : "neutral"} />
+            <SignalCard icon={<Target size={18} />} label="Cut success" value={cutRows.length ? `${cutSuccessRate}%` : "No cut days"} sub={cutRows.length ? `${cutRows.length} logged cut days in range` : "Selected range has no cut days"} tone={!cutRows.length ? "neutral" : cutSuccessRate >= 70 ? "good" : "warn"} />
+          </div>
+        </section>
+      </div>
 
       <section className="rounded-lg border border-slate-200 bg-white shadow-sm">
         <button
@@ -415,10 +283,6 @@ export function StatsDashboard({ rows, dashboard, logs, onLogNextMeal }: StatsDa
               </div>
 
               <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                <InsightCard icon={<Flame size={18} />} label="7-day avg vs TDEE" value={`${round(sevenDayBalance)} kcal/day`} sub={sevenDayBalance <= 0 ? "Recent intake is below maintenance." : "Recent intake is above maintenance."} tone={sevenDayBalance <= 0 ? "good" : "warn"} />
-                <InsightCard icon={<Target size={18} />} label="Cut success" value={`${cutSuccessRate}%`} sub={`${cutRows.length} logged cut days in range`} tone={cutSuccessRate >= 70 ? "good" : "warn"} />
-                <InsightCard icon={<Beef size={18} />} label="Protein compliance" value={`${proteinCompliance}%`} sub={`${currentProteinStreak} day current streak`} tone={proteinCompliance >= 80 ? "good" : "warn"} />
-                <InsightCard icon={<Footprints size={18} />} label="Exercise consistency" value={`${exerciseConsistency}%`} sub={`${exerciseDays} exercise days, goal ${round(exerciseStepGoal)} steps`} tone={exerciseConsistency >= 70 ? "good" : "neutral"} />
                 <InsightCard icon={<Utensils size={18} />} label="Over-target meal" value={overageMeal ? overageMeal[0] : "No overage"} sub={overageMeal ? `${round(overageMeal[1])} kcal on over-target days` : "No meal stands out as causing over-target days."} tone={overageMeal ? "warn" : "good"} />
                 <InsightCard icon={<Trophy size={18} />} label="Main protein source" value={mainProteinSource ? mainProteinSource[0] : "Mixed manual logs"} sub={mainProteinSource ? `${round(mainProteinSource[1])}g from this food in selected range` : "No specific saved food stands out. Manual entries are excluded from this card."} tone="good" />
               </div>
@@ -494,53 +358,24 @@ function CompactNutritionSummary({ data }: { data: DashboardData | null }) {
   );
 }
 
-function CoachCard({
-  icon,
-  label,
-  title,
-  body,
-  detail,
-  tone,
-  actionLabel,
-  onAction,
-  emphasis = false
-}: {
-  icon: ReactNode;
-  label: string;
-  title: string;
-  body: string;
-  detail?: string;
-  tone: "good" | "warn" | "neutral";
-  actionLabel?: string;
-  onAction?: () => void;
-  emphasis?: boolean;
-}) {
+function SignalCard({ icon, label, value, sub, tone }: { icon: ReactNode; label: string; value: string; sub: string; tone: "good" | "warn" | "neutral" }) {
   const styles = {
-    good: "border-emerald-200 bg-gradient-to-br from-emerald-50 to-white text-emerald-700 dark:border-emerald-900 dark:from-emerald-950/50 dark:to-slate-900 dark:text-emerald-300",
-    warn: "border-amber-200 bg-gradient-to-br from-amber-50 to-white text-amber-700 dark:border-amber-900 dark:from-amber-950/50 dark:to-slate-900 dark:text-amber-300",
-    neutral: "border-blue-200 bg-gradient-to-br from-blue-50 to-white text-blue-700 dark:border-blue-900 dark:from-blue-950/50 dark:to-slate-900 dark:text-blue-300"
+    good: "border-emerald-100 bg-emerald-50/70 text-emerald-700",
+    warn: "border-amber-100 bg-amber-50/80 text-amber-700",
+    neutral: "border-blue-100 bg-blue-50/70 text-blue-700"
   };
 
   return (
-    <section className={`animate-enter-soft hover-lift rounded-lg border p-5 shadow-sm ${styles[tone]} ${emphasis ? "min-h-[210px]" : ""}`}>
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white/85 shadow-sm dark:bg-slate-900/80">{icon}</div>
-          <div>
-            <p className="text-sm font-semibold opacity-80">{label}</p>
-            <h3 className={`${emphasis ? "text-2xl" : "text-xl"} mt-1 font-semibold text-ink`}>{title}</h3>
-          </div>
+    <div className={`rounded-lg border p-3 ${styles[tone]}`}>
+      <div className="flex items-start gap-3">
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white/80 dark:bg-slate-900/80">{icon}</div>
+        <div className="min-w-0">
+          <p className="text-xs font-semibold uppercase tracking-wide opacity-80">{label}</p>
+          <p className="mt-1 text-xl font-semibold">{value}</p>
+          <p className="mt-1 text-xs leading-5 text-slate-600">{sub}</p>
         </div>
-        {detail ? <span className="rounded-full bg-white/80 px-3 py-1 text-xs font-semibold shadow-sm dark:bg-slate-900/80">{detail}</span> : null}
       </div>
-      <p className="mt-4 max-w-2xl text-sm leading-6 text-slate-600">{body}</p>
-      {actionLabel && onAction ? (
-        <button className="mt-5 inline-flex items-center gap-2 rounded-full bg-ink px-3 py-2 text-sm font-semibold text-white hover:bg-slate-800" type="button" onClick={onAction}>
-          {actionLabel}
-          <ArrowRight size={15} />
-        </button>
-      ) : null}
-    </section>
+    </div>
   );
 }
 
