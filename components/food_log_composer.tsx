@@ -32,6 +32,8 @@ const macroLabels: Record<(typeof macroFields)[number], string> = {
 
 const mobileSteps = ["Meal", "Food", "Review"] as const;
 type MobileStep = (typeof mobileSteps)[number];
+const desktopSteps = ["Meal", "Food", "Amount", "Review"] as const;
+type DesktopStep = (typeof desktopSteps)[number];
 
 type LabelScaleState = {
   baseAmount: number;
@@ -74,6 +76,7 @@ export function FoodLogComposer({ foods, recentLogs = [], value, isSaving, onCha
   const [labelScale, setLabelScale] = useState<LabelScaleState>(defaultLabelScale);
   const [isMobileSheetOpen, setIsMobileSheetOpen] = useState(false);
   const [mobileStep, setMobileStep] = useState<MobileStep>("Meal");
+  const [desktopStep, setDesktopStep] = useState<DesktopStep>("Meal");
   const [feedbackMessage, setFeedbackMessage] = useState("");
 
   const categories = useMemo(
@@ -111,6 +114,7 @@ export function FoodLogComposer({ foods, recentLogs = [], value, isSaving, onCha
   function applyFood(food: CommonFood, nextServings = servings) {
     setSelectedFood(food);
     setServings(nextServings);
+    setDesktopStep("Amount");
     setFeedbackMessage("");
     onChange({
       ...value,
@@ -137,6 +141,7 @@ export function FoodLogComposer({ foods, recentLogs = [], value, isSaving, onCha
     setEntryMode(nextMode);
     setSelectedFood(null);
     setServings(1);
+    setDesktopStep("Food");
     setFeedbackMessage("");
     if (nextMode === "custom") {
       setCustomMacroMode("total");
@@ -211,6 +216,7 @@ export function FoodLogComposer({ foods, recentLogs = [], value, isSaving, onCha
     setQuery("");
     setEntryMode("saved");
     setMobileStep("Meal");
+    setDesktopStep("Meal");
   }
 
   async function submitLog(): Promise<boolean> {
@@ -237,8 +243,35 @@ export function FoodLogComposer({ foods, recentLogs = [], value, isSaving, onCha
   ].filter(Boolean);
   const canSubmit = !isSaving && missingRequirements.length === 0;
   const mobileStepIndex = mobileSteps.indexOf(mobileStep);
+  const desktopStepIndex = desktopSteps.indexOf(desktopStep);
   const canContinueFromMeal = Boolean(value.meal);
   const canContinueFromFood = Boolean(value.foodName);
+  const canContinueFromAmount = entryMode === "custom" ? Boolean(value.amount && value.calories >= 0) : Boolean(value.amount);
+  const canOpenDesktopStep = (step: DesktopStep) =>
+    step === "Meal" ||
+    (step === "Food" && canContinueFromMeal) ||
+    (step === "Amount" && canContinueFromMeal && canContinueFromFood) ||
+    (step === "Review" && canContinueFromMeal && canContinueFromFood && canContinueFromAmount);
+  const desktopContinueDisabled =
+    (desktopStep === "Meal" && !canContinueFromMeal) ||
+    (desktopStep === "Food" && !canContinueFromFood) ||
+    (desktopStep === "Amount" && !canContinueFromAmount);
+  const desktopContinueHint =
+    desktopStep === "Meal"
+      ? "Choose a meal to continue."
+      : desktopStep === "Food"
+        ? "Choose or name a food to continue."
+        : "Add an amount to review this log.";
+
+  function goToNextDesktopStep() {
+    if (desktopStep === "Meal" && canContinueFromMeal) {
+      setDesktopStep("Food");
+    } else if (desktopStep === "Food" && canContinueFromFood) {
+      setDesktopStep("Amount");
+    } else if (desktopStep === "Amount" && canContinueFromAmount) {
+      setDesktopStep("Review");
+    }
+  }
 
   return (
     <>
@@ -673,349 +706,491 @@ export function FoodLogComposer({ foods, recentLogs = [], value, isSaving, onCha
       document.body
     ) : null}
 
-    <section className="hidden animate-enter min-w-0 overflow-hidden rounded-lg border border-slate-200 bg-white p-4 shadow-sm lg:block">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+    <section className="hidden animate-enter min-w-0 overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 lg:block">
+      <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
         <div>
           <h2 className="inline-flex items-center gap-2 text-lg font-semibold">
             <Utensils size={20} />
             Add food
           </h2>
-          <p className="mt-1 text-sm text-slate-500">Choose a saved food or enter a custom AI-estimated meal.</p>
+          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Follow one clear step at a time: meal, food, amount, then review.</p>
         </div>
-        <input
-          className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm sm:w-40"
-          type="date"
-          value={value.date}
-          onChange={(event) => onChange({ ...value, date: event.target.value })}
-        />
+        <label className="grid w-full max-w-[11rem] gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+          Date
+          <input
+            className="h-10 rounded-lg border border-slate-300 bg-white px-3 text-sm font-medium normal-case tracking-normal text-ink outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:focus:ring-blue-950"
+            type="date"
+            value={value.date}
+            onChange={(event) => onChange({ ...value, date: event.target.value })}
+          />
+        </label>
       </div>
 
-      <div className="mt-4 inline-grid rounded-lg border border-slate-200 bg-slate-50 p-1 sm:grid-cols-2">
-        <button
-          className={`rounded-md px-4 py-2 text-sm font-semibold ${entryMode === "saved" ? "bg-ink text-white" : "text-slate-600"}`}
-          type="button"
-          onClick={() => switchMode("saved")}
-        >
-          Saved foods
-        </button>
-        <button
-          className={`rounded-md px-4 py-2 text-sm font-semibold ${entryMode === "custom" ? "bg-ink text-white" : "text-slate-600"}`}
-          type="button"
-          onClick={() => switchMode("custom")}
-        >
-          Custom food
-        </button>
-      </div>
+      <div className="mt-5 grid grid-cols-4 gap-2 rounded-2xl border border-slate-200 bg-slate-50 p-2 dark:border-slate-800 dark:bg-slate-950/70">
+        {desktopSteps.map((step, index) => {
+          const isActive = step === desktopStep;
+          const isComplete = index < desktopStepIndex;
+          const isEnabled = canOpenDesktopStep(step);
 
-      <div className="mt-4">
-        <div className="flex items-center justify-between gap-3">
-          <p className="text-sm font-medium text-slate-700">Meal</p>
-          {!value.meal ? <span className="rounded-full bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-700">Required</span> : null}
-        </div>
-        <div className="mt-2 flex flex-wrap gap-2">
-          {mealOptions.map((meal) => (
+          return (
             <button
-              key={meal}
-              className={`hover-lift rounded-full border px-3 py-1.5 text-sm font-medium ${value.meal === meal ? "border-accent bg-blue-50 text-blue-700" : "border-slate-300 text-slate-700"}`}
+              key={step}
+              className={`group relative overflow-hidden rounded-xl px-3 py-3 text-left transition duration-300 disabled:cursor-not-allowed ${
+                isActive
+                  ? "bg-ink text-white shadow-sm dark:bg-blue-600"
+                  : isComplete
+                    ? "bg-emerald-50 text-emerald-800 hover:-translate-y-0.5 dark:bg-emerald-950/40 dark:text-emerald-200"
+                    : isEnabled
+                      ? "bg-white text-slate-700 hover:-translate-y-0.5 hover:shadow-sm dark:bg-slate-900 dark:text-slate-200"
+                      : "bg-slate-100 text-slate-400 dark:bg-slate-900/50 dark:text-slate-600"
+              }`}
+              disabled={!isEnabled}
               type="button"
-              onClick={() => {
-                setFeedbackMessage("");
-                onChange({ ...value, meal });
-              }}
+              onClick={() => setDesktopStep(step)}
             >
-              {meal}
-            </button>
-          ))}
-        </div>
-        {!value.meal ? <p className="mt-2 text-sm font-medium text-amber-700">Choose a meal before adding food.</p> : null}
-      </div>
-
-      {entryMode === "saved" ? (
-        <div className="mt-5 grid gap-3 lg:grid-cols-[220px_1fr]">
-          <div>
-            <p className="text-sm font-medium text-slate-700">Category</p>
-            <select
-              className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-              value={selectedCategory}
-              onChange={(event) => setSelectedCategory(event.target.value)}
-            >
-              <option value="">All foods</option>
-              {categories.map((category) => (
-                <option key={category} value={category}>
-                  {category}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="grid gap-1 text-sm font-medium text-slate-700">
-              <span className="inline-flex items-center gap-1.5">
-                <Search size={16} />
-                Find food
+              <span className="flex items-center gap-2">
+                <span className={`grid h-7 w-7 place-items-center rounded-full text-xs font-bold ${isActive ? "bg-white/15 text-white" : isComplete ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-200" : "bg-slate-200 text-slate-600 dark:bg-slate-800 dark:text-slate-300"}`}>
+                  {isComplete ? <CheckCircle2 size={15} /> : index + 1}
+                </span>
+                <span className="font-semibold">{step}</span>
               </span>
-              <input
-                className="rounded-md border border-slate-300 px-3 py-2 font-normal"
-                placeholder="Search saved foods"
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-              />
-            </label>
-            <div className="mt-3 grid max-h-72 min-w-0 gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
-              {filteredFoods.map((food) => (
-                <button
-                  key={food.id}
-                  className={`rounded-lg border p-3 text-left transition hover:border-accent hover:bg-blue-50 hover:shadow-sm ${selectedFood?.id === food.id ? "border-accent bg-blue-50" : "border-slate-200"}`}
-                  type="button"
-                  onClick={() => applyFood(food, 1)}
-                >
-                  <p className="font-medium">{food.name}</p>
-                  <p className="mt-1 text-xs text-slate-500">{food.serving || "1 serving"}</p>
-                  <p className="mt-2 text-sm text-slate-700">
-                    {food.calories} kcal / P {food.protein} / F {food.fat} / C {food.carbs}
-                  </p>
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-      ) : (
-        <div className="mt-5 grid gap-3 rounded-lg border border-dashed border-blue-200 bg-blue-50/40 p-4 lg:grid-cols-[1fr_180px]">
-          <label className="grid gap-1 text-sm font-medium text-slate-700">
-            Custom food name
-            <input
-              className="rounded-md border border-slate-300 px-3 py-2 font-normal"
-              placeholder="e.g. AI estimated chicken rice plate"
-              value={value.foodName}
-              onChange={(event) => updateCustomField("foodName", event.target.value)}
-            />
-          </label>
-          <label className="grid gap-1 text-sm font-medium text-slate-700">
-            Amount / serving
-            <input
-              className="rounded-md border border-slate-300 px-3 py-2 font-normal"
-              placeholder="1 plate"
-              value={value.amount}
-              onChange={(event) => updateCustomField("amount", event.target.value)}
-            />
-          </label>
-          <label className="inline-flex items-center gap-2 rounded-md bg-white px-3 py-2 text-sm font-medium text-slate-700">
-            <input checked={value.isAiEstimated ?? false} type="checkbox" onChange={(event) => updateCustomField("isAiEstimated", event.target.checked)} />
-            <Sparkles size={16} className="text-blue-700" />
-            AI estimated macros
-          </label>
-          <label className="inline-flex items-center gap-2 rounded-md bg-white px-3 py-2 text-sm font-medium text-slate-700">
-            <input checked={value.saveToDatabase ?? false} type="checkbox" onChange={(event) => updateCustomField("saveToDatabase", event.target.checked)} />
-            <Database size={16} className="text-slate-700" />
-            Save to foods database
-          </label>
-          {value.saveToDatabase ? (
-            <div className="lg:col-span-2">
-              <CategorySelect
-                categories={["AI estimates", ...categories]}
-                label="Database category"
-                value={value.databaseCategory || "AI estimates"}
-                onChange={(nextCategory) => updateCustomField("databaseCategory", nextCategory)}
-              />
-            </div>
-          ) : null}
-          <div className="grid gap-3 rounded-lg bg-white p-3 lg:col-span-2">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <p className="inline-flex items-center gap-2 text-sm font-semibold text-slate-800">
-                  <Calculator size={16} className="text-blue-700" />
-                  Nutrition label helper
-                </p>
-                <p className="mt-1 text-xs text-slate-500">Use this when the label says per 100 ml/g, but you log the whole bottle or pack.</p>
-              </div>
-              <div className="inline-grid rounded-md border border-slate-200 bg-slate-50 p-1 sm:grid-cols-2">
-                <button
-                  className={`rounded px-3 py-1.5 text-xs font-semibold ${customMacroMode === "total" ? "bg-ink text-white" : "text-slate-600"}`}
-                  type="button"
-                  onClick={() => switchCustomMacroMode("total")}
-                >
-                  Enter total
-                </button>
-                <button
-                  className={`rounded px-3 py-1.5 text-xs font-semibold ${customMacroMode === "label" ? "bg-ink text-white" : "text-slate-600"}`}
-                  type="button"
-                  onClick={() => switchCustomMacroMode("label")}
-                >
-                  Scale from label
-                </button>
-              </div>
-            </div>
-
-            {customMacroMode === "label" ? (
-              <div className="grid gap-3">
-                <div className="grid gap-3 sm:grid-cols-[1fr_1fr_110px]">
-                  <label className="grid min-w-0 gap-1 text-sm font-medium text-slate-700">
-                    Label amount
-                    <input
-                      className="w-full min-w-0 rounded-md border border-slate-300 px-3 py-2 font-normal"
-                      min="0"
-                      step="0.1"
-                      type="number"
-                      value={labelScale.baseAmount}
-                      onChange={(event) => updateLabelScale("baseAmount", event.target.value)}
-                    />
-                  </label>
-                  <label className="grid min-w-0 gap-1 text-sm font-medium text-slate-700">
-                    I consumed
-                    <input
-                      className="w-full min-w-0 rounded-md border border-slate-300 px-3 py-2 font-normal"
-                      min="0"
-                      step="0.1"
-                      type="number"
-                      value={labelScale.consumedAmount}
-                      onChange={(event) => updateLabelScale("consumedAmount", event.target.value)}
-                    />
-                  </label>
-                  <label className="grid min-w-0 gap-1 text-sm font-medium text-slate-700">
-                    Unit
-                    <select
-                      className="w-full min-w-0 rounded-md border border-slate-300 px-3 py-2 font-normal"
-                      value={labelScale.unit}
-                      onChange={(event) => updateLabelScale("unit", event.target.value)}
-                    >
-                      <option value="ml">ml</option>
-                      <option value="g">g</option>
-                    </select>
-                  </label>
-                </div>
-
-                <div className="grid min-w-0 grid-cols-2 gap-2 md:grid-cols-4">
-                  {macroFields.map((field) => (
-                    <label key={field} className="grid min-w-0 gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                      {macroLabels[field]} / label
-                      <input
-                        className="w-full min-w-0 rounded-md border border-slate-300 px-2 py-2 text-sm font-semibold text-slate-900"
-                        min="0"
-                        step="0.1"
-                        type="number"
-                        value={labelScale[field]}
-                        onChange={(event) => updateLabelScale(field, event.target.value)}
-                      />
-                    </label>
-                  ))}
-                </div>
-
-                <p className="rounded-md bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-700">
-                  Multiplier: {labelScale.baseAmount > 0 ? roundMacro(labelScale.consumedAmount / labelScale.baseAmount) : 0}x. The log uses the scaled total below.
-                </p>
-              </div>
-            ) : null}
-          </div>
-        </div>
-      )}
-
-      {entryMode === "saved" && recentFoods.length > 0 ? (
-        <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-3">
-          <p className="inline-flex items-center gap-2 text-sm font-semibold text-slate-700">
-            <Clock3 size={16} className="text-blue-700" />
-            Recent picks
-          </p>
-          <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
-            {recentFoods.map((food) => (
-              <button
-                key={food.id}
-                className="shrink-0 rounded-full border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-accent hover:text-blue-700"
-                type="button"
-                onClick={() => applyFood(food, 1)}
-              >
-                {food.name}
-              </button>
-            ))}
-          </div>
-        </div>
-      ) : null}
-
-      <div className={`mt-5 grid gap-3 ${entryMode === "saved" ? "2xl:grid-cols-[180px_minmax(0,1fr)_auto]" : "2xl:grid-cols-[minmax(0,1fr)_auto]"} 2xl:items-end`}>
-        {entryMode === "saved" ? (
-          <label className="grid gap-1 text-sm font-medium text-slate-700">
-            Servings
-            <input
-              className="rounded-md border border-slate-300 px-3 py-2 font-normal"
-              min="0"
-              step="0.1"
-              type="number"
-              value={servings}
-              onChange={(event) => updateServings(Number(event.target.value))}
-            />
-            <span className="mt-1 grid grid-cols-4 gap-1">
-              {[0.5, 1, 1.5, 2].map((amount) => (
-                <button
-                  key={amount}
-                  className={`rounded-md border px-2 py-1 text-xs font-semibold transition ${servings === amount ? "border-blue-200 bg-blue-50 text-blue-700" : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"}`}
-                  type="button"
-                  onClick={() => updateServings(amount)}
-                >
-                  {amount}x
-                </button>
-              ))}
-            </span>
-          </label>
-        ) : null}
-        <div className="grid min-w-0 grid-cols-2 gap-2 md:grid-cols-4">
-          {macroFields.map((field) => (
-            <div key={field} className="min-w-0 rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
-              <p className="truncate text-xs font-medium uppercase tracking-wide text-slate-500">{macroLabels[field]}</p>
-              {entryMode === "custom" ? (
-                customMacroMode === "label" ? (
-                  <p className="mt-1 truncate text-lg font-semibold text-slate-900">
-                    {value[field]} <span className="text-xs font-normal text-slate-500">{field === "calories" ? "kcal" : "g"}</span>
-                  </p>
-                ) : (
-                  <input
-                    className="mt-1 w-full rounded-md border border-slate-300 bg-white px-2 py-1 text-lg font-semibold text-slate-900"
-                    min="0"
-                    step="0.1"
-                    type="number"
-                    value={value[field]}
-                    onChange={(event) => updateCustomField(field, event.target.value)}
-                  />
-                )
-              ) : (
-                <p className="mt-1 truncate text-lg font-semibold text-slate-900">
-                  {value[field]} <span className="text-xs font-normal text-slate-500">{field === "calories" ? "kcal" : "g"}</span>
-                </p>
-              )}
-            </div>
-          ))}
-        </div>
-        <button
-          className="rounded-md bg-accent px-5 py-3 font-semibold text-white disabled:opacity-60"
-          disabled={!canSubmit}
-          type="button"
-          onClick={submitLog}
-        >
-          <span className="inline-flex items-center justify-center gap-2">
-            <Plus size={18} />
-            {isSaving ? "Adding..." : "Add food"}
-          </span>
-        </button>
+              <span className={`absolute inset-x-3 bottom-0 h-0.5 origin-left rounded-full transition-transform duration-300 ${isActive ? "scale-x-100 bg-white/70" : "scale-x-0 bg-blue-400 group-hover:scale-x-100"}`} />
+            </button>
+          );
+        })}
       </div>
-      {missingRequirements.length > 0 ? (
-        <p className="mt-2 rounded-md bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-700">
-          Add food is disabled until you choose a {missingRequirements.join(" and ")}.
-        </p>
-      ) : null}
+
       {feedbackMessage ? (
-        <p className="mt-3 inline-flex items-center gap-2 rounded-md bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-700">
+        <p className="mt-4 inline-flex items-center gap-2 rounded-lg bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-200">
           <CheckCircle2 size={16} />
           {feedbackMessage}
         </p>
       ) : null}
 
-      <label className="mt-3 grid gap-1 text-sm font-medium text-slate-700">
-        Notes
-        <textarea
-          className="rounded-md border border-slate-300 px-3 py-2 font-normal"
-          placeholder={entryMode === "custom" ? "Optional. AI estimated entries will be tagged automatically." : "Optional"}
-          value={value.notes}
-          onChange={(event) => onChange({ ...value, notes: event.target.value })}
-        />
-      </label>
+      <div className="mt-5 overflow-hidden rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
+        <div className="border-b border-slate-100 bg-slate-50/80 px-4 py-3 dark:border-slate-800 dark:bg-slate-950/50">
+          <p className="text-xs font-semibold uppercase tracking-wide text-blue-700 dark:text-blue-300">Step {desktopStepIndex + 1} of {desktopSteps.length}</p>
+          <h3 className="mt-1 text-lg font-semibold">
+            {desktopStep === "Meal" ? "When are you logging this?" : desktopStep === "Food" ? "What did you eat?" : desktopStep === "Amount" ? "How much should this count?" : "Review and add"}
+          </h3>
+        </div>
+
+        <div className="min-h-[24rem] p-4">
+          {desktopStep === "Meal" ? (
+            <div className="grid gap-4">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">Pick the meal first</p>
+                  <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">This keeps the rest of the flow focused on one log entry.</p>
+                </div>
+                {!value.meal ? <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700 dark:bg-amber-950/40 dark:text-amber-200">Required</span> : null}
+              </div>
+              <div className="grid gap-3 md:grid-cols-3">
+                {mealOptions.map((meal) => (
+                  <button
+                    key={meal}
+                    className={`rounded-2xl border px-4 py-4 text-left transition duration-200 hover:-translate-y-0.5 hover:shadow-sm ${
+                      value.meal === meal
+                        ? "border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-200"
+                        : "border-slate-200 bg-white text-slate-700 hover:border-blue-200 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-200"
+                    }`}
+                    type="button"
+                    onClick={() => {
+                      setFeedbackMessage("");
+                      onChange({ ...value, meal });
+                      setDesktopStep("Food");
+                    }}
+                  >
+                    <span className="block text-base font-semibold">{meal}</span>
+                    <span className="mt-1 block text-xs text-slate-500 dark:text-slate-400">{value.meal === meal ? "Selected" : "Tap to continue"}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : null}
+
+          {desktopStep === "Food" ? (
+            <div className="grid gap-4">
+              <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">Choose saved food or create a one-off entry</p>
+                  <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Saved foods calculate macros automatically; custom entries are useful for AI estimates.</p>
+                </div>
+                <div className="inline-grid rounded-xl border border-slate-200 bg-slate-50 p-1 dark:border-slate-800 dark:bg-slate-950 sm:grid-cols-2">
+                  <button
+                    className={`rounded-lg px-4 py-2 text-sm font-semibold transition ${entryMode === "saved" ? "bg-ink text-white dark:bg-blue-600" : "text-slate-600 dark:text-slate-300"}`}
+                    type="button"
+                    onClick={() => switchMode("saved")}
+                  >
+                    Saved foods
+                  </button>
+                  <button
+                    className={`rounded-lg px-4 py-2 text-sm font-semibold transition ${entryMode === "custom" ? "bg-ink text-white dark:bg-blue-600" : "text-slate-600 dark:text-slate-300"}`}
+                    type="button"
+                    onClick={() => switchMode("custom")}
+                  >
+                    Custom food
+                  </button>
+                </div>
+              </div>
+
+              {entryMode === "saved" ? (
+                <div className="grid gap-3 xl:grid-cols-[220px_minmax(0,1fr)]">
+                  <div className="grid content-start gap-3">
+                    <label className="grid gap-1 text-sm font-semibold text-slate-700 dark:text-slate-200">
+                      Category
+                      <select
+                        className="h-10 rounded-lg border border-slate-300 bg-white px-3 text-sm font-normal text-ink outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:focus:ring-blue-950"
+                        value={selectedCategory}
+                        onChange={(event) => setSelectedCategory(event.target.value)}
+                      >
+                        <option value="">All foods</option>
+                        {categories.map((category) => (
+                          <option key={category} value={category}>
+                            {category}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    {recentFoods.length > 0 ? (
+                      <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-950/70">
+                        <p className="inline-flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-200">
+                          <Clock3 size={16} className="text-blue-700 dark:text-blue-300" />
+                          Recent
+                        </p>
+                        <div className="mt-3 grid gap-2">
+                          {recentFoods.slice(0, 4).map((food) => (
+                            <button
+                              key={food.id}
+                              className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-left text-sm font-semibold text-slate-700 transition hover:border-blue-200 hover:bg-blue-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-blue-950/30"
+                              type="button"
+                              onClick={() => applyFood(food, 1)}
+                            >
+                              {food.name}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
+
+                  <div className="min-w-0">
+                    <label className="grid gap-1 text-sm font-semibold text-slate-700 dark:text-slate-200">
+                      <span className="inline-flex items-center gap-1.5">
+                        <Search size={16} />
+                        Find food
+                      </span>
+                      <input
+                        className="h-10 rounded-lg border border-slate-300 bg-white px-3 font-normal text-ink outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:focus:ring-blue-950"
+                        placeholder="Search saved foods"
+                        value={query}
+                        onChange={(event) => setQuery(event.target.value)}
+                      />
+                    </label>
+                    <div className="mt-3 grid max-h-[23rem] min-w-0 gap-2 overflow-y-auto pr-1 md:grid-cols-2">
+                      {filteredFoods.map((food) => (
+                        <button
+                          key={food.id}
+                          className={`rounded-xl border p-3 text-left transition duration-200 hover:-translate-y-0.5 hover:border-blue-200 hover:bg-blue-50 hover:shadow-sm dark:hover:bg-blue-950/30 ${selectedFood?.id === food.id ? "border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-950/40" : "border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950"}`}
+                          type="button"
+                          onClick={() => applyFood(food, 1)}
+                        >
+                          <p className="line-clamp-2 font-semibold text-slate-900 dark:text-slate-100">{food.name}</p>
+                          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{food.serving || "1 serving"}</p>
+                          <p className="mt-2 text-sm text-slate-700 dark:text-slate-300">
+                            {food.calories} kcal / P {food.protein} / F {food.fat} / C {food.carbs}
+                          </p>
+                        </button>
+                      ))}
+                      {filteredFoods.length === 0 ? (
+                        <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-4 text-sm font-medium text-slate-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-400 md:col-span-2">
+                          No saved foods match this search.
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="grid gap-4 rounded-2xl border border-dashed border-blue-200 bg-blue-50/40 p-4 dark:border-blue-900 dark:bg-blue-950/20">
+                  <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_220px]">
+                    <label className="grid gap-1 text-sm font-semibold text-slate-700 dark:text-slate-200">
+                      Custom food name
+                      <input
+                        className="h-10 rounded-lg border border-slate-300 bg-white px-3 font-normal text-ink outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:focus:ring-blue-950"
+                        placeholder="e.g. AI estimated chicken rice plate"
+                        value={value.foodName}
+                        onChange={(event) => updateCustomField("foodName", event.target.value)}
+                      />
+                    </label>
+                    <div className="grid gap-2">
+                      <label className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-white px-3 py-2 text-sm font-semibold text-slate-700 dark:bg-slate-900 dark:text-slate-200">
+                        <input checked={value.isAiEstimated ?? false} type="checkbox" onChange={(event) => updateCustomField("isAiEstimated", event.target.checked)} />
+                        <Sparkles size={16} className="text-blue-700 dark:text-blue-300" />
+                        AI estimated
+                      </label>
+                      <label className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-white px-3 py-2 text-sm font-semibold text-slate-700 dark:bg-slate-900 dark:text-slate-200">
+                        <input checked={value.saveToDatabase ?? false} type="checkbox" onChange={(event) => updateCustomField("saveToDatabase", event.target.checked)} />
+                        <Database size={16} className="text-slate-700 dark:text-slate-200" />
+                        Save to database
+                      </label>
+                    </div>
+                  </div>
+                  {value.saveToDatabase ? (
+                    <CategorySelect
+                      categories={["AI estimates", ...categories]}
+                      label="Database category"
+                      value={value.databaseCategory || "AI estimates"}
+                      onChange={(nextCategory) => updateCustomField("databaseCategory", nextCategory)}
+                    />
+                  ) : null}
+                </div>
+              )}
+            </div>
+          ) : null}
+
+          {desktopStep === "Amount" ? (
+            <div className="grid gap-4">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">{value.foodName || "Selected food"}</p>
+                  <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{entryMode === "saved" ? "Adjust servings and the macro preview updates automatically." : "Enter total macros, or scale from a nutrition label."}</p>
+                </div>
+                <button
+                  className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                  type="button"
+                  onClick={() => setDesktopStep("Food")}
+                >
+                  Change food
+                </button>
+              </div>
+
+              {entryMode === "saved" ? (
+                <label className="grid max-w-xs gap-2 text-sm font-semibold text-slate-700 dark:text-slate-200">
+                  Servings
+                  <input
+                    className="h-11 rounded-lg border border-slate-300 bg-white px-3 font-normal text-ink outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:focus:ring-blue-950"
+                    min="0"
+                    step="0.1"
+                    type="number"
+                    value={servings}
+                    onChange={(event) => updateServings(Number(event.target.value))}
+                  />
+                  <span className="grid grid-cols-4 gap-2">
+                    {[0.5, 1, 1.5, 2].map((amount) => (
+                      <button
+                        key={amount}
+                        className={`rounded-lg border px-2 py-2 text-xs font-semibold transition ${servings === amount ? "border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-200" : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-300 dark:hover:bg-slate-800"}`}
+                        type="button"
+                        onClick={() => updateServings(amount)}
+                      >
+                        {amount}x
+                      </button>
+                    ))}
+                  </span>
+                </label>
+              ) : (
+                <div className="grid gap-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-950/70">
+                  <label className="grid max-w-xs gap-1 text-sm font-semibold text-slate-700 dark:text-slate-200">
+                    Amount / serving
+                    <input
+                      className="h-10 rounded-lg border border-slate-300 bg-white px-3 font-normal text-ink outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:focus:ring-blue-950"
+                      placeholder="1 plate"
+                      value={value.amount}
+                      onChange={(event) => updateCustomField("amount", event.target.value)}
+                    />
+                  </label>
+
+                  <div className="grid gap-3 rounded-xl bg-white p-3 dark:bg-slate-900">
+                    <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+                      <div>
+                        <p className="inline-flex items-center gap-2 text-sm font-semibold text-slate-800 dark:text-slate-100">
+                          <Calculator size={16} className="text-blue-700 dark:text-blue-300" />
+                          Nutrition label helper
+                        </p>
+                        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Use this when the label says per 100 ml/g, but you log the whole bottle or pack.</p>
+                      </div>
+                      <div className="inline-grid rounded-lg border border-slate-200 bg-slate-50 p-1 dark:border-slate-800 dark:bg-slate-950 sm:grid-cols-2">
+                        <button
+                          className={`rounded-md px-3 py-1.5 text-xs font-semibold transition ${customMacroMode === "total" ? "bg-ink text-white dark:bg-blue-600" : "text-slate-600 dark:text-slate-300"}`}
+                          type="button"
+                          onClick={() => switchCustomMacroMode("total")}
+                        >
+                          Enter total
+                        </button>
+                        <button
+                          className={`rounded-md px-3 py-1.5 text-xs font-semibold transition ${customMacroMode === "label" ? "bg-ink text-white dark:bg-blue-600" : "text-slate-600 dark:text-slate-300"}`}
+                          type="button"
+                          onClick={() => switchCustomMacroMode("label")}
+                        >
+                          Scale from label
+                        </button>
+                      </div>
+                    </div>
+
+                    {customMacroMode === "label" ? (
+                      <div className="grid gap-3">
+                        <div className="grid gap-3 xl:grid-cols-[1fr_1fr_110px]">
+                          <label className="grid min-w-0 gap-1 text-sm font-semibold text-slate-700 dark:text-slate-200">
+                            Label amount
+                            <input
+                              className="h-10 w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 font-normal text-ink outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:focus:ring-blue-950"
+                              min="0"
+                              step="0.1"
+                              type="number"
+                              value={labelScale.baseAmount}
+                              onChange={(event) => updateLabelScale("baseAmount", event.target.value)}
+                            />
+                          </label>
+                          <label className="grid min-w-0 gap-1 text-sm font-semibold text-slate-700 dark:text-slate-200">
+                            I consumed
+                            <input
+                              className="h-10 w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 font-normal text-ink outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:focus:ring-blue-950"
+                              min="0"
+                              step="0.1"
+                              type="number"
+                              value={labelScale.consumedAmount}
+                              onChange={(event) => updateLabelScale("consumedAmount", event.target.value)}
+                            />
+                          </label>
+                          <label className="grid min-w-0 gap-1 text-sm font-semibold text-slate-700 dark:text-slate-200">
+                            Unit
+                            <select
+                              className="h-10 w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 font-normal text-ink outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:focus:ring-blue-950"
+                              value={labelScale.unit}
+                              onChange={(event) => updateLabelScale("unit", event.target.value)}
+                            >
+                              <option value="ml">ml</option>
+                              <option value="g">g</option>
+                            </select>
+                          </label>
+                        </div>
+
+                        <div className="grid min-w-0 grid-cols-2 gap-2 md:grid-cols-4">
+                          {macroFields.map((field) => (
+                            <label key={field} className="grid min-w-0 gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                              {macroLabels[field]} / label
+                              <input
+                                className="h-10 w-full min-w-0 rounded-lg border border-slate-300 bg-white px-2 text-sm font-semibold text-ink outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:focus:ring-blue-950"
+                                min="0"
+                                step="0.1"
+                                type="number"
+                                value={labelScale[field]}
+                                onChange={(event) => updateLabelScale(field, event.target.value)}
+                              />
+                            </label>
+                          ))}
+                        </div>
+
+                        <p className="rounded-lg bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-700 dark:bg-blue-950/40 dark:text-blue-200">
+                          Multiplier: {labelScale.baseAmount > 0 ? roundMacro(labelScale.consumedAmount / labelScale.baseAmount) : 0}x. The log uses the scaled total below.
+                        </p>
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+              )}
+
+              <div className="grid min-w-0 grid-cols-4 gap-2">
+                {macroFields.map((field) => (
+                  <div key={field} className="min-w-0 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 dark:border-slate-800 dark:bg-slate-950">
+                    <p className="truncate text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">{macroLabels[field]}</p>
+                    {entryMode === "custom" && customMacroMode === "total" ? (
+                      <input
+                        className="mt-1 h-10 w-full rounded-lg border border-slate-300 bg-white px-2 text-lg font-semibold text-ink outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:focus:ring-blue-950"
+                        min="0"
+                        step="0.1"
+                        type="number"
+                        value={value[field]}
+                        onChange={(event) => updateCustomField(field, event.target.value)}
+                      />
+                    ) : (
+                      <p className="mt-1 truncate text-lg font-semibold text-slate-900 dark:text-slate-100">
+                        {value[field]} <span className="text-xs font-normal text-slate-500 dark:text-slate-400">{field === "calories" ? "kcal" : "g"}</span>
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
+
+          {desktopStep === "Review" ? (
+            <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_260px]">
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-950/70">
+                <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">Ready to log</p>
+                <h3 className="mt-2 text-2xl font-semibold text-ink dark:text-slate-100">{value.foodName || "No food selected"}</h3>
+                <div className="mt-4 grid gap-2 text-sm text-slate-600 dark:text-slate-300 md:grid-cols-3">
+                  <p className="rounded-lg bg-white px-3 py-2 dark:bg-slate-900"><span className="font-semibold">Meal:</span> {value.meal || "Missing"}</p>
+                  <p className="rounded-lg bg-white px-3 py-2 dark:bg-slate-900"><span className="font-semibold">Amount:</span> {value.amount || "Missing"}</p>
+                  <p className="rounded-lg bg-white px-3 py-2 dark:bg-slate-900"><span className="font-semibold">Source:</span> {entryMode === "custom" ? (value.isAiEstimated ? "AI estimate" : "Custom") : "Saved food"}</p>
+                </div>
+                <div className="mt-4 grid min-w-0 grid-cols-4 gap-2">
+                  {macroFields.map((field) => (
+                    <div key={field} className="min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-3 dark:border-slate-800 dark:bg-slate-900">
+                      <p className="truncate text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">{macroLabels[field]}</p>
+                      <p className="mt-1 truncate text-lg font-semibold text-slate-900 dark:text-slate-100">
+                        {value[field]} <span className="text-xs font-normal text-slate-500 dark:text-slate-400">{field === "calories" ? "kcal" : "g"}</span>
+                      </p>
+                    </div>
+                  ))}
+                </div>
+                {missingRequirements.length > 0 ? (
+                  <p className="mt-4 rounded-lg bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-700 dark:bg-amber-950/40 dark:text-amber-200">
+                    Add food is disabled until you choose a {missingRequirements.join(" and ")}.
+                  </p>
+                ) : null}
+              </div>
+              <label className="grid gap-1 text-sm font-semibold text-slate-700 dark:text-slate-200">
+                Notes
+                <textarea
+                  className="min-h-44 rounded-xl border border-slate-300 bg-white px-3 py-2 font-normal text-ink outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:focus:ring-blue-950"
+                  placeholder={entryMode === "custom" ? "Optional. AI estimated entries will be tagged automatically." : "Optional"}
+                  value={value.notes}
+                  onChange={(event) => onChange({ ...value, notes: event.target.value })}
+                />
+              </label>
+            </div>
+          ) : null}
+        </div>
+
+        <div className="flex items-center justify-between gap-3 border-t border-slate-100 bg-slate-50/80 px-4 py-3 dark:border-slate-800 dark:bg-slate-950/50">
+          <button
+            className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-600 transition hover:-translate-y-0.5 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+            disabled={desktopStep === "Meal"}
+            type="button"
+            onClick={() => setDesktopStep(desktopSteps[Math.max(desktopStepIndex - 1, 0)])}
+          >
+            <ArrowLeft size={16} />
+            Back
+          </button>
+
+          <div className="flex items-center gap-3">
+            {desktopStep !== "Review" && desktopContinueDisabled ? (
+              <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-700 dark:bg-amber-950/40 dark:text-amber-200">{desktopContinueHint}</p>
+            ) : null}
+            {desktopStep !== "Review" ? (
+              <button
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-ink px-5 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50 dark:bg-blue-600"
+                disabled={desktopContinueDisabled}
+                type="button"
+                onClick={goToNextDesktopStep}
+              >
+                Continue
+              </button>
+            ) : (
+              <button
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-accent px-5 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-60"
+                disabled={!canSubmit}
+                type="button"
+                onClick={submitLog}
+              >
+                <Plus size={18} />
+                {isSaving ? "Adding..." : "Add food"}
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
     </section>
     </>
   );

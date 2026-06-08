@@ -273,7 +273,10 @@ export default function HomePage() {
   return (
     <main className="min-h-screen overflow-x-hidden bg-slate-50 text-ink">
       <div className="mx-auto flex min-h-screen w-full max-w-[1500px] overflow-x-hidden">
-        <aside className="sticky top-0 hidden h-screen w-48 shrink-0 flex-col border-r border-slate-200 bg-white px-3 py-6 lg:flex">
+        <aside
+          className="fixed inset-y-0 z-20 hidden w-48 shrink-0 flex-col border-r border-slate-200 bg-white px-3 py-6 lg:flex"
+          style={{ left: "max(0px, calc((100vw - 1500px) / 2))" }}
+        >
           <div className="mb-10 flex justify-center">
             <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-50 text-blue-700">
               <Sprout size={30} />
@@ -299,7 +302,7 @@ export default function HomePage() {
           <LogoutButton />
         </aside>
 
-        <section className="flex min-w-0 flex-1 flex-col gap-5 px-4 pb-[calc(6.5rem+env(safe-area-inset-bottom))] pt-5 sm:px-6 lg:gap-6 lg:px-8 lg:py-6">
+        <section className="flex min-w-0 flex-1 flex-col gap-5 px-4 pb-[calc(6.5rem+env(safe-area-inset-bottom))] pt-5 sm:px-6 lg:ml-48 lg:gap-6 lg:px-8 lg:py-6">
           <header className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
             <div>
               <p className="text-sm font-medium text-blue-700">{today}</p>
