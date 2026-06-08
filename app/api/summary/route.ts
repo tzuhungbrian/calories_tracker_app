@@ -1,15 +1,21 @@
 import { NextResponse } from "next/server";
 import { readSheetObjects, sheetTabs } from "@/lib/google_sheets";
 import { addTotals, calculateDynamicTdee, calculateTargets, rowToDailyStatus, rowToFoodLog, rowsToSettings } from "@/lib/nutrition";
-import { isVisibleDataDate, recentDateKeys } from "@/lib/date";
+import { dateRangeKeys, isVisibleDataDate, recentDateKeys } from "@/lib/date";
 import type { DailySummary } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
+  const startDate = searchParams.get("start") || "";
+  const endDate = searchParams.get("end") || "";
   const days = Number(searchParams.get("days") || "14");
-  const recentDates = recentDateKeys(Number.isFinite(days) ? days : 14).filter(isVisibleDataDate);
+  const boundedDays = Number.isFinite(days) ? Math.min(Math.max(days, 1), 366) : 14;
+  const summaryDates =
+    startDate && endDate
+      ? dateRangeKeys(startDate, endDate).reverse().filter(isVisibleDataDate)
+      : recentDateKeys(boundedDays).filter(isVisibleDataDate);
   const [foodRows, statusRows, settingRows] = await Promise.all([
     readSheetObjects(sheetTabs.dailyLog),
     readSheetObjects(sheetTabs.dailyStatus),
@@ -19,7 +25,7 @@ export async function GET(request: Request) {
   const statuses = statusRows.map(rowToDailyStatus);
   const settings = rowsToSettings(settingRows);
 
-  const summary: DailySummary[] = recentDates.map((date) => {
+  const summary: DailySummary[] = summaryDates.map((date) => {
     const totals = addTotals(logs.filter((log) => log.date === date));
     const status = statuses.find((row) => row.date === date);
     const targets = calculateTargets(status ?? null, settings);

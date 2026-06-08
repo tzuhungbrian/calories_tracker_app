@@ -24,6 +24,23 @@ export function recentDateKeys(days: number, timeZone = defaultTimeZone): string
   });
 }
 
+export function dateRangeKeys(startDate: string, endDate: string): string[] {
+  if (!startDate || !endDate || startDate > endDate) {
+    return [];
+  }
+
+  const dates: string[] = [];
+  const current = new Date(`${startDate}T12:00:00`);
+  const end = new Date(`${endDate}T12:00:00`);
+
+  while (current <= end) {
+    dates.push(dateKey(current));
+    current.setDate(current.getDate() + 1);
+  }
+
+  return dates;
+}
+
 export function isVisibleDataDate(date: string): boolean {
   return !date || date >= visibleDataStartDate;
 }

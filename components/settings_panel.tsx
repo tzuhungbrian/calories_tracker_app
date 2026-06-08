@@ -64,6 +64,9 @@ export function SettingsPanel({ onChanged }: SettingsPanelProps) {
   const [settings, setSettings] = useState<UserProfileSettings>(emptySettings);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [exportMode, setExportMode] = useState<"all" | "range">("all");
+  const [exportStartDate, setExportStartDate] = useState("");
+  const [exportEndDate, setExportEndDate] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState<string | null>(null);
 
@@ -138,10 +141,15 @@ export function SettingsPanel({ onChanged }: SettingsPanelProps) {
   const calculatedBmr = calculateBmr(settings);
   const displayBmr = effectiveBmr(settings);
   const canAutoCalculateBmr = calculatedBmr > 0;
+  const canExport = exportMode === "all" || Boolean(exportStartDate && exportEndDate && exportStartDate <= exportEndDate);
+  const exportHref =
+    exportMode === "range" && canExport
+      ? `/api/export?start=${encodeURIComponent(exportStartDate)}&end=${encodeURIComponent(exportEndDate)}`
+      : "/api/export";
 
   return (
     <section className="grid gap-4">
-      <div className="flex flex-col gap-3 rounded-lg border border-slate-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-4 rounded-lg border border-slate-200 bg-white p-4 shadow-sm xl:flex-row xl:items-start xl:justify-between">
         <div>
           <h2 className="inline-flex items-center gap-2 text-lg font-semibold">
             <Settings size={20} />
@@ -149,13 +157,69 @@ export function SettingsPanel({ onChanged }: SettingsPanelProps) {
           </h2>
           <p className="mt-1 text-sm text-slate-500">Manage your profile, calorie model, and data exports.</p>
         </div>
-        <a
-          className="inline-flex w-fit items-center gap-2 rounded-md bg-ink px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-slate-800"
-          href="/api/export"
-        >
-          <Download size={16} />
-          Export all data
-        </a>
+        <div className="w-full rounded-lg border border-slate-200 bg-slate-50 p-3 xl:max-w-xl">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm font-semibold text-slate-800">Export Data</p>
+              <p className="mt-1 text-xs text-slate-500">Download a CSV backup for all data or a specific date range.</p>
+            </div>
+            <div className="inline-grid rounded-lg border border-slate-200 bg-white p-1 sm:grid-cols-2">
+              {(["all", "range"] as const).map((mode) => (
+                <button
+                  key={mode}
+                  className={`rounded-md px-3 py-1.5 text-xs font-semibold capitalize ${exportMode === mode ? "bg-ink text-white" : "text-slate-600"}`}
+                  type="button"
+                  onClick={() => setExportMode(mode)}
+                >
+                  {mode === "all" ? "All data" : "Date range"}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {exportMode === "range" ? (
+            <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
+              <label className="grid gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Start
+                <input
+                  className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium normal-case tracking-normal text-ink"
+                  type="date"
+                  value={exportStartDate}
+                  onChange={(event) => setExportStartDate(event.target.value)}
+                />
+              </label>
+              <label className="grid gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                End
+                <input
+                  className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium normal-case tracking-normal text-ink"
+                  type="date"
+                  value={exportEndDate}
+                  onChange={(event) => setExportEndDate(event.target.value)}
+                />
+              </label>
+              <a
+                aria-disabled={!canExport}
+                className={`inline-flex h-10 items-center justify-center gap-2 rounded-md px-4 text-sm font-semibold shadow-sm ${canExport ? "bg-ink text-white hover:bg-slate-800" : "pointer-events-none bg-slate-200 text-slate-400"}`}
+                href={exportHref}
+              >
+                <Download size={16} />
+                Export Data
+              </a>
+            </div>
+          ) : (
+            <a
+              className="mt-3 inline-flex h-10 w-fit items-center justify-center gap-2 rounded-md bg-ink px-4 text-sm font-semibold text-white shadow-sm hover:bg-slate-800"
+              href={exportHref}
+            >
+              <Download size={16} />
+              Export Data
+            </a>
+          )}
+
+          {exportMode === "range" && exportStartDate && exportEndDate && exportStartDate > exportEndDate ? (
+            <p className="mt-2 rounded-md bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-700">Start date must be before end date.</p>
+          ) : null}
+        </div>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-[360px_minmax(0,1fr)]">

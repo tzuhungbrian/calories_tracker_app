@@ -2,7 +2,7 @@
 
 import { Activity, BarChart3, Beef, CheckCircle2, ChevronDown, Flame, Footprints, Leaf, PieChart, Target, Trophy, Utensils, Wheat } from "lucide-react";
 import type { ReactNode } from "react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { DailySummary, DashboardData, FoodLog } from "@/lib/types";
 
 type StatsDashboardProps = {
@@ -15,6 +15,7 @@ type HabitKey = "logged" | "protein" | "creatine" | "exercise";
 type NutrientKey = "calories" | "protein" | "fat" | "carbs";
 
 const rangeOptions = [7, 14, 30];
+const energyRangeOptions = [30, 60, 90, 180] as const;
 const nutrientKeys: NutrientKey[] = ["calories", "protein", "fat", "carbs"];
 const nutrientIcons = {
   calories: Flame,
@@ -482,15 +483,68 @@ function MacroRatioPanel({ ratio, dayRange }: { ratio: ReturnType<typeof macroRa
 
 function EnergyBalancePanel({ rows }: { rows: DailySummary[] }) {
   const [isExpanded, setIsExpanded] = useState(false);
+  const [energyRange, setEnergyRange] = useState<"custom" | number>(30);
+  const [customStartDate, setCustomStartDate] = useState("");
+  const [customEndDate, setCustomEndDate] = useState("");
+  const [historyRows, setHistoryRows] = useState<DailySummary[]>([]);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  const [historyError, setHistoryError] = useState<string | null>(null);
   const loggedRows = rows.filter((row) => row.calories > 0);
   const totalBalance = loggedRows.reduce((sum, row) => sum + row.calories - row.dynamicTdee, 0);
   const deficitDays = loggedRows.filter((row) => row.calories <= row.dynamicTdee).length;
   const surplusDays = loggedRows.length - deficitDays;
   const maxAbsBalance = Math.max(...loggedRows.map((row) => Math.abs(row.calories - row.dynamicTdee)), 250);
-  const averageBalance = loggedRows.length ? totalBalance / loggedRows.length : 0;
-  const biggestDeficit = Math.min(...loggedRows.map((row) => row.calories - row.dynamicTdee), 0);
-  const biggestSurplus = Math.max(...loggedRows.map((row) => row.calories - row.dynamicTdee), 0);
-  const deficitRate = rate(deficitDays, loggedRows.length);
+  const explorerRows = useMemo(() => {
+    const sourceRows = historyRows.length ? historyRows : rows;
+    return [...sourceRows].reverse();
+  }, [historyRows, rows]);
+  const explorerLoggedRows = explorerRows.filter((row) => row.calories > 0);
+  const explorerBalances = explorerLoggedRows.map((row) => row.calories - row.dynamicTdee);
+  const explorerTotalBalance = explorerBalances.reduce((sum, balance) => sum + balance, 0);
+  const explorerDeficitDays = explorerBalances.filter((balance) => balance <= 0).length;
+  const explorerSurplusDays = explorerLoggedRows.length - explorerDeficitDays;
+  const explorerMaxAbsBalance = Math.max(...explorerBalances.map((balance) => Math.abs(balance)), 250);
+  const averageBalance = explorerLoggedRows.length ? explorerTotalBalance / explorerLoggedRows.length : 0;
+  const biggestDeficit = Math.min(...explorerBalances, 0);
+  const biggestSurplus = Math.max(...explorerBalances, 0);
+  const deficitRate = rate(explorerDeficitDays, explorerLoggedRows.length);
+
+  useEffect(() => {
+    if (!isExpanded) {
+      return;
+    }
+
+    if (energyRange === "custom" && (!customStartDate || !customEndDate || customStartDate > customEndDate)) {
+      return;
+    }
+
+    const controller = new AbortController();
+    const query =
+      energyRange === "custom"
+        ? `start=${encodeURIComponent(customStartDate)}&end=${encodeURIComponent(customEndDate)}`
+        : `days=${energyRange}`;
+
+    setIsLoadingHistory(true);
+    setHistoryError(null);
+
+    fetch(`/api/summary?${query}`, { signal: controller.signal })
+      .then((response) => {
+        if (!response.ok) {
+          throw new Error("Failed to load energy history.");
+        }
+        return response.json() as Promise<DailySummary[]>;
+      })
+      .then(setHistoryRows)
+      .catch((error: unknown) => {
+        if (error instanceof DOMException && error.name === "AbortError") {
+          return;
+        }
+        setHistoryError(error instanceof Error ? error.message : "Failed to load energy history.");
+      })
+      .finally(() => setIsLoadingHistory(false));
+
+    return () => controller.abort();
+  }, [customEndDate, customStartDate, energyRange, isExpanded]);
 
   return (
     <section className="animate-enter-soft rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
@@ -555,21 +609,77 @@ function EnergyBalancePanel({ rows }: { rows: DailySummary[] }) {
       <div className={`grid transition-all duration-500 ease-out ${isExpanded ? "mt-5 grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"}`}>
         <div className="min-h-0 overflow-hidden">
           <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
-            <div className="grid gap-3 sm:grid-cols-4">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+              <div>
+                <p className="text-sm font-semibold text-slate-800">Energy history explorer</p>
+                <p className="mt-1 text-xs text-slate-500">Choose a longer window or set a custom date range.</p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {energyRangeOptions.map((option) => (
+                  <button
+                    key={option}
+                    className={`rounded-lg px-3 py-2 text-xs font-semibold transition ${energyRange === option ? "bg-ink text-white" : "border border-slate-200 bg-white text-slate-600 hover:bg-slate-50"}`}
+                    type="button"
+                    onClick={() => setEnergyRange(option)}
+                  >
+                    {option}D
+                  </button>
+                ))}
+                <button
+                  className={`rounded-lg px-3 py-2 text-xs font-semibold transition ${energyRange === "custom" ? "bg-ink text-white" : "border border-slate-200 bg-white text-slate-600 hover:bg-slate-50"}`}
+                  type="button"
+                  onClick={() => setEnergyRange("custom")}
+                >
+                  Custom
+                </button>
+              </div>
+            </div>
+
+            {energyRange === "custom" ? (
+              <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                <label className="grid gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Start
+                  <input
+                    className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium normal-case tracking-normal text-ink"
+                    type="date"
+                    value={customStartDate}
+                    onChange={(event) => setCustomStartDate(event.target.value)}
+                  />
+                </label>
+                <label className="grid gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  End
+                  <input
+                    className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium normal-case tracking-normal text-ink"
+                    type="date"
+                    value={customEndDate}
+                    onChange={(event) => setCustomEndDate(event.target.value)}
+                  />
+                </label>
+              </div>
+            ) : null}
+
+            {historyError ? <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">{historyError}</p> : null}
+            {energyRange === "custom" && customStartDate && customEndDate && customStartDate > customEndDate ? (
+              <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-700">Start date must be before end date.</p>
+            ) : null}
+
+            <div className="mt-4 grid gap-3 sm:grid-cols-4">
               <EnergyStat label="Avg / day" value={`${averageBalance > 0 ? "+" : ""}${round(averageBalance)} kcal`} tone={averageBalance <= 0 ? "good" : "warn"} />
               <EnergyStat label="Deficit rate" value={`${deficitRate}%`} tone={deficitRate >= 70 ? "good" : "warn"} />
               <EnergyStat label="Biggest deficit" value={`${round(biggestDeficit)} kcal`} tone="good" />
               <EnergyStat label="Biggest surplus" value={`+${round(biggestSurplus)} kcal`} tone={biggestSurplus > 0 ? "warn" : "neutral"} />
             </div>
 
-            {loggedRows.length > 0 ? (
+            {isLoadingHistory ? <p className="mt-5 rounded-lg border border-dashed border-slate-300 bg-white p-5 text-center text-sm font-semibold text-slate-500">Loading energy history...</p> : null}
+
+            {!isLoadingHistory && explorerLoggedRows.length > 0 ? (
               <div className="mt-5 overflow-x-auto pb-2">
-                <div className="relative flex h-56 min-w-[680px] items-center gap-2 border-y border-slate-200 px-2">
+                <div className="relative flex h-56 min-w-[720px] items-center gap-2 border-y border-slate-200 px-2">
                   <span className="absolute left-0 right-0 top-1/2 h-px bg-slate-300" />
-                  {loggedRows.map((row) => {
+                  {explorerLoggedRows.map((row) => {
                     const balance = row.calories - row.dynamicTdee;
                     const isDeficit = balance <= 0;
-                    const height = clamp((Math.abs(balance) / maxAbsBalance) * 44, 4, 44);
+                    const height = clamp((Math.abs(balance) / explorerMaxAbsBalance) * 44, 4, 44);
 
                     return (
                       <div key={row.date} className="group relative z-10 flex h-full flex-1 min-w-10 items-center justify-center">
@@ -594,6 +704,18 @@ function EnergyBalancePanel({ rows }: { rows: DailySummary[] }) {
                 </div>
               </div>
             ) : null}
+
+            {!isLoadingHistory && !explorerLoggedRows.length ? (
+              <div className="mt-5 rounded-lg border border-dashed border-slate-300 bg-white p-5 text-center text-sm text-slate-500">
+                No logged calorie days in this range.
+              </div>
+            ) : null}
+
+            <div className="mt-3 flex flex-wrap gap-2 text-xs font-semibold text-slate-500">
+              <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-emerald-700">{explorerDeficitDays} deficit days</span>
+              <span className="rounded-full bg-amber-50 px-2.5 py-1 text-amber-700">{explorerSurplusDays} surplus days</span>
+              <span className="rounded-full bg-slate-100 px-2.5 py-1">{explorerLoggedRows.length} logged days</span>
+            </div>
           </div>
         </div>
       </div>
