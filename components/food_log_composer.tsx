@@ -4,6 +4,8 @@ import { ArrowLeft, Calculator, CheckCircle2, Clock3, Database, Plus, Search, Sp
 import { useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { CategorySelect } from "@/components/category_select";
+import { DecimalNumberInput } from "@/components/decimal_number_input";
+import { mealOptions } from "@/lib/food_options";
 import type { CommonFood, FoodLog, FoodLogInput } from "@/lib/types";
 
 type FoodLogComposerProps = {
@@ -15,7 +17,6 @@ type FoodLogComposerProps = {
   onSubmit: () => Promise<boolean>;
 };
 
-const mealOptions = ["Breakfast", "Lunch", "Dinner", "Snack", "Supplements", "Drinks"];
 const macroFields: Array<keyof Pick<FoodLogInput, "calories" | "protein" | "fat" | "carbs">> = [
   "calories",
   "protein",
@@ -594,11 +595,11 @@ export function FoodLogComposer({ foods, recentLogs = [], value, isSaving, onCha
                         <div className="grid grid-cols-[1fr_1fr_82px] gap-2">
                           <label className="grid min-w-0 gap-1 text-xs font-semibold text-slate-600">
                             Label
-                            <input className="w-full rounded-md border border-slate-300 px-2 py-2" min="0" step="0.1" type="number" value={labelScale.baseAmount} onChange={(event) => updateLabelScale("baseAmount", event.target.value)} />
+                            <DecimalNumberInput className="w-full rounded-md border border-slate-300 px-2 py-2" value={labelScale.baseAmount} onValueChange={(nextValue) => updateLabelScale("baseAmount", String(nextValue))} />
                           </label>
                           <label className="grid min-w-0 gap-1 text-xs font-semibold text-slate-600">
                             I had
-                            <input className="w-full rounded-md border border-slate-300 px-2 py-2" min="0" step="0.1" type="number" value={labelScale.consumedAmount} onChange={(event) => updateLabelScale("consumedAmount", event.target.value)} />
+                            <DecimalNumberInput className="w-full rounded-md border border-slate-300 px-2 py-2" value={labelScale.consumedAmount} onValueChange={(nextValue) => updateLabelScale("consumedAmount", String(nextValue))} />
                           </label>
                           <label className="grid min-w-0 gap-1 text-xs font-semibold text-slate-600">
                             Unit
@@ -612,13 +613,10 @@ export function FoodLogComposer({ foods, recentLogs = [], value, isSaving, onCha
                           {macroFields.map((field) => (
                             <label key={field} className="grid min-w-0 gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
                               {macroLabels[field]} / label
-                              <input
+                              <DecimalNumberInput
                                 className="w-full rounded-md border border-slate-300 px-2 py-2 text-sm font-semibold"
-                                min="0"
-                                step="0.1"
-                                type="number"
                                 value={labelScale[field]}
-                                onChange={(event) => updateLabelScale(field, event.target.value)}
+                                onValueChange={(nextValue) => updateLabelScale(field, String(nextValue))}
                               />
                             </label>
                           ))}
@@ -633,13 +631,10 @@ export function FoodLogComposer({ foods, recentLogs = [], value, isSaving, onCha
                     <div key={field} className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
                       <p className="text-xs font-medium uppercase tracking-wide text-slate-500">{macroLabels[field]}</p>
                       {entryMode === "custom" && customMacroMode === "total" ? (
-                        <input
+                        <DecimalNumberInput
                           className="mt-1 w-full rounded-md border border-slate-300 bg-white px-2 py-1 text-lg font-semibold"
-                          min="0"
-                          step="0.1"
-                          type="number"
                           value={value[field]}
-                          onChange={(event) => updateCustomField(field, event.target.value)}
+                          onValueChange={(nextValue) => updateCustomField(field, String(nextValue))}
                         />
                       ) : (
                         <p className="mt-1 text-lg font-semibold">
@@ -1032,24 +1027,18 @@ export function FoodLogComposer({ foods, recentLogs = [], value, isSaving, onCha
                         <div className="grid gap-3 xl:grid-cols-[1fr_1fr_110px]">
                           <label className="grid min-w-0 gap-1 text-sm font-semibold text-slate-700 dark:text-slate-200">
                             Label amount
-                            <input
+                            <DecimalNumberInput
                               className="h-10 w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 font-normal text-ink outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:focus:ring-blue-950"
-                              min="0"
-                              step="0.1"
-                              type="number"
                               value={labelScale.baseAmount}
-                              onChange={(event) => updateLabelScale("baseAmount", event.target.value)}
+                              onValueChange={(nextValue) => updateLabelScale("baseAmount", String(nextValue))}
                             />
                           </label>
                           <label className="grid min-w-0 gap-1 text-sm font-semibold text-slate-700 dark:text-slate-200">
                             I consumed
-                            <input
+                            <DecimalNumberInput
                               className="h-10 w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 font-normal text-ink outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:focus:ring-blue-950"
-                              min="0"
-                              step="0.1"
-                              type="number"
                               value={labelScale.consumedAmount}
-                              onChange={(event) => updateLabelScale("consumedAmount", event.target.value)}
+                              onValueChange={(nextValue) => updateLabelScale("consumedAmount", String(nextValue))}
                             />
                           </label>
                           <label className="grid min-w-0 gap-1 text-sm font-semibold text-slate-700 dark:text-slate-200">
@@ -1069,13 +1058,10 @@ export function FoodLogComposer({ foods, recentLogs = [], value, isSaving, onCha
                           {macroFields.map((field) => (
                             <label key={field} className="grid min-w-0 gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
                               {macroLabels[field]} / label
-                              <input
+                              <DecimalNumberInput
                                 className="h-10 w-full min-w-0 rounded-lg border border-slate-300 bg-white px-2 text-sm font-semibold text-ink outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:focus:ring-blue-950"
-                                min="0"
-                                step="0.1"
-                                type="number"
                                 value={labelScale[field]}
-                                onChange={(event) => updateLabelScale(field, event.target.value)}
+                                onValueChange={(nextValue) => updateLabelScale(field, String(nextValue))}
                               />
                             </label>
                           ))}
@@ -1095,13 +1081,10 @@ export function FoodLogComposer({ foods, recentLogs = [], value, isSaving, onCha
                   <div key={field} className="min-w-0 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 dark:border-slate-800 dark:bg-slate-950">
                     <p className="truncate text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">{macroLabels[field]}</p>
                     {entryMode === "custom" && customMacroMode === "total" ? (
-                      <input
+                      <DecimalNumberInput
                         className="mt-1 h-10 w-full rounded-lg border border-slate-300 bg-white px-2 text-lg font-semibold text-ink outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:focus:ring-blue-950"
-                        min="0"
-                        step="0.1"
-                        type="number"
                         value={value[field]}
-                        onChange={(event) => updateCustomField(field, event.target.value)}
+                        onValueChange={(nextValue) => updateCustomField(field, String(nextValue))}
                       />
                     ) : (
                       <p className="mt-1 truncate text-lg font-semibold text-slate-900 dark:text-slate-100">

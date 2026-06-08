@@ -3,6 +3,7 @@
 import { AlertTriangle, Calculator, CookingPot, Database, FolderCog, ListChecks, Plus, RotateCcw, Save, Search, Sparkles, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { CategorySelect } from "@/components/category_select";
+import { DecimalNumberInput } from "@/components/decimal_number_input";
 import type { CommonFood, FoodLog } from "@/lib/types";
 
 type FoodDatabaseManagerProps = {
@@ -668,24 +669,18 @@ export function FoodDatabaseManager({ foods, logs, onChanged, onEditMealPrep }: 
                 <div className="grid grid-cols-[1fr_1fr_82px] gap-2">
                   <label className="grid min-w-0 gap-1 text-xs font-semibold text-slate-600">
                     Label amount
-                    <input
+                    <DecimalNumberInput
                       className="w-full min-w-0 rounded-md border border-slate-300 px-2 py-2 font-normal"
-                      min="0"
-                      step="0.1"
-                      type="number"
                       value={labelScale.baseAmount}
-                      onChange={(event) => updateLabelScale("baseAmount", event.target.value)}
+                      onValueChange={(nextValue) => updateLabelScale("baseAmount", String(nextValue))}
                     />
                   </label>
                   <label className="grid min-w-0 gap-1 text-xs font-semibold text-slate-600">
                     Serving
-                    <input
+                    <DecimalNumberInput
                       className="w-full min-w-0 rounded-md border border-slate-300 px-2 py-2 font-normal"
-                      min="0"
-                      step="0.1"
-                      type="number"
                       value={labelScale.servingAmount}
-                      onChange={(event) => updateLabelScale("servingAmount", event.target.value)}
+                      onValueChange={(nextValue) => updateLabelScale("servingAmount", String(nextValue))}
                     />
                   </label>
                   <label className="grid min-w-0 gap-1 text-xs font-semibold text-slate-600">
@@ -704,13 +699,10 @@ export function FoodDatabaseManager({ foods, logs, onChanged, onEditMealPrep }: 
                   {macroFields.map((field) => (
                     <label key={field} className="grid min-w-0 gap-1 text-xs font-semibold text-slate-600">
                       {macroLabels[field]} / label
-                      <input
+                      <DecimalNumberInput
                         className="w-full min-w-0 rounded-md border border-slate-300 px-2 py-2 font-normal"
-                        min="0"
-                        step="0.1"
-                        type="number"
                         value={labelScale[field]}
-                        onChange={(event) => updateLabelScale(field, event.target.value)}
+                        onValueChange={(nextValue) => updateLabelScale(field, String(nextValue))}
                       />
                     </label>
                   ))}
@@ -730,14 +722,14 @@ export function FoodDatabaseManager({ foods, logs, onChanged, onEditMealPrep }: 
                     {form[field]} <span className="text-xs font-normal text-slate-500">{field === "calories" ? "kcal" : "g"}</span>
                   </p>
                 ) : (
-                  <input className="rounded-md border border-slate-300 px-3 py-2 font-normal" min="0" step="0.1" type="number" value={form[field]} onChange={(event) => updateField(field, event.target.value)} />
+                  <DecimalNumberInput className="rounded-md border border-slate-300 px-3 py-2 font-normal" value={form[field]} onValueChange={(nextValue) => updateField(field, String(nextValue))} />
                 )}
               </label>
             ))}
           </div>
           <label className="grid gap-1 text-sm font-medium text-slate-700">
             Notes
-            <textarea className="rounded-md border border-slate-300 px-3 py-2 font-normal" value={form.notes} onChange={(event) => updateField("notes", event.target.value)} />
+            <textarea className="min-h-36 rounded-md border border-slate-300 px-3 py-2 font-normal" value={form.notes} onChange={(event) => updateField("notes", event.target.value)} />
           </label>
         </div>
 

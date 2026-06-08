@@ -481,25 +481,40 @@ function MacroRatioPanel({ ratio, dayRange }: { ratio: ReturnType<typeof macroRa
 }
 
 function EnergyBalancePanel({ rows }: { rows: DailySummary[] }) {
+  const [isExpanded, setIsExpanded] = useState(false);
   const loggedRows = rows.filter((row) => row.calories > 0);
   const totalBalance = loggedRows.reduce((sum, row) => sum + row.calories - row.dynamicTdee, 0);
   const deficitDays = loggedRows.filter((row) => row.calories <= row.dynamicTdee).length;
   const surplusDays = loggedRows.length - deficitDays;
   const maxAbsBalance = Math.max(...loggedRows.map((row) => Math.abs(row.calories - row.dynamicTdee)), 250);
+  const averageBalance = loggedRows.length ? totalBalance / loggedRows.length : 0;
+  const biggestDeficit = Math.min(...loggedRows.map((row) => row.calories - row.dynamicTdee), 0);
+  const biggestSurplus = Math.max(...loggedRows.map((row) => row.calories - row.dynamicTdee), 0);
+  const deficitRate = rate(deficitDays, loggedRows.length);
 
   return (
     <section className="animate-enter-soft rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h2 className="inline-flex items-center gap-2 text-lg font-semibold">
+          <button
+            className="inline-flex items-center gap-2 rounded-lg text-left text-lg font-semibold transition hover:text-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-100"
+            type="button"
+            onClick={() => setIsExpanded((current) => !current)}
+          >
             <Flame size={20} />
             Recent energy balance
-          </h2>
+            <ChevronDown className={`transition-transform duration-300 ${isExpanded ? "rotate-180" : ""}`} size={18} />
+          </button>
           <p className="mt-1 text-sm text-slate-500">Daily calories minus dynamic TDEE. Green is deficit, amber is surplus.</p>
         </div>
-        <div className={`w-fit rounded-full px-3 py-1.5 text-sm font-semibold ${totalBalance <= 0 ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>
+        <button
+          className={`inline-flex w-fit items-center gap-2 rounded-full px-3 py-1.5 text-sm font-semibold transition hover:-translate-y-0.5 hover:shadow-sm ${totalBalance <= 0 ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}
+          type="button"
+          onClick={() => setIsExpanded((current) => !current)}
+        >
           {totalBalance <= 0 ? "Net deficit" : "Net surplus"} {Math.abs(round(totalBalance))} kcal
-        </div>
+          <BarChart3 size={16} />
+        </button>
       </div>
 
       <div className="mt-4 grid gap-2">
@@ -536,7 +551,64 @@ function EnergyBalancePanel({ rows }: { rows: DailySummary[] }) {
         <span className="rounded-full bg-amber-50 px-2.5 py-1 text-amber-700">{surplusDays} surplus days</span>
         <span className="rounded-full bg-slate-100 px-2.5 py-1">{loggedRows.length} logged days</span>
       </div>
+
+      <div className={`grid transition-all duration-500 ease-out ${isExpanded ? "mt-5 grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"}`}>
+        <div className="min-h-0 overflow-hidden">
+          <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+            <div className="grid gap-3 sm:grid-cols-4">
+              <EnergyStat label="Avg / day" value={`${averageBalance > 0 ? "+" : ""}${round(averageBalance)} kcal`} tone={averageBalance <= 0 ? "good" : "warn"} />
+              <EnergyStat label="Deficit rate" value={`${deficitRate}%`} tone={deficitRate >= 70 ? "good" : "warn"} />
+              <EnergyStat label="Biggest deficit" value={`${round(biggestDeficit)} kcal`} tone="good" />
+              <EnergyStat label="Biggest surplus" value={`+${round(biggestSurplus)} kcal`} tone={biggestSurplus > 0 ? "warn" : "neutral"} />
+            </div>
+
+            {loggedRows.length > 0 ? (
+              <div className="mt-5 overflow-x-auto pb-2">
+                <div className="relative flex h-56 min-w-[680px] items-center gap-2 border-y border-slate-200 px-2">
+                  <span className="absolute left-0 right-0 top-1/2 h-px bg-slate-300" />
+                  {loggedRows.map((row) => {
+                    const balance = row.calories - row.dynamicTdee;
+                    const isDeficit = balance <= 0;
+                    const height = clamp((Math.abs(balance) / maxAbsBalance) * 44, 4, 44);
+
+                    return (
+                      <div key={row.date} className="group relative z-10 flex h-full flex-1 min-w-10 items-center justify-center">
+                        <div className="relative h-full w-full">
+                          <span
+                            className={`absolute left-1/2 w-5 -translate-x-1/2 rounded-full transition-all duration-300 group-hover:w-7 ${isDeficit ? "top-1/2 bg-emerald-500" : "bottom-1/2 bg-amber-500"}`}
+                            style={{ height: `${height}%` }}
+                          />
+                          <div className="pointer-events-none absolute left-1/2 top-4 z-20 hidden w-36 -translate-x-1/2 rounded-lg border border-slate-200 bg-white p-2 text-xs shadow-lg group-hover:block">
+                            <p className="font-semibold text-slate-800">{row.date}</p>
+                            <p className={isDeficit ? "text-emerald-700" : "text-amber-700"}>
+                              {balance > 0 ? "+" : ""}
+                              {round(balance)} kcal vs TDEE
+                            </p>
+                            <p className="mt-1 text-slate-500">{round(row.calories)} kcal eaten / {round(row.dynamicTdee)} TDEE</p>
+                          </div>
+                        </div>
+                        <span className="absolute bottom-0 rotate-[-45deg] text-[11px] font-semibold text-slate-500">{row.date.slice(5)}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : null}
+          </div>
+        </div>
+      </div>
     </section>
+  );
+}
+
+function EnergyStat({ label, value, tone }: { label: string; value: string; tone: "good" | "warn" | "neutral" }) {
+  const toneClass = tone === "good" ? "text-emerald-700" : tone === "warn" ? "text-amber-700" : "text-slate-700";
+
+  return (
+    <div className="rounded-lg bg-white px-3 py-2">
+      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</p>
+      <p className={`mt-1 text-lg font-semibold ${toneClass}`}>{value}</p>
+    </div>
   );
 }
 

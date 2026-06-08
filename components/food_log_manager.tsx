@@ -1,7 +1,9 @@
 "use client";
 
 import { CalendarDays, Copy, ListChecks, Pencil, Save, Search, Trash2, Utensils } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
+import { DecimalNumberInput } from "@/components/decimal_number_input";
+import { mealOptions } from "@/lib/food_options";
 import type { CommonFood, FoodLog } from "@/lib/types";
 
 type FoodLogManagerProps = {
@@ -11,7 +13,6 @@ type FoodLogManagerProps = {
   onChanged: () => Promise<void>;
 };
 
-const meals = ["Breakfast", "Lunch", "Dinner", "Snack", "Pre-workout", "Post-workout"];
 const macroFields: Array<keyof Pick<FoodLog, "calories" | "protein" | "fat" | "carbs">> = [
   "calories",
   "protein",
@@ -126,6 +127,9 @@ export function FoodLogManager({ logs, foods, today, onChanged }: FoodLogManager
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [mobileActionLog, setMobileActionLog] = useState<FoodLog | null>(null);
+  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const suppressNextClickRef = useRef(false);
 
   const visibleLogs = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
@@ -247,8 +251,39 @@ export function FoodLogManager({ logs, foods, today, onChanged }: FoodLogManager
     }
   }
 
-  async function deleteLog() {
-    if (!selectedLog || !window.confirm(`Delete "${selectedLog.foodName}" from ${selectedLog.date}?`)) {
+  function startLogLongPress(log: FoodLog) {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+    }
+
+    longPressTimerRef.current = setTimeout(() => {
+      suppressNextClickRef.current = true;
+      setMobileActionLog(log);
+    }, 550);
+  }
+
+  function cancelLogLongPress() {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  }
+
+  function handleLogClick(log: FoodLog) {
+    if (suppressNextClickRef.current) {
+      suppressNextClickRef.current = false;
+      return;
+    }
+
+    if (isBatchMode) {
+      toggleLogSelection(log.id);
+    } else {
+      editLog(log);
+    }
+  }
+
+  async function deleteLogById(log: FoodLog) {
+    if (!window.confirm(`Delete "${log.foodName}" from ${log.date}?`)) {
       return;
     }
 
@@ -257,7 +292,7 @@ export function FoodLogManager({ logs, foods, today, onChanged }: FoodLogManager
     setError(null);
 
     try {
-      const response = await fetch(`/api/daily_log?id=${encodeURIComponent(selectedLog.id)}`, {
+      const response = await fetch(`/api/daily_log?id=${encodeURIComponent(log.id)}`, {
         method: "DELETE"
       });
 
@@ -265,8 +300,11 @@ export function FoodLogManager({ logs, foods, today, onChanged }: FoodLogManager
         throw new Error("Failed to delete food log.");
       }
 
-      setSelectedLog(null);
-      setMacroBaseline(null);
+      if (selectedLog?.id === log.id) {
+        setSelectedLog(null);
+        setMacroBaseline(null);
+      }
+      setMobileActionLog(null);
       setMessage("Food log deleted.");
       await onChanged();
     } catch (deleteError) {
@@ -274,6 +312,14 @@ export function FoodLogManager({ logs, foods, today, onChanged }: FoodLogManager
     } finally {
       setIsSaving(false);
     }
+  }
+
+  async function deleteLog() {
+    if (!selectedLog) {
+      return;
+    }
+
+    await deleteLogById(selectedLog);
   }
 
   async function deleteSelectedLogs() {
@@ -401,7 +447,7 @@ export function FoodLogManager({ logs, foods, today, onChanged }: FoodLogManager
             Meal
             <select className="rounded-md border border-slate-300 px-3 py-2 font-normal" value={mealFilter} onChange={(event) => setMealFilter(event.target.value)}>
               <option value="">All meals</option>
-              {meals.map((meal) => (
+              {mealOptions.map((meal) => (
                 <option key={meal} value={meal}>
                   {meal}
                 </option>
@@ -452,6 +498,10 @@ export function FoodLogManager({ logs, foods, today, onChanged }: FoodLogManager
                 <div
                   key={log.id}
                   className={`rounded-lg border p-3 transition hover:border-accent hover:bg-blue-50 hover:shadow-sm ${selectedLog?.id === log.id ? "border-accent bg-blue-50" : selectedLogIds.has(log.id) ? "border-blue-200 bg-blue-50/60" : "border-slate-200"}`}
+                  onTouchCancel={cancelLogLongPress}
+                  onTouchEnd={cancelLogLongPress}
+                  onTouchMove={cancelLogLongPress}
+                  onTouchStart={() => startLogLongPress(log)}
                 >
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                     <div className="flex items-start gap-3">
@@ -464,7 +514,7 @@ export function FoodLogManager({ logs, foods, today, onChanged }: FoodLogManager
                           onChange={() => toggleLogSelection(log.id)}
                         />
                       ) : null}
-                      <button className="min-w-0 text-left" type="button" onClick={() => (isBatchMode ? toggleLogSelection(log.id) : editLog(log))}>
+                      <button className="min-w-0 text-left" type="button" onClick={() => handleLogClick(log)}>
                         <p className="font-semibold">{log.foodName}</p>
                         <p className="mt-1 text-xs text-slate-500">
                           {log.date} / {log.meal || "No meal"} / {log.amount || "1 serving"}
@@ -493,6 +543,59 @@ export function FoodLogManager({ logs, foods, today, onChanged }: FoodLogManager
         </div>
       </div>
 
+      {mobileActionLog ? (
+        <div className="fixed inset-0 z-50 lg:hidden" role="dialog" aria-modal="true" aria-label="Food log actions">
+          <button
+            aria-label="Close food log actions"
+            className="absolute inset-0 h-full w-full bg-slate-950/45 backdrop-blur-sm"
+            type="button"
+            onClick={() => setMobileActionLog(null)}
+          />
+          <div className="mobile-sheet-enter absolute inset-x-0 bottom-0 rounded-t-2xl border border-slate-200 bg-white p-4 shadow-2xl">
+            <div className="mx-auto mb-4 h-1.5 w-12 rounded-full bg-slate-200" />
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Log actions</p>
+            <h3 className="mt-1 text-lg font-semibold">{mobileActionLog.foodName}</h3>
+            <p className="mt-1 text-sm text-slate-500">
+              {mobileActionLog.date} / {mobileActionLog.meal || "No meal"} / {mobileActionLog.amount || "1 serving"}
+            </p>
+            <div className="mt-4 grid gap-2">
+              <button
+                className="inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-ink px-4 text-sm font-semibold text-white"
+                type="button"
+                onClick={() => {
+                  editLog(mobileActionLog);
+                  setMobileActionLog(null);
+                }}
+              >
+                <Pencil size={16} />
+                Edit item
+              </button>
+              <button
+                className="inline-flex h-12 items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 text-sm font-semibold text-slate-700"
+                type="button"
+                onClick={() => {
+                  toggleLogSelection(mobileActionLog.id);
+                  setIsBatchMode(true);
+                  setMobileActionLog(null);
+                }}
+              >
+                <ListChecks size={16} />
+                Select item
+              </button>
+              <button
+                className="inline-flex h-12 items-center justify-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 text-sm font-semibold text-red-700 disabled:opacity-60"
+                disabled={isSaving}
+                type="button"
+                onClick={() => deleteLogById(mobileActionLog)}
+              >
+                <Trash2 size={16} />
+                Delete item
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       <aside className="animate-enter min-w-0 overflow-hidden rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
         <h2 className="inline-flex items-center gap-2 text-lg font-semibold">
           <Pencil size={20} />
@@ -510,7 +613,7 @@ export function FoodLogManager({ logs, foods, today, onChanged }: FoodLogManager
                 Meal
                 <select className="rounded-md border border-slate-300 px-3 py-2 font-normal" value={selectedLog.meal} onChange={(event) => updateField("meal", event.target.value)}>
                   <option value="">Select meal</option>
-                  {meals.map((meal) => (
+                  {mealOptions.map((meal) => (
                     <option key={meal} value={meal}>
                       {meal}
                     </option>
@@ -529,7 +632,7 @@ export function FoodLogManager({ logs, foods, today, onChanged }: FoodLogManager
                 {macroFields.map((field) => (
                   <label key={field} className="grid gap-1 text-sm font-medium capitalize text-slate-700">
                     {field}
-                    <input className="rounded-md border border-slate-300 px-3 py-2 font-normal" min="0" step="0.1" type="number" value={selectedLog[field]} onChange={(event) => updateField(field, event.target.value)} />
+                    <DecimalNumberInput className="rounded-md border border-slate-300 px-3 py-2 font-normal" value={selectedLog[field]} onValueChange={(nextValue) => updateField(field, String(nextValue))} />
                   </label>
                 ))}
               </div>
