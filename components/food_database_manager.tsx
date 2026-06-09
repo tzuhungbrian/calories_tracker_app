@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, Calculator, CookingPot, Database, FolderCog, ListChecks, Plus, RotateCcw, Save, Search, Sparkles, Trash2 } from "lucide-react";
+import { AlertTriangle, Calculator, CookingPot, Database, FolderCog, ListChecks, Plus, RotateCcw, Save, Search, Sparkles, Trash2, X } from "lucide-react";
 import { useMemo, useState } from "react";
 import { CategorySelect } from "@/components/category_select";
 import { DecimalNumberInput } from "@/components/decimal_number_input";
@@ -123,6 +123,8 @@ export function FoodDatabaseManager({ foods, logs, onChanged, onEditMealPrep }: 
   const [renameFromCategory, setRenameFromCategory] = useState("");
   const [renameToCategory, setRenameToCategory] = useState("");
   const [isBatchMode, setIsBatchMode] = useState(false);
+  const [isFoodEditorOpen, setIsFoodEditorOpen] = useState(false);
+  const [isCategoryManagerOpen, setIsCategoryManagerOpen] = useState(false);
   const [selectedFoodIds, setSelectedFoodIds] = useState<Set<string>>(new Set());
   const [isSaving, setIsSaving] = useState(false);
   const [isUndoing, setIsUndoing] = useState(false);
@@ -194,6 +196,7 @@ export function FoodDatabaseManager({ foods, logs, onChanged, onEditMealPrep }: 
     setForm(food);
     setMacroMode("total");
     setLabelScale(defaultLabelScale);
+    setIsFoodEditorOpen(true);
     setLastAddedFood(null);
     setMessage("");
     setError(null);
@@ -232,6 +235,7 @@ export function FoodDatabaseManager({ foods, logs, onChanged, onEditMealPrep }: 
     setForm(emptyFood);
     setMacroMode("total");
     setLabelScale(defaultLabelScale);
+    setIsFoodEditorOpen(true);
     setMessage("");
     setError(null);
   }
@@ -295,6 +299,7 @@ export function FoodDatabaseManager({ foods, logs, onChanged, onEditMealPrep }: 
         setMessage(`Food added: ${savedFood.name}`);
         setForm(emptyFood);
       }
+      setIsFoodEditorOpen(false);
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : "Failed to save food.");
     } finally {
@@ -322,6 +327,7 @@ export function FoodDatabaseManager({ foods, logs, onChanged, onEditMealPrep }: 
 
       await onChanged();
       setForm(emptyFood);
+      setIsFoodEditorOpen(false);
       setLastAddedFood(null);
       setMessage("Food deleted.");
     } catch (deleteError) {
@@ -440,8 +446,25 @@ export function FoodDatabaseManager({ foods, logs, onChanged, onEditMealPrep }: 
   const selectedFoodCount = selectedFoodIds.size;
 
   return (
-    <section className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1fr)_380px]">
-      <div className="animate-enter min-w-0 overflow-hidden rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+    <section className="min-w-0 overflow-hidden">
+      <div
+        className={`mx-auto grid w-full gap-4 transition-[max-width] duration-300 ease-out ${
+          isFoodEditorOpen ? "max-w-5xl lg:max-w-[1220px] lg:grid-cols-[minmax(0,1fr)_420px]" : "max-w-5xl"
+        }`}
+        style={isFoodEditorOpen ? { maxWidth: "1220px" } : undefined}
+      >
+      <div
+        className={`min-w-0 overflow-hidden rounded-lg border border-slate-200 bg-white p-4 shadow-sm transition duration-300 ease-out ${
+          isFoodEditorOpen ? "lg:pointer-events-none" : ""
+        }`}
+        style={{
+          filter: isFoodEditorOpen ? "blur(1.25px)" : "blur(0px)",
+          opacity: isFoodEditorOpen ? 0.72 : 1,
+          transform: isFoodEditorOpen ? "translateX(-1.25rem)" : "translateX(0)",
+          transition: "transform 360ms cubic-bezier(0.22, 1, 0.36, 1), filter 260ms ease-out, opacity 260ms ease-out",
+          willChange: isFoodEditorOpen ? "transform, filter, opacity" : undefined
+        }}
+      >
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 className="inline-flex items-center gap-2 text-lg font-semibold">
@@ -452,6 +475,14 @@ export function FoodDatabaseManager({ foods, logs, onChanged, onEditMealPrep }: 
           </div>
           <div className="flex flex-wrap gap-2">
             <button
+              className={`inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-semibold ${isCategoryManagerOpen ? "bg-blue-50 text-blue-700" : "border border-slate-200 text-slate-600 hover:bg-slate-50"}`}
+              type="button"
+              onClick={() => setIsCategoryManagerOpen((current) => !current)}
+            >
+              <FolderCog size={16} />
+              Categories
+            </button>
+            <button
               className={`inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-semibold ${isBatchMode ? "bg-ink text-white" : "border border-slate-200 text-slate-600 hover:bg-slate-50"}`}
               type="button"
               onClick={toggleBatchMode}
@@ -461,8 +492,8 @@ export function FoodDatabaseManager({ foods, logs, onChanged, onEditMealPrep }: 
             </button>
             <button className="rounded-md bg-ink px-4 py-2 text-sm font-semibold text-white" type="button" onClick={resetForm}>
               <span className="inline-flex items-center gap-2">
-              <Plus size={16} />
-              New food
+                <Plus size={16} />
+                New food
               </span>
             </button>
           </div>
@@ -505,7 +536,8 @@ export function FoodDatabaseManager({ foods, logs, onChanged, onEditMealPrep }: 
           <QualityButton active={qualityFilter === "ai"} label="AI estimated" value={qualityCounts.ai} onClick={() => setQualityFilter("ai")} />
         </div>
 
-        <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-3">
+        {isCategoryManagerOpen ? (
+        <div className="mt-4 animate-enter-soft rounded-lg border border-slate-200 bg-slate-50 p-3">
           <div className="flex items-center justify-between gap-3">
             <p className="inline-flex items-center gap-2 text-sm font-semibold text-slate-800">
               <FolderCog size={16} className="text-blue-700" />
@@ -541,6 +573,25 @@ export function FoodDatabaseManager({ foods, logs, onChanged, onEditMealPrep }: 
             </button>
           </div>
         </div>
+        ) : null}
+
+        {error ? <p className="mt-4 rounded-md bg-red-50 p-3 text-sm text-red-700">{error}</p> : null}
+        {message ? (
+          <div className="mt-4 flex flex-col gap-3 rounded-md bg-green-50 p-3 text-sm text-green-700 sm:flex-row sm:items-center sm:justify-between">
+            <span>{message}</span>
+            {lastAddedFood ? (
+              <button
+                className="inline-flex w-fit items-center gap-2 rounded-md border border-green-200 bg-white px-3 py-1.5 font-semibold text-green-700 disabled:opacity-60"
+                disabled={isUndoing}
+                type="button"
+                onClick={undoLastAddedFood}
+              >
+                <RotateCcw size={15} />
+                {isUndoing ? "Undoing..." : "Undo"}
+              </button>
+            ) : null}
+          </div>
+        ) : null}
 
         {isBatchMode ? (
         <div className="mt-4 flex flex-col gap-2 rounded-lg border border-slate-200 bg-slate-50 p-3 sm:flex-row sm:items-center sm:justify-between">
@@ -618,164 +669,170 @@ export function FoodDatabaseManager({ foods, logs, onChanged, onEditMealPrep }: 
         </div>
       </div>
 
-      <aside className="animate-enter min-w-0 overflow-hidden rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-        <h2 className="inline-flex items-center gap-2 text-lg font-semibold">
-          {form.id ? <Save size={20} /> : <Plus size={20} />}
-          {form.id ? "Edit food" : "Add food"}
-        </h2>
-        <div className="mt-4 grid gap-3">
-          <label className="grid gap-1 text-sm font-medium text-slate-700">
-            Name
-            <input className="rounded-md border border-slate-300 px-3 py-2 font-normal" value={form.name} onChange={(event) => updateField("name", event.target.value)} />
-          </label>
-          <CategorySelect categories={["Uncategorized", ...categories]} value={form.category || "Uncategorized"} onChange={(nextCategory) => updateField("category", nextCategory)} />
-          <label className="grid gap-1 text-sm font-medium text-slate-700">
-            Serving label
-            <input className="rounded-md border border-slate-300 px-3 py-2 font-normal" value={form.serving} onChange={(event) => updateField("serving", event.target.value)} />
-          </label>
-          <label className="grid gap-1 text-sm font-medium text-slate-700">
-            Serving size
-            <input className="rounded-md border border-slate-300 px-3 py-2 font-normal" placeholder="Optional, e.g. 100 g" value={form.servingSize} onChange={(event) => updateField("servingSize", event.target.value)} />
-          </label>
-          <div className="grid gap-3 rounded-lg bg-slate-50 p-3">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      {isFoodEditorOpen ? (
+        <div className="fixed inset-0 z-50 lg:static lg:z-auto" role="dialog" aria-modal="true" aria-label={form.id ? "Edit food" : "Add food"}>
+          <button
+            aria-label="Close food editor"
+            className="absolute inset-0 h-full w-full bg-slate-950/45 backdrop-blur-sm lg:hidden"
+            type="button"
+            onClick={() => setIsFoodEditorOpen(false)}
+          />
+          <aside className="mobile-sheet-enter absolute inset-x-0 bottom-0 max-h-[90vh] overflow-y-auto rounded-t-2xl border border-slate-200 bg-white p-4 shadow-2xl lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)] lg:w-full lg:translate-x-0 lg:animate-enter-soft lg:rounded-2xl">
+            <div className="flex items-start justify-between gap-3">
               <div>
-                <p className="inline-flex items-center gap-2 text-sm font-semibold text-slate-800">
-                  <Calculator size={16} className="text-blue-700" />
-                  Nutrition label helper
-                </p>
-                <p className="mt-1 text-xs text-slate-500">Convert labels like per 100 ml/g into one saved serving.</p>
+                <h2 className="inline-flex items-center gap-2 text-lg font-semibold">
+                  {form.id ? <Save size={20} /> : <Plus size={20} />}
+                  {form.id ? "Edit food" : "Add food"}
+                </h2>
+                <p className="mt-1 text-sm text-slate-500">{form.id ? "Update the saved database item." : "Create a reusable food for faster logging."}</p>
               </div>
-              <div className="inline-grid rounded-md border border-slate-200 bg-white p-1 sm:grid-cols-2">
-                <button
-                  className={`rounded px-3 py-1.5 text-xs font-semibold ${macroMode === "total" ? "bg-ink text-white" : "text-slate-600"}`}
-                  type="button"
-                  onClick={() => switchMacroMode("total")}
-                >
-                  Enter total
-                </button>
-                <button
-                  className={`rounded px-3 py-1.5 text-xs font-semibold ${macroMode === "label" ? "bg-ink text-white" : "text-slate-600"}`}
-                  type="button"
-                  onClick={() => switchMacroMode("label")}
-                >
-                  Scale label
-                </button>
+              <button
+                aria-label="Close food editor"
+                className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50"
+                type="button"
+                onClick={() => setIsFoodEditorOpen(false)}
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <div className="mt-4 grid gap-3">
+              <label className="grid gap-1 text-sm font-medium text-slate-700">
+                Name
+                <input className="rounded-md border border-slate-300 px-3 py-2 font-normal" value={form.name} onChange={(event) => updateField("name", event.target.value)} />
+              </label>
+              <CategorySelect categories={["Uncategorized", ...categories]} value={form.category || "Uncategorized"} onChange={(nextCategory) => updateField("category", nextCategory)} />
+              <label className="grid gap-1 text-sm font-medium text-slate-700">
+                Serving label
+                <input className="rounded-md border border-slate-300 px-3 py-2 font-normal" value={form.serving} onChange={(event) => updateField("serving", event.target.value)} />
+              </label>
+              <label className="grid gap-1 text-sm font-medium text-slate-700">
+                Serving size
+                <input className="rounded-md border border-slate-300 px-3 py-2 font-normal" placeholder="Optional, e.g. 100 g" value={form.servingSize} onChange={(event) => updateField("servingSize", event.target.value)} />
+              </label>
+              <div className="grid gap-3 rounded-lg bg-slate-50 p-3">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="inline-flex items-center gap-2 text-sm font-semibold text-slate-800">
+                      <Calculator size={16} className="text-blue-700" />
+                      Nutrition label helper
+                    </p>
+                    <p className="mt-1 text-xs text-slate-500">Convert labels like per 100 ml/g into one saved serving.</p>
+                  </div>
+                  <div className="inline-grid rounded-md border border-slate-200 bg-white p-1 sm:grid-cols-2">
+                    <button
+                      className={`rounded px-3 py-1.5 text-xs font-semibold ${macroMode === "total" ? "bg-ink text-white" : "text-slate-600"}`}
+                      type="button"
+                      onClick={() => switchMacroMode("total")}
+                    >
+                      Enter total
+                    </button>
+                    <button
+                      className={`rounded px-3 py-1.5 text-xs font-semibold ${macroMode === "label" ? "bg-ink text-white" : "text-slate-600"}`}
+                      type="button"
+                      onClick={() => switchMacroMode("label")}
+                    >
+                      Scale label
+                    </button>
+                  </div>
+                </div>
+
+                {macroMode === "label" ? (
+                  <div className="grid gap-3">
+                    <div className="grid grid-cols-[1fr_1fr_82px] gap-2">
+                      <label className="grid min-w-0 gap-1 text-xs font-semibold text-slate-600">
+                        Label amount
+                        <DecimalNumberInput
+                          className="w-full min-w-0 rounded-md border border-slate-300 px-2 py-2 font-normal"
+                          value={labelScale.baseAmount}
+                          onValueChange={(nextValue) => updateLabelScale("baseAmount", String(nextValue))}
+                        />
+                      </label>
+                      <label className="grid min-w-0 gap-1 text-xs font-semibold text-slate-600">
+                        Serving
+                        <DecimalNumberInput
+                          className="w-full min-w-0 rounded-md border border-slate-300 px-2 py-2 font-normal"
+                          value={labelScale.servingAmount}
+                          onValueChange={(nextValue) => updateLabelScale("servingAmount", String(nextValue))}
+                        />
+                      </label>
+                      <label className="grid min-w-0 gap-1 text-xs font-semibold text-slate-600">
+                        Unit
+                        <select
+                          className="w-full min-w-0 rounded-md border border-slate-300 px-2 py-2 font-normal"
+                          value={labelScale.unit}
+                          onChange={(event) => updateLabelScale("unit", event.target.value)}
+                        >
+                          <option value="ml">ml</option>
+                          <option value="g">g</option>
+                        </select>
+                      </label>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      {macroFields.map((field) => (
+                        <label key={field} className="grid min-w-0 gap-1 text-xs font-semibold text-slate-600">
+                          {macroLabels[field]} / label
+                          <DecimalNumberInput
+                            className="w-full min-w-0 rounded-md border border-slate-300 px-2 py-2 font-normal"
+                            value={labelScale[field]}
+                            onValueChange={(nextValue) => updateLabelScale(field, String(nextValue))}
+                          />
+                        </label>
+                      ))}
+                    </div>
+                    <p className="rounded-md bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-700">
+                      Multiplier: {labelScale.baseAmount > 0 ? roundMacro(labelScale.servingAmount / labelScale.baseAmount) : 0}x. Saved macros below are the scaled serving total.
+                    </p>
+                  </div>
+                ) : null}
               </div>
+              <div className="grid grid-cols-2 gap-3">
+                {macroFields.map((field) => (
+                  <label key={field} className="grid gap-1 text-sm font-medium capitalize text-slate-700">
+                    {macroLabels[field]}
+                    {macroMode === "label" ? (
+                      <p className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 font-semibold text-slate-900">
+                        {form[field]} <span className="text-xs font-normal text-slate-500">{field === "calories" ? "kcal" : "g"}</span>
+                      </p>
+                    ) : (
+                      <DecimalNumberInput className="rounded-md border border-slate-300 px-3 py-2 font-normal" value={form[field]} onValueChange={(nextValue) => updateField(field, String(nextValue))} />
+                    )}
+                  </label>
+                ))}
+              </div>
+              <label className="grid gap-1 text-sm font-medium text-slate-700">
+                Notes
+                <textarea className="min-h-36 rounded-md border border-slate-300 px-3 py-2 font-normal" value={form.notes} onChange={(event) => updateField("notes", event.target.value)} />
+              </label>
             </div>
 
-            {macroMode === "label" ? (
-              <div className="grid gap-3">
-                <div className="grid grid-cols-[1fr_1fr_82px] gap-2">
-                  <label className="grid min-w-0 gap-1 text-xs font-semibold text-slate-600">
-                    Label amount
-                    <DecimalNumberInput
-                      className="w-full min-w-0 rounded-md border border-slate-300 px-2 py-2 font-normal"
-                      value={labelScale.baseAmount}
-                      onValueChange={(nextValue) => updateLabelScale("baseAmount", String(nextValue))}
-                    />
-                  </label>
-                  <label className="grid min-w-0 gap-1 text-xs font-semibold text-slate-600">
-                    Serving
-                    <DecimalNumberInput
-                      className="w-full min-w-0 rounded-md border border-slate-300 px-2 py-2 font-normal"
-                      value={labelScale.servingAmount}
-                      onValueChange={(nextValue) => updateLabelScale("servingAmount", String(nextValue))}
-                    />
-                  </label>
-                  <label className="grid min-w-0 gap-1 text-xs font-semibold text-slate-600">
-                    Unit
-                    <select
-                      className="w-full min-w-0 rounded-md border border-slate-300 px-2 py-2 font-normal"
-                      value={labelScale.unit}
-                      onChange={(event) => updateLabelScale("unit", event.target.value)}
-                    >
-                      <option value="ml">ml</option>
-                      <option value="g">g</option>
-                    </select>
-                  </label>
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  {macroFields.map((field) => (
-                    <label key={field} className="grid min-w-0 gap-1 text-xs font-semibold text-slate-600">
-                      {macroLabels[field]} / label
-                      <DecimalNumberInput
-                        className="w-full min-w-0 rounded-md border border-slate-300 px-2 py-2 font-normal"
-                        value={labelScale[field]}
-                        onValueChange={(nextValue) => updateLabelScale(field, String(nextValue))}
-                      />
-                    </label>
-                  ))}
-                </div>
-                <p className="rounded-md bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-700">
-                  Multiplier: {labelScale.baseAmount > 0 ? roundMacro(labelScale.servingAmount / labelScale.baseAmount) : 0}x. Saved macros below are the scaled serving total.
-                </p>
-              </div>
-            ) : null}
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            {macroFields.map((field) => (
-              <label key={field} className="grid gap-1 text-sm font-medium capitalize text-slate-700">
-                {macroLabels[field]}
-                {macroMode === "label" ? (
-                  <p className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 font-semibold text-slate-900">
-                    {form[field]} <span className="text-xs font-normal text-slate-500">{field === "calories" ? "kcal" : "g"}</span>
-                  </p>
-                ) : (
-                  <DecimalNumberInput className="rounded-md border border-slate-300 px-3 py-2 font-normal" value={form[field]} onValueChange={(nextValue) => updateField(field, String(nextValue))} />
-                )}
-              </label>
-            ))}
-          </div>
-          <label className="grid gap-1 text-sm font-medium text-slate-700">
-            Notes
-            <textarea className="min-h-36 rounded-md border border-slate-300 px-3 py-2 font-normal" value={form.notes} onChange={(event) => updateField("notes", event.target.value)} />
-          </label>
-        </div>
-
-        {error ? <p className="mt-3 rounded-md bg-red-50 p-3 text-sm text-red-700">{error}</p> : null}
-        {message ? (
-          <div className="mt-3 flex flex-col gap-3 rounded-md bg-green-50 p-3 text-sm text-green-700 sm:flex-row sm:items-center sm:justify-between">
-            <span>{message}</span>
-            {lastAddedFood ? (
-              <button
-                className="inline-flex w-fit items-center gap-2 rounded-md border border-green-200 bg-white px-3 py-1.5 font-semibold text-green-700 disabled:opacity-60"
-                disabled={isUndoing}
-                type="button"
-                onClick={undoLastAddedFood}
-              >
-                <RotateCcw size={15} />
-                {isUndoing ? "Undoing..." : "Undo"}
+            <div className="sticky bottom-0 -mx-4 mt-4 flex flex-wrap gap-2 border-t border-slate-200 bg-white px-4 py-3">
+              <button className="rounded-md bg-accent px-4 py-2 font-semibold text-white disabled:opacity-60" disabled={isSaving || !form.name} type="button" onClick={saveFood}>
+                <span className="inline-flex items-center gap-2">
+                  {form.id ? <Save size={16} /> : <Plus size={16} />}
+                  {isSaving ? "Saving..." : form.id ? "Save changes" : "Add food"}
+                </span>
               </button>
-            ) : null}
-          </div>
-        ) : null}
-
-        <div className="mt-4 flex flex-wrap gap-2">
-          <button className="rounded-md bg-accent px-4 py-2 font-semibold text-white disabled:opacity-60" disabled={isSaving || !form.name} type="button" onClick={saveFood}>
-            <span className="inline-flex items-center gap-2">
-              {form.id ? <Save size={16} /> : <Plus size={16} />}
-              {isSaving ? "Saving..." : form.id ? "Save changes" : "Add food"}
-            </span>
-          </button>
-          {form.id ? (
-            <button className="rounded-md border border-red-200 px-4 py-2 font-semibold text-red-600 disabled:opacity-60" disabled={isSaving} type="button" onClick={deleteFood}>
-              <span className="inline-flex items-center gap-2">
-                <Trash2 size={16} />
-                Delete
-              </span>
-            </button>
-          ) : null}
-          {form.id && isMealPrepFood(form as CommonFood) ? (
-            <button className="rounded-md border border-blue-200 px-4 py-2 font-semibold text-blue-700 disabled:opacity-60" disabled={isSaving} type="button" onClick={() => onEditMealPrep(form as CommonFood)}>
-              <span className="inline-flex items-center gap-2">
-                <CookingPot size={16} />
-                Edit in meal prep
-              </span>
-            </button>
-          ) : null}
+              {form.id ? (
+                <button className="rounded-md border border-red-200 px-4 py-2 font-semibold text-red-600 disabled:opacity-60" disabled={isSaving} type="button" onClick={deleteFood}>
+                  <span className="inline-flex items-center gap-2">
+                    <Trash2 size={16} />
+                    Delete
+                  </span>
+                </button>
+              ) : null}
+              {form.id && isMealPrepFood(form as CommonFood) ? (
+                <button className="rounded-md border border-blue-200 px-4 py-2 font-semibold text-blue-700 disabled:opacity-60" disabled={isSaving} type="button" onClick={() => onEditMealPrep(form as CommonFood)}>
+                  <span className="inline-flex items-center gap-2">
+                    <CookingPot size={16} />
+                    Edit in meal prep
+                  </span>
+                </button>
+              ) : null}
+            </div>
+          </aside>
         </div>
-      </aside>
+      ) : null}
+      </div>
     </section>
   );
 }
