@@ -1,9 +1,10 @@
 "use client";
 
-import { CalendarDays, Copy, ListChecks, Pencil, Save, Search, Trash2, Utensils } from "lucide-react";
+import { CalendarDays, Clock3, Copy, ListChecks, Pencil, Save, Search, Trash2, Utensils } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
 import { DecimalNumberInput } from "@/components/decimal_number_input";
 import { mealOptions } from "@/lib/food_options";
+import type { ToastInput } from "@/components/toast_viewport";
 import type { CommonFood, FoodLog } from "@/lib/types";
 
 type FoodLogManagerProps = {
@@ -11,6 +12,7 @@ type FoodLogManagerProps = {
   foods: CommonFood[];
   today: string;
   onChanged: () => Promise<void>;
+  onNotify?: (toast: ToastInput) => void;
 };
 
 const macroFields: Array<keyof Pick<FoodLog, "calories" | "protein" | "fat" | "carbs">> = [
@@ -22,6 +24,19 @@ const macroFields: Array<keyof Pick<FoodLog, "calories" | "protein" | "fat" | "c
 
 type FoodLogTotals = Pick<FoodLog, "calories" | "protein" | "fat" | "carbs">;
 type MacroBaseline = FoodLogTotals;
+type MealGroup = {
+  meal: string;
+  logs: FoodLog[];
+  totals: FoodLogTotals;
+};
+type LogDateGroup = {
+  date: string;
+  logs: FoodLog[];
+  totals: FoodLogTotals;
+  mealGroups: MealGroup[];
+};
+
+const mealOrder = new Map<string, number>(mealOptions.map((meal, index) => [meal, index]));
 
 function sortLogs(logs: FoodLog[]): FoodLog[] {
   return [...logs].sort((a, b) => {
@@ -116,17 +131,27 @@ function findMatchingFood(log: FoodLog, foods: CommonFood[]): CommonFood | null 
   return foods.find((food) => (log.foodId && food.id === log.foodId) || food.name.toLowerCase() === log.foodName.toLowerCase()) ?? null;
 }
 
-export function FoodLogManager({ logs, foods, today, onChanged }: FoodLogManagerProps) {
+function sortMealGroups(groups: MealGroup[]): MealGroup[] {
+  return [...groups].sort((a, b) => {
+    const aOrder = mealOrder.get(a.meal) ?? Number.MAX_SAFE_INTEGER;
+    const bOrder = mealOrder.get(b.meal) ?? Number.MAX_SAFE_INTEGER;
+    if (aOrder !== bOrder) {
+      return aOrder - bOrder;
+    }
+
+    return a.meal.localeCompare(b.meal);
+  });
+}
+
+export function FoodLogManager({ logs, foods, today, onChanged, onNotify }: FoodLogManagerProps) {
   const [selectedLog, setSelectedLog] = useState<FoodLog | null>(null);
   const [macroBaseline, setMacroBaseline] = useState<MacroBaseline | null>(null);
-  const [dateFilter, setDateFilter] = useState(today);
+  const [dateFilter, setDateFilter] = useState("");
   const [mealFilter, setMealFilter] = useState("");
   const [query, setQuery] = useState("");
   const [isBatchMode, setIsBatchMode] = useState(false);
   const [selectedLogIds, setSelectedLogIds] = useState<Set<string>>(new Set());
   const [isSaving, setIsSaving] = useState(false);
-  const [message, setMessage] = useState("");
-  const [error, setError] = useState<string | null>(null);
   const [mobileActionLog, setMobileActionLog] = useState<FoodLog | null>(null);
   const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const suppressNextClickRef = useRef(false);
@@ -140,19 +165,46 @@ export function FoodLogManager({ logs, foods, today, onChanged }: FoodLogManager
       .filter((log) => !normalizedQuery || log.foodName.toLowerCase().includes(normalizedQuery) || log.notes?.toLowerCase().includes(normalizedQuery));
   }, [dateFilter, logs, mealFilter, query]);
 
-  const dayTotals = useMemo(
-    () => logs.filter((log) => log.date === dateFilter).reduce(addLogToTotals, emptyTotals()),
-    [dateFilter, logs]
+  const visibleTotals = useMemo(
+    () => visibleLogs.reduce(addLogToTotals, emptyTotals()),
+    [visibleLogs]
   );
 
-  const totalsByDate = useMemo(
-    () =>
-      logs.reduce<Record<string, FoodLogTotals>>((totals, log) => {
-        totals[log.date] = addLogToTotals(totals[log.date] ?? emptyTotals(), log);
-        return totals;
-      }, {}),
-    [logs]
-  );
+  const groupedLogs = useMemo<LogDateGroup[]>(() => {
+    const groups = visibleLogs.reduce<Map<string, FoodLog[]>>((result, log) => {
+      const dateLogs = result.get(log.date) ?? [];
+      dateLogs.push(log);
+      result.set(log.date, dateLogs);
+      return result;
+    }, new Map());
+
+    return Array.from(groups.entries()).map(([date, dateLogs]) => {
+      const mealGroups = dateLogs.reduce<Map<string, FoodLog[]>>((result, log) => {
+        const meal = log.meal || "No meal";
+        const mealLogs = result.get(meal) ?? [];
+        mealLogs.push(log);
+        result.set(meal, mealLogs);
+        return result;
+      }, new Map());
+
+      return {
+        date,
+        logs: dateLogs,
+        totals: dateLogs.reduce(addLogToTotals, emptyTotals()),
+        mealGroups: sortMealGroups(
+          Array.from(mealGroups.entries()).map(([meal, mealLogs]) => ({
+            meal,
+            logs: mealLogs,
+            totals: mealLogs.reduce(addLogToTotals, emptyTotals())
+          }))
+        )
+      };
+    });
+  }, [visibleLogs]);
+
+  function notify(toast: ToastInput) {
+    onNotify?.(toast);
+  }
 
   function editLog(log: FoodLog) {
     const matchingFood = findMatchingFood(log, foods);
@@ -161,8 +213,6 @@ export function FoodLogManager({ logs, foods, today, onChanged }: FoodLogManager
       notes: log.notes?.trim() ? log.notes : matchingFood?.notes ?? ""
     });
     setMacroBaseline(createMacroBaseline(log, foods));
-    setMessage("");
-    setError(null);
   }
 
   function toggleLogSelection(logId: string) {
@@ -225,8 +275,6 @@ export function FoodLogManager({ logs, foods, today, onChanged }: FoodLogManager
     }
 
     setIsSaving(true);
-    setMessage("");
-    setError(null);
 
     try {
       const response = await fetch("/api/daily_log", {
@@ -242,10 +290,14 @@ export function FoodLogManager({ logs, foods, today, onChanged }: FoodLogManager
       const updatedLog = (await response.json()) as FoodLog;
       setSelectedLog(updatedLog);
       setMacroBaseline(createMacroBaseline(updatedLog, foods));
-      setMessage("Food log updated.");
+      notify({ tone: "success", title: "Food log updated", message: updatedLog.foodName });
       await onChanged();
     } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : "Failed to update food log.");
+      notify({
+        tone: "error",
+        title: "Could not update food log",
+        message: saveError instanceof Error ? saveError.message : "Failed to update food log."
+      });
     } finally {
       setIsSaving(false);
     }
@@ -288,8 +340,6 @@ export function FoodLogManager({ logs, foods, today, onChanged }: FoodLogManager
     }
 
     setIsSaving(true);
-    setMessage("");
-    setError(null);
 
     try {
       const response = await fetch(`/api/daily_log?id=${encodeURIComponent(log.id)}`, {
@@ -305,10 +355,14 @@ export function FoodLogManager({ logs, foods, today, onChanged }: FoodLogManager
         setMacroBaseline(null);
       }
       setMobileActionLog(null);
-      setMessage("Food log deleted.");
+      notify({ tone: "info", title: "Food log deleted", message: log.foodName });
       await onChanged();
     } catch (deleteError) {
-      setError(deleteError instanceof Error ? deleteError.message : "Failed to delete food log.");
+      notify({
+        tone: "error",
+        title: "Could not delete food log",
+        message: deleteError instanceof Error ? deleteError.message : "Failed to delete food log."
+      });
     } finally {
       setIsSaving(false);
     }
@@ -329,8 +383,6 @@ export function FoodLogManager({ logs, foods, today, onChanged }: FoodLogManager
     }
 
     setIsSaving(true);
-    setMessage("");
-    setError(null);
 
     try {
       await Promise.all(
@@ -350,10 +402,14 @@ export function FoodLogManager({ logs, foods, today, onChanged }: FoodLogManager
         setMacroBaseline(null);
       }
       clearSelectedLogs();
-      setMessage(`Deleted ${selectedLogs.length} food logs.`);
+      notify({ tone: "info", title: "Food logs deleted", message: `${selectedLogs.length} selected items removed.` });
       await onChanged();
     } catch (deleteError) {
-      setError(deleteError instanceof Error ? deleteError.message : "Failed to delete selected food logs.");
+      notify({
+        tone: "error",
+        title: "Could not delete selected logs",
+        message: deleteError instanceof Error ? deleteError.message : "Failed to delete selected food logs."
+      });
     } finally {
       setIsSaving(false);
     }
@@ -366,8 +422,6 @@ export function FoodLogManager({ logs, foods, today, onChanged }: FoodLogManager
     }
 
     setIsSaving(true);
-    setMessage("");
-    setError(null);
 
     try {
       await Promise.all(
@@ -397,36 +451,41 @@ export function FoodLogManager({ logs, foods, today, onChanged }: FoodLogManager
       );
 
       clearSelectedLogs();
-      setMessage(`Copied ${selectedLogs.length} food logs to today.`);
+      notify({ tone: "success", title: "Copied to today", message: `${selectedLogs.length} items added to ${today}.` });
       await onChanged();
     } catch (copyError) {
-      setError(copyError instanceof Error ? copyError.message : "Failed to copy selected food logs.");
+      notify({
+        tone: "error",
+        title: "Could not copy logs",
+        message: copyError instanceof Error ? copyError.message : "Failed to copy selected food logs."
+      });
     } finally {
       setIsSaving(false);
     }
   }
 
   const selectedLogCount = selectedLogIds.size;
+  const filterLabel = dateFilter || "All dates";
 
   return (
     <section className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1fr)_380px]">
-      <div className="animate-enter min-w-0 overflow-hidden rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="animate-enter min-w-0 overflow-hidden rounded-lg border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <h2 className="inline-flex items-center gap-2 text-lg font-semibold">
               <Utensils size={20} />
               Food log manager
             </h2>
-            <p className="mt-1 text-sm text-slate-500">Edit meals and see each food&apos;s share of that day&apos;s nutrition.</p>
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Review logged meals by day, then edit or reuse entries when needed.</p>
           </div>
-          <div className="grid grid-cols-4 gap-2 rounded-lg bg-slate-50 p-2 text-center text-xs font-semibold text-slate-600">
-            <span>{Math.round(dayTotals.calories)} kcal</span>
-            <span>P {Math.round(dayTotals.protein)}</span>
-            <span>F {Math.round(dayTotals.fat)}</span>
-            <span>C {Math.round(dayTotals.carbs)}</span>
+          <div className="grid grid-cols-4 gap-2 rounded-lg bg-slate-50 p-2 text-center text-xs font-semibold text-slate-600 dark:bg-slate-950 dark:text-slate-300">
+            <span>{Math.round(visibleTotals.calories)} kcal</span>
+            <span>P {Math.round(visibleTotals.protein)}</span>
+            <span>F {Math.round(visibleTotals.fat)}</span>
+            <span>C {Math.round(visibleTotals.carbs)}</span>
           </div>
           <button
-            className={`inline-flex w-fit items-center gap-2 rounded-md px-3 py-2 text-sm font-semibold ${isBatchMode ? "bg-ink text-white" : "border border-slate-200 text-slate-600 hover:bg-slate-50"}`}
+            className={`inline-flex w-fit items-center gap-2 rounded-md px-3 py-2 text-sm font-semibold ${isBatchMode ? "bg-ink text-white dark:bg-blue-600" : "border border-slate-200 text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"}`}
             type="button"
             onClick={toggleBatchMode}
           >
@@ -435,17 +494,29 @@ export function FoodLogManager({ logs, foods, today, onChanged }: FoodLogManager
           </button>
         </div>
 
-        <div className="mt-4 grid gap-3 sm:grid-cols-[170px_170px_1fr]">
-          <label className="grid gap-1 text-sm font-medium text-slate-700">
+        <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-950/70">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">{filterLabel} / {visibleLogs.length} items</p>
+            <div className="flex gap-2">
+              <button className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800" type="button" onClick={() => setDateFilter(today)}>
+                Today
+              </button>
+              <button className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800" type="button" onClick={() => setDateFilter("")}>
+                All
+              </button>
+            </div>
+          </div>
+        <div className="mt-3 grid gap-3 sm:grid-cols-[170px_170px_1fr]">
+          <label className="grid gap-1 text-sm font-medium text-slate-700 dark:text-slate-200">
             <span className="inline-flex items-center gap-1.5">
               <CalendarDays size={16} />
               Date
             </span>
-            <input className="rounded-md border border-slate-300 px-3 py-2 font-normal" type="date" value={dateFilter} onChange={(event) => setDateFilter(event.target.value)} />
+            <input className="rounded-md border border-slate-300 bg-white px-3 py-2 font-normal dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100" type="date" value={dateFilter} onChange={(event) => setDateFilter(event.target.value)} />
           </label>
-          <label className="grid gap-1 text-sm font-medium text-slate-700">
+          <label className="grid gap-1 text-sm font-medium text-slate-700 dark:text-slate-200">
             Meal
-            <select className="rounded-md border border-slate-300 px-3 py-2 font-normal" value={mealFilter} onChange={(event) => setMealFilter(event.target.value)}>
+            <select className="rounded-md border border-slate-300 bg-white px-3 py-2 font-normal dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100" value={mealFilter} onChange={(event) => setMealFilter(event.target.value)}>
               <option value="">All meals</option>
               {mealOptions.map((meal) => (
                 <option key={meal} value={meal}>
@@ -454,26 +525,27 @@ export function FoodLogManager({ logs, foods, today, onChanged }: FoodLogManager
               ))}
             </select>
           </label>
-          <label className="grid gap-1 text-sm font-medium text-slate-700">
+          <label className="grid gap-1 text-sm font-medium text-slate-700 dark:text-slate-200">
             <span className="inline-flex items-center gap-1.5">
               <Search size={16} />
               Search
             </span>
-            <input className="rounded-md border border-slate-300 px-3 py-2 font-normal" placeholder="Search food or notes" value={query} onChange={(event) => setQuery(event.target.value)} />
+            <input className="rounded-md border border-slate-300 bg-white px-3 py-2 font-normal dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100" placeholder="Search food or notes" value={query} onChange={(event) => setQuery(event.target.value)} />
           </label>
+        </div>
         </div>
 
         {isBatchMode ? (
-        <div className="mt-4 flex flex-col gap-2 rounded-lg border border-slate-200 bg-slate-50 p-3 sm:flex-row sm:items-center sm:justify-between">
-          <p className="inline-flex items-center gap-2 text-sm font-semibold text-slate-700">
+        <div className="mt-4 flex flex-col gap-2 rounded-lg border border-slate-200 bg-slate-50 p-3 sm:flex-row sm:items-center sm:justify-between dark:border-slate-800 dark:bg-slate-950/70">
+          <p className="inline-flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-200">
             <ListChecks size={16} className="text-blue-700" />
             {selectedLogCount} selected
           </p>
           <div className="flex flex-wrap gap-2">
-            <button className="rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-600" type="button" onClick={selectVisibleLogs}>
+            <button className="rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300" type="button" onClick={selectVisibleLogs}>
               Select visible
             </button>
-            <button className="rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-600 disabled:opacity-50" disabled={!selectedLogCount} type="button" onClick={clearSelectedLogs}>
+            <button className="rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-600 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300" disabled={!selectedLogCount} type="button" onClick={clearSelectedLogs}>
               Clear
             </button>
             <button className="rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-700 disabled:opacity-50" disabled={isSaving || !selectedLogCount} type="button" onClick={copySelectedLogsToToday}>
@@ -482,63 +554,102 @@ export function FoodLogManager({ logs, foods, today, onChanged }: FoodLogManager
                 Copy to today
               </span>
             </button>
-            <button className="rounded-md border border-red-200 bg-white px-3 py-2 text-sm font-semibold text-red-600 disabled:opacity-50" disabled={isSaving || !selectedLogCount} type="button" onClick={deleteSelectedLogs}>
+            <button className="rounded-md border border-red-200 bg-white px-3 py-2 text-sm font-semibold text-red-600 disabled:opacity-50 dark:border-red-900 dark:bg-slate-900 dark:text-red-300" disabled={isSaving || !selectedLogCount} type="button" onClick={deleteSelectedLogs}>
               Delete selected
             </button>
           </div>
         </div>
         ) : null}
 
-        <div className="mt-4 grid max-h-[640px] min-w-0 gap-2 overflow-y-auto pr-1">
-          {visibleLogs.length > 0 ? (
-            visibleLogs.map((log) => {
-              const logDayTotals = totalsByDate[log.date] ?? emptyTotals();
-
-              return (
-                <div
-                  key={log.id}
-                  className={`rounded-lg border p-3 transition hover:border-accent hover:bg-blue-50 hover:shadow-sm ${selectedLog?.id === log.id ? "border-accent bg-blue-50" : selectedLogIds.has(log.id) ? "border-blue-200 bg-blue-50/60" : "border-slate-200"}`}
-                  onTouchCancel={cancelLogLongPress}
-                  onTouchEnd={cancelLogLongPress}
-                  onTouchMove={cancelLogLongPress}
-                  onTouchStart={() => startLogLongPress(log)}
-                >
-                  <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                    <div className="flex items-start gap-3">
-                      {isBatchMode ? (
-                        <input
-                          aria-label={`Select ${log.foodName}`}
-                          className="mt-1"
-                          checked={selectedLogIds.has(log.id)}
-                          type="checkbox"
-                          onChange={() => toggleLogSelection(log.id)}
-                        />
-                      ) : null}
-                      <button className="min-w-0 text-left" type="button" onClick={() => handleLogClick(log)}>
-                        <p className="font-semibold">{log.foodName}</p>
-                        <p className="mt-1 text-xs text-slate-500">
-                          {log.date} / {log.meal || "No meal"} / {log.amount || "1 serving"}
-                        </p>
-                      </button>
-                    </div>
-                    <span className="w-fit rounded-full bg-slate-50 px-2 py-1 text-xs font-semibold text-slate-600">{Math.round(log.calories)} kcal</span>
+        <div className="mt-4 grid max-h-[640px] min-w-0 gap-4 overflow-y-auto pr-1">
+          {groupedLogs.length > 0 ? (
+            groupedLogs.map((group) => (
+              <section key={group.date} className="animate-enter-soft rounded-2xl border border-slate-200 bg-slate-50/70 p-3 dark:border-slate-800 dark:bg-slate-950/70">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <p className="inline-flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-slate-100">
+                      <CalendarDays size={16} className="text-blue-700" />
+                      {group.date}
+                    </p>
+                    <p className="mt-1 text-xs font-semibold text-slate-500 dark:text-slate-400">{group.logs.length} logged items</p>
                   </div>
-                  <div className="mt-3 grid grid-cols-3 gap-2 text-sm text-slate-700">
-                    <span>Protein {log.protein}g</span>
-                    <span>Fat {log.fat}g</span>
-                    <span>Carbs {log.carbs}g</span>
-                  </div>
-                  <div className="mt-3 grid grid-cols-2 gap-2 text-xs font-semibold text-slate-600 sm:grid-cols-4">
-                    <PercentChip label="Calories" percent={percentOfDay(log.calories, logDayTotals.calories)} />
-                    <PercentChip label="Protein" percent={percentOfDay(log.protein, logDayTotals.protein)} />
-                    <PercentChip label="Fat" percent={percentOfDay(log.fat, logDayTotals.fat)} />
-                    <PercentChip label="Carbs" percent={percentOfDay(log.carbs, logDayTotals.carbs)} />
+                  <div className="grid grid-cols-4 gap-2 rounded-xl bg-white p-2 text-center text-xs font-semibold text-slate-600 dark:bg-slate-900 dark:text-slate-300">
+                    <span>{Math.round(group.totals.calories)} kcal</span>
+                    <span>P {Math.round(group.totals.protein)}</span>
+                    <span>F {Math.round(group.totals.fat)}</span>
+                    <span>C {Math.round(group.totals.carbs)}</span>
                   </div>
                 </div>
-              );
-            })
+                <div className="relative mt-4 grid gap-4 pl-5 before:absolute before:bottom-3 before:left-2 before:top-3 before:w-px before:bg-slate-200 dark:before:bg-slate-800">
+                  {group.mealGroups.map((mealGroup) => (
+                    <section key={`${group.date}-${mealGroup.meal}`} className="relative">
+                      <span className="absolute -left-[1.08rem] top-2 h-3.5 w-3.5 rounded-full border-2 border-white bg-blue-500 shadow-sm dark:border-slate-950" />
+                      <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+                        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                          <div>
+                            <p className="inline-flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-slate-100">
+                              <Clock3 size={15} className="text-blue-700 dark:text-blue-300" />
+                              {mealGroup.meal}
+                            </p>
+                            <p className="mt-1 text-xs font-semibold text-slate-500 dark:text-slate-400">{mealGroup.logs.length} items in this meal</p>
+                          </div>
+                          <div className="grid grid-cols-4 gap-1.5 rounded-xl bg-slate-50 p-2 text-center text-[11px] font-semibold text-slate-600 dark:bg-slate-950 dark:text-slate-300">
+                            <span>{Math.round(mealGroup.totals.calories)} kcal</span>
+                            <span>P {Math.round(mealGroup.totals.protein)}</span>
+                            <span>F {Math.round(mealGroup.totals.fat)}</span>
+                            <span>C {Math.round(mealGroup.totals.carbs)}</span>
+                          </div>
+                        </div>
+                        <div className="mt-3 grid gap-2">
+                          {mealGroup.logs.map((log) => (
+                            <div
+                              key={log.id}
+                              className={`rounded-xl border bg-white p-3 transition duration-200 hover:-translate-y-0.5 hover:border-accent hover:bg-blue-50 hover:shadow-sm dark:bg-slate-950 dark:hover:bg-blue-950/30 ${selectedLog?.id === log.id ? "border-accent bg-blue-50 dark:bg-blue-950/40" : selectedLogIds.has(log.id) ? "border-blue-200 bg-blue-50/60 dark:border-blue-900 dark:bg-blue-950/30" : "border-slate-200 dark:border-slate-800"}`}
+                              onTouchCancel={cancelLogLongPress}
+                              onTouchEnd={cancelLogLongPress}
+                              onTouchMove={cancelLogLongPress}
+                              onTouchStart={() => startLogLongPress(log)}
+                            >
+                              <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                                <div className="flex items-start gap-3">
+                                  {isBatchMode ? (
+                                    <input
+                                      aria-label={`Select ${log.foodName}`}
+                                      className="mt-1"
+                                      checked={selectedLogIds.has(log.id)}
+                                      type="checkbox"
+                                      onChange={() => toggleLogSelection(log.id)}
+                                    />
+                                  ) : null}
+                                  <button className="min-w-0 text-left" type="button" onClick={() => handleLogClick(log)}>
+                                    <p className="font-semibold">{log.foodName}</p>
+                                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{log.amount || "1 serving"}</p>
+                                  </button>
+                                </div>
+                                <span className="w-fit rounded-full bg-slate-50 px-2 py-1 text-xs font-semibold text-slate-600 dark:bg-slate-900 dark:text-slate-300">{Math.round(log.calories)} kcal</span>
+                              </div>
+                              <div className="mt-3 grid grid-cols-3 gap-2 text-sm text-slate-700 dark:text-slate-300">
+                                <span>Protein {log.protein}g</span>
+                                <span>Fat {log.fat}g</span>
+                                <span>Carbs {log.carbs}g</span>
+                              </div>
+                              <div className="mt-3 grid grid-cols-2 gap-2 text-xs font-semibold text-slate-600 sm:grid-cols-4">
+                                <PercentChip label="Calories" percent={percentOfDay(log.calories, group.totals.calories)} />
+                                <PercentChip label="Protein" percent={percentOfDay(log.protein, group.totals.protein)} />
+                                <PercentChip label="Fat" percent={percentOfDay(log.fat, group.totals.fat)} />
+                                <PercentChip label="Carbs" percent={percentOfDay(log.carbs, group.totals.carbs)} />
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </section>
+                  ))}
+                </div>
+              </section>
+            ))
           ) : (
-            <div className="rounded-lg border border-dashed border-slate-300 p-6 text-center text-sm text-slate-500">No food logs match this filter.</div>
+            <div className="rounded-lg border border-dashed border-slate-300 p-6 text-center text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">No food logs match this filter.</div>
           )}
         </div>
       </div>
@@ -596,7 +707,7 @@ export function FoodLogManager({ logs, foods, today, onChanged }: FoodLogManager
         </div>
       ) : null}
 
-      <aside className="animate-enter min-w-0 overflow-hidden rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+      <aside className="animate-enter min-w-0 overflow-hidden rounded-lg border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
         <h2 className="inline-flex items-center gap-2 text-lg font-semibold">
           <Pencil size={20} />
           Edit logged food
@@ -605,13 +716,13 @@ export function FoodLogManager({ logs, foods, today, onChanged }: FoodLogManager
         {selectedLog ? (
           <>
             <div className="mt-4 grid gap-3">
-              <label className="grid gap-1 text-sm font-medium text-slate-700">
+              <label className="grid gap-1 text-sm font-medium text-slate-700 dark:text-slate-200">
                 Date
-                <input className="rounded-md border border-slate-300 px-3 py-2 font-normal" type="date" value={selectedLog.date} onChange={(event) => updateField("date", event.target.value)} />
+                <input className="rounded-md border border-slate-300 bg-white px-3 py-2 font-normal dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100" type="date" value={selectedLog.date} onChange={(event) => updateField("date", event.target.value)} />
               </label>
-              <label className="grid gap-1 text-sm font-medium text-slate-700">
+              <label className="grid gap-1 text-sm font-medium text-slate-700 dark:text-slate-200">
                 Meal
-                <select className="rounded-md border border-slate-300 px-3 py-2 font-normal" value={selectedLog.meal} onChange={(event) => updateField("meal", event.target.value)}>
+                <select className="rounded-md border border-slate-300 bg-white px-3 py-2 font-normal dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100" value={selectedLog.meal} onChange={(event) => updateField("meal", event.target.value)}>
                   <option value="">Select meal</option>
                   {mealOptions.map((meal) => (
                     <option key={meal} value={meal}>
@@ -620,25 +731,25 @@ export function FoodLogManager({ logs, foods, today, onChanged }: FoodLogManager
                   ))}
                 </select>
               </label>
-              <label className="grid gap-1 text-sm font-medium text-slate-700">
+              <label className="grid gap-1 text-sm font-medium text-slate-700 dark:text-slate-200">
                 Food name
-                <input className="rounded-md border border-slate-300 px-3 py-2 font-normal" value={selectedLog.foodName} onChange={(event) => updateField("foodName", event.target.value)} />
+                <input className="rounded-md border border-slate-300 bg-white px-3 py-2 font-normal dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100" value={selectedLog.foodName} onChange={(event) => updateField("foodName", event.target.value)} />
               </label>
-              <label className="grid gap-1 text-sm font-medium text-slate-700">
+              <label className="grid gap-1 text-sm font-medium text-slate-700 dark:text-slate-200">
                 Amount
-                <input className="rounded-md border border-slate-300 px-3 py-2 font-normal" value={selectedLog.amount} onChange={(event) => updateField("amount", event.target.value)} />
+                <input className="rounded-md border border-slate-300 bg-white px-3 py-2 font-normal dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100" value={selectedLog.amount} onChange={(event) => updateField("amount", event.target.value)} />
               </label>
               <div className="grid grid-cols-2 gap-3">
                 {macroFields.map((field) => (
-                  <label key={field} className="grid gap-1 text-sm font-medium capitalize text-slate-700">
+                  <label key={field} className="grid gap-1 text-sm font-medium capitalize text-slate-700 dark:text-slate-200">
                     {field}
-                    <DecimalNumberInput className="rounded-md border border-slate-300 px-3 py-2 font-normal" value={selectedLog[field]} onValueChange={(nextValue) => updateField(field, String(nextValue))} />
+                    <DecimalNumberInput className="rounded-md border border-slate-300 bg-white px-3 py-2 font-normal dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100" value={selectedLog[field]} onValueChange={(nextValue) => updateField(field, String(nextValue))} />
                   </label>
                 ))}
               </div>
-              <label className="grid gap-1 text-sm font-medium text-slate-700">
+              <label className="grid gap-1 text-sm font-medium text-slate-700 dark:text-slate-200">
                 Notes
-                <textarea className="min-h-24 rounded-md border border-slate-300 px-3 py-2 font-normal" value={selectedLog.notes ?? ""} onChange={(event) => updateField("notes", event.target.value)} />
+                <textarea className="min-h-24 rounded-md border border-slate-300 bg-white px-3 py-2 font-normal dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100" value={selectedLog.notes ?? ""} onChange={(event) => updateField("notes", event.target.value)} />
               </label>
             </div>
 
@@ -649,7 +760,7 @@ export function FoodLogManager({ logs, foods, today, onChanged }: FoodLogManager
                   {isSaving ? "Saving..." : "Save changes"}
                 </span>
               </button>
-              <button className="rounded-md border border-red-200 px-4 py-2 font-semibold text-red-600 disabled:opacity-60" disabled={isSaving} type="button" onClick={deleteLog}>
+              <button className="rounded-md border border-red-200 px-4 py-2 font-semibold text-red-600 disabled:opacity-60 dark:border-red-900 dark:text-red-300" disabled={isSaving} type="button" onClick={deleteLog}>
                 <span className="inline-flex items-center gap-2">
                   <Trash2 size={16} />
                   Delete
@@ -658,11 +769,8 @@ export function FoodLogManager({ logs, foods, today, onChanged }: FoodLogManager
             </div>
           </>
         ) : (
-          <div className="mt-4 rounded-lg border border-dashed border-slate-300 p-6 text-sm text-slate-500">Choose a logged food from the list to edit it.</div>
+          <div className="mt-4 rounded-lg border border-dashed border-slate-300 p-6 text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">Choose a logged food from the list to edit it.</div>
         )}
-
-        {error ? <p className="mt-3 rounded-md bg-red-50 p-3 text-sm text-red-700">{error}</p> : null}
-        {message ? <p className="mt-3 rounded-md bg-green-50 p-3 text-sm text-green-700">{message}</p> : null}
       </aside>
     </section>
   );
@@ -670,8 +778,8 @@ export function FoodLogManager({ logs, foods, today, onChanged }: FoodLogManager
 
 function PercentChip({ label, percent }: { label: string; percent: number }) {
   return (
-    <span className="rounded-md bg-slate-50 px-2.5 py-2">
-      {label} <span className="text-blue-700">{percent}%</span>
+    <span className="rounded-md bg-slate-50 px-2.5 py-2 dark:bg-slate-950 dark:text-slate-300">
+      {label} <span className="text-blue-700 dark:text-blue-300">{percent}%</span>
     </span>
   );
 }

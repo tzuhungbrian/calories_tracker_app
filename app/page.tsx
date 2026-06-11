@@ -1,6 +1,6 @@
 "use client";
 
-import { BarChart3, CalendarCheck, Database, MoreHorizontal, ReceiptText, RotateCcw, Settings, Sprout, Utensils, X } from "lucide-react";
+import { AlertCircle, BarChart3, CalendarCheck, CheckCircle2, Database, MoreHorizontal, ReceiptText, RefreshCw, Settings, Sprout, Utensils, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AiDietExport } from "@/components/ai_diet_export";
 import { DailyStatusEditor } from "@/components/daily_status_editor";
@@ -13,8 +13,10 @@ import { MealPrepCalculator } from "@/components/meal_prep_calculator";
 import { SettingsPanel } from "@/components/settings_panel";
 import { StatsDashboard } from "@/components/stats_dashboard";
 import { ThemeToggle } from "@/components/theme_toggle";
+import { ToastViewport } from "@/components/toast_viewport";
 import { TodayDesktopWorkbench } from "@/components/today_desktop_workbench";
 import { dateKey } from "@/lib/date";
+import type { ToastInput, AppToast } from "@/components/toast_viewport";
 import type { CommonFood, DailyStatus, DailySummary, DashboardData, FoodLog, FoodLogInput } from "@/lib/types";
 
 const tabs = [
@@ -65,6 +67,14 @@ function createEmptyStatus(date: string): DailyStatus {
   };
 }
 
+function formatSyncTime(date: Date | null): string {
+  if (!date) {
+    return "Not synced yet";
+  }
+
+  return `Last synced ${date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
+}
+
 export default function HomePage() {
   const [today, setToday] = useState(() => getTodayKey());
   const [activeTab, setActiveTab] = useState<AppTab>("stats");
@@ -77,48 +87,73 @@ export default function HomePage() {
   const [isSavingFood, setIsSavingFood] = useState(false);
   const [isSavingStatus, setIsSavingStatus] = useState(false);
   const [isUndoingDatabaseFood, setIsUndoingDatabaseFood] = useState(false);
-  const [lastAddedDatabaseFood, setLastAddedDatabaseFood] = useState<CommonFood | null>(null);
-  const [databaseFoodMessage, setDatabaseFoodMessage] = useState("");
   const [mealPrepEditRequest, setMealPrepEditRequest] = useState<{ food: CommonFood; requestId: number } | null>(null);
   const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [toasts, setToasts] = useState<AppToast[]>([]);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null);
+  const [refreshError, setRefreshError] = useState<string | null>(null);
   const lastAutoRefreshAtRef = useRef(0);
   const isAutoRefreshingRef = useRef(false);
 
+  const dismissToast = useCallback((id: string) => {
+    setToasts((current) => current.filter((toast) => toast.id !== id));
+  }, []);
+
+  const addToast = useCallback((toast: ToastInput) => {
+    const id = toast.id ?? crypto.randomUUID();
+    setToasts((current) => [...current.filter((item) => item.id !== id), { ...toast, id }].slice(-4));
+    return id;
+  }, []);
+
   const refreshData = useCallback(async () => {
-    setError(null);
-    const [dashboardResponse, foodsResponse, logsResponse, statusResponse, summaryResponse] = await Promise.all([
-      fetch(`/api/dashboard?date=${today}`),
-      fetch("/api/common_foods"),
-      fetch("/api/daily_log"),
-      fetch(`/api/daily_status?date=${today}`),
-      fetch("/api/summary?days=30")
-    ]);
+    setIsRefreshing(true);
+    setRefreshError(null);
+    try {
+      const [dashboardResponse, foodsResponse, logsResponse, statusResponse, summaryResponse] = await Promise.all([
+        fetch(`/api/dashboard?date=${today}`),
+        fetch("/api/common_foods"),
+        fetch("/api/daily_log"),
+        fetch(`/api/daily_status?date=${today}`),
+        fetch("/api/summary?days=30")
+      ]);
 
-    if (!dashboardResponse.ok || !foodsResponse.ok || !logsResponse.ok || !statusResponse.ok || !summaryResponse.ok) {
-      throw new Error("Failed to load nutrition data.");
+      if (!dashboardResponse.ok || !foodsResponse.ok || !logsResponse.ok || !statusResponse.ok || !summaryResponse.ok) {
+        throw new Error("Failed to load nutrition data.");
+      }
+
+      const [dashboardData, foodsData, logsData, statusData, summaryData] = await Promise.all([
+        dashboardResponse.json() as Promise<DashboardData>,
+        foodsResponse.json() as Promise<CommonFood[]>,
+        logsResponse.json() as Promise<FoodLog[]>,
+        statusResponse.json() as Promise<DailyStatus | null>,
+        summaryResponse.json() as Promise<DailySummary[]>
+      ]);
+
+      setDashboard(dashboardData);
+      setCommonFoods(foodsData);
+      setFoodLogs(logsData);
+      setSummary(summaryData);
+      setDailyStatus(statusData ?? createEmptyStatus(today));
+      setLastSyncedAt(new Date());
+    } catch (loadError) {
+      const message = loadError instanceof Error ? loadError.message : "Failed to load nutrition data.";
+      setRefreshError(message);
+      throw loadError;
+    } finally {
+      setIsRefreshing(false);
     }
-
-    const [dashboardData, foodsData, logsData, statusData, summaryData] = await Promise.all([
-      dashboardResponse.json() as Promise<DashboardData>,
-      foodsResponse.json() as Promise<CommonFood[]>,
-      logsResponse.json() as Promise<FoodLog[]>,
-      statusResponse.json() as Promise<DailyStatus | null>,
-      summaryResponse.json() as Promise<DailySummary[]>
-    ]);
-
-    setDashboard(dashboardData);
-    setCommonFoods(foodsData);
-    setFoodLogs(logsData);
-    setSummary(summaryData);
-    setDailyStatus(statusData ?? createEmptyStatus(today));
   }, [today]);
 
   useEffect(() => {
     refreshData().catch((loadError: unknown) => {
-      setError(loadError instanceof Error ? loadError.message : "Failed to load app data.");
+      addToast({
+        tone: "error",
+        title: "Could not load app data",
+        message: loadError instanceof Error ? loadError.message : "Failed to load app data."
+      });
     });
-  }, [refreshData]);
+  }, [addToast, refreshData]);
 
   const autoRefreshData = useCallback(
     async (force = false) => {
@@ -136,12 +171,16 @@ export default function HomePage() {
       try {
         await refreshData();
       } catch (loadError) {
-        setError(loadError instanceof Error ? loadError.message : "Failed to refresh app data.");
+        addToast({
+          tone: "error",
+          title: "Refresh failed",
+          message: loadError instanceof Error ? loadError.message : "Failed to refresh app data."
+        });
       } finally {
         isAutoRefreshingRef.current = false;
       }
     },
-    [isSavingFood, isSavingStatus, isUndoingDatabaseFood, refreshData]
+    [addToast, isSavingFood, isSavingStatus, isUndoingDatabaseFood, refreshData]
   );
 
   useEffect(() => {
@@ -187,7 +226,6 @@ export default function HomePage() {
 
   async function saveFoodLog(): Promise<boolean> {
     setIsSavingFood(true);
-    setError(null);
     try {
       const response = await fetch("/api/daily_log", {
         method: "POST",
@@ -221,34 +259,35 @@ export default function HomePage() {
         }
 
         const savedFood = (await foodResponse.json()) as CommonFood;
-        setLastAddedDatabaseFood(savedFood);
-        setDatabaseFoodMessage(`Saved ${savedFood.name} to foods database.`);
-      } else {
-        setLastAddedDatabaseFood(null);
-        setDatabaseFoodMessage("");
+        addToast({
+          tone: "success",
+          title: "Saved to food database",
+          message: savedFood.name,
+          actionLabel: "Undo",
+          onAction: () => void undoDatabaseFood(savedFood)
+        });
       }
 
       setFoodLog(createEmptyFoodLog(today));
       await refreshData();
       return true;
     } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : "Failed to save food log.");
+      addToast({
+        tone: "error",
+        title: "Could not save food",
+        message: saveError instanceof Error ? saveError.message : "Failed to save food log."
+      });
       return false;
     } finally {
       setIsSavingFood(false);
     }
   }
 
-  async function undoLastAddedDatabaseFood() {
-    if (!lastAddedDatabaseFood) {
-      return;
-    }
-
+  async function undoDatabaseFood(food: CommonFood) {
     setIsUndoingDatabaseFood(true);
-    setError(null);
 
     try {
-      const response = await fetch(`/api/foods?id=${encodeURIComponent(lastAddedDatabaseFood.id)}`, {
+      const response = await fetch(`/api/foods?id=${encodeURIComponent(food.id)}`, {
         method: "DELETE"
       });
 
@@ -257,17 +296,23 @@ export default function HomePage() {
       }
 
       await refreshData();
-      setDatabaseFoodMessage(`Removed ${lastAddedDatabaseFood.name} from foods database.`);
-      setLastAddedDatabaseFood(null);
+      addToast({
+        tone: "info",
+        title: "Database food removed",
+        message: food.name
+      });
     } catch (undoError) {
-      setError(undoError instanceof Error ? undoError.message : "Failed to undo added database food.");
+      addToast({
+        tone: "error",
+        title: "Undo failed",
+        message: undoError instanceof Error ? undoError.message : "Failed to undo added database food."
+      });
     } finally {
       setIsUndoingDatabaseFood(false);
     }
   }
 
   async function loadDailyStatusForDate(date: string) {
-    setError(null);
     try {
       const response = await fetch(`/api/daily_status?date=${date}`);
 
@@ -278,13 +323,16 @@ export default function HomePage() {
       const statusData = (await response.json()) as DailyStatus | null;
       setDailyStatus(statusData ?? createEmptyStatus(date));
     } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : "Failed to load daily status.");
+      addToast({
+        tone: "error",
+        title: "Could not load daily status",
+        message: loadError instanceof Error ? loadError.message : "Failed to load daily status."
+      });
     }
   }
 
   async function saveDailyStatus() {
     setIsSavingStatus(true);
-    setError(null);
     const savedDate = dailyStatus.date;
     try {
       const response = await fetch("/api/daily_status", {
@@ -300,7 +348,11 @@ export default function HomePage() {
       await refreshData();
       await loadDailyStatusForDate(savedDate);
     } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : "Failed to save daily status.");
+      addToast({
+        tone: "error",
+        title: "Could not save status",
+        message: saveError instanceof Error ? saveError.message : "Failed to save daily status."
+      });
     } finally {
       setIsSavingStatus(false);
     }
@@ -321,6 +373,12 @@ export default function HomePage() {
   const mobileMoreTabs = tabs.filter((tab) => mobileMoreTabIds.includes(tab.id));
   const isMoreTabActive = mobileMoreTabIds.includes(activeTab);
   const activeMoreTab = tabs.find((tab) => tab.id === activeTab && mobileMoreTabIds.includes(tab.id));
+  const syncPill = isRefreshing
+    ? { label: "Refreshing...", icon: RefreshCw, className: "border-blue-100 bg-blue-50 text-blue-700 dark:border-blue-900 dark:bg-blue-950/50 dark:text-blue-200", spin: true }
+    : refreshError
+      ? { label: "Sync issue", icon: AlertCircle, className: "border-red-100 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-950/50 dark:text-red-200", spin: false }
+      : { label: formatSyncTime(lastSyncedAt), icon: CheckCircle2, className: "border-emerald-100 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/50 dark:text-emerald-200", spin: false };
+  const SyncIcon = syncPill.icon;
 
   return (
     <main className="min-h-screen overflow-x-hidden bg-slate-50 text-ink">
@@ -361,31 +419,14 @@ export default function HomePage() {
               <h1 className="mt-1 text-2xl font-semibold tracking-tight sm:text-3xl">Brian&apos;s nutrition tracker</h1>
               <p className="mt-1 text-sm text-slate-500">Track your progress and build healthy habits.</p>
             </div>
+            <div className={`inline-flex w-fit items-center gap-2 rounded-full border px-3 py-2 text-sm font-semibold shadow-sm transition ${syncPill.className}`}>
+              <SyncIcon className={syncPill.spin ? "animate-spin" : ""} size={16} />
+              {syncPill.label}
+            </div>
           </header>
-
-          {error ? (
-            <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div>
-          ) : null}
 
           {activeTab === "dashboard" ? (
             <div className="flex flex-col gap-6 animate-enter" key="dashboard-tab">
-              {databaseFoodMessage ? (
-                <div className="flex flex-col gap-3 rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm font-semibold text-emerald-700 sm:flex-row sm:items-center sm:justify-between">
-                  <span>{databaseFoodMessage}</span>
-                  {lastAddedDatabaseFood ? (
-                    <button
-                      className="inline-flex w-fit items-center gap-2 rounded-md border border-emerald-200 bg-white px-3 py-1.5 text-emerald-700 disabled:opacity-60"
-                      disabled={isUndoingDatabaseFood}
-                      type="button"
-                      onClick={undoLastAddedDatabaseFood}
-                    >
-                      <RotateCcw size={15} />
-                      {isUndoingDatabaseFood ? "Undoing..." : "Undo"}
-                    </button>
-                  ) : null}
-                </div>
-              ) : null}
-
               <div className="flex flex-col gap-6 xl:hidden">
                 <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
                   <h2 className="text-lg font-semibold">Today</h2>
@@ -429,7 +470,7 @@ export default function HomePage() {
             </div>
           ) : activeTab === "logs" ? (
             <div className="animate-enter" key="logs-tab">
-              <FoodLogManager foods={commonFoods} logs={foodLogs} today={today} onChanged={refreshData} />
+              <FoodLogManager foods={commonFoods} logs={foodLogs} today={today} onChanged={refreshData} onNotify={addToast} />
             </div>
           ) : activeTab === "foods" ? (
             <div className="animate-enter" key="foods-tab">
@@ -527,6 +568,7 @@ export default function HomePage() {
           </button>
         </div>
       </nav>
+      <ToastViewport toasts={toasts} onDismiss={dismissToast} />
     </main>
   );
 }
