@@ -1,7 +1,7 @@
 "use client";
 
 import { BarChart3, CalendarCheck, Database, MoreHorizontal, ReceiptText, RotateCcw, Settings, Sprout, Utensils, X } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { AiDietExport } from "@/components/ai_diet_export";
 import { DailyStatusEditor } from "@/components/daily_status_editor";
 import { DailyReview } from "@/components/daily_review";
@@ -30,6 +30,8 @@ type AppTab = (typeof tabs)[number]["id"];
 
 const mobilePrimaryTabIds: AppTab[] = ["stats", "dashboard", "logs"];
 const mobileMoreTabIds: AppTab[] = ["foods", "prep", "settings"];
+const AUTO_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
+const AUTO_REFRESH_COOLDOWN_MS = 15 * 1000;
 
 function getTodayKey(): string {
   return dateKey();
@@ -80,6 +82,8 @@ export default function HomePage() {
   const [mealPrepEditRequest, setMealPrepEditRequest] = useState<{ food: CommonFood; requestId: number } | null>(null);
   const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const lastAutoRefreshAtRef = useRef(0);
+  const isAutoRefreshingRef = useRef(false);
 
   const refreshData = useCallback(async () => {
     setError(null);
@@ -115,6 +119,54 @@ export default function HomePage() {
       setError(loadError instanceof Error ? loadError.message : "Failed to load app data.");
     });
   }, [refreshData]);
+
+  const autoRefreshData = useCallback(
+    async (force = false) => {
+      if (document.visibilityState !== "visible" || isSavingFood || isSavingStatus || isUndoingDatabaseFood || isAutoRefreshingRef.current) {
+        return;
+      }
+
+      const now = Date.now();
+      if (!force && now - lastAutoRefreshAtRef.current < AUTO_REFRESH_COOLDOWN_MS) {
+        return;
+      }
+
+      isAutoRefreshingRef.current = true;
+      lastAutoRefreshAtRef.current = now;
+      try {
+        await refreshData();
+      } catch (loadError) {
+        setError(loadError instanceof Error ? loadError.message : "Failed to refresh app data.");
+      } finally {
+        isAutoRefreshingRef.current = false;
+      }
+    },
+    [isSavingFood, isSavingStatus, isUndoingDatabaseFood, refreshData]
+  );
+
+  useEffect(() => {
+    function refreshWhenVisible() {
+      if (document.visibilityState === "visible") {
+        void autoRefreshData(true);
+      }
+    }
+
+    function refreshWhenFocused() {
+      void autoRefreshData();
+    }
+
+    document.addEventListener("visibilitychange", refreshWhenVisible);
+    window.addEventListener("focus", refreshWhenFocused);
+    const intervalId = window.setInterval(() => {
+      void autoRefreshData();
+    }, AUTO_REFRESH_INTERVAL_MS);
+
+    return () => {
+      document.removeEventListener("visibilitychange", refreshWhenVisible);
+      window.removeEventListener("focus", refreshWhenFocused);
+      window.clearInterval(intervalId);
+    };
+  }, [autoRefreshData]);
 
   useEffect(() => {
     const intervalId = window.setInterval(() => {
@@ -302,7 +354,7 @@ export default function HomePage() {
           <LogoutButton />
         </aside>
 
-        <section className="flex min-w-0 flex-1 flex-col gap-5 px-4 pb-[calc(6.5rem+env(safe-area-inset-bottom))] pt-5 sm:px-6 lg:ml-48 lg:gap-6 lg:px-8 lg:py-6">
+        <section className="flex min-w-0 flex-1 flex-col gap-5 px-4 pb-[calc(7.75rem+env(safe-area-inset-bottom))] pt-5 sm:px-6 lg:ml-48 lg:gap-6 lg:px-8 lg:py-6">
           <header className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
             <div>
               <p className="text-sm font-medium text-blue-700">{today}</p>
@@ -447,14 +499,14 @@ export default function HomePage() {
         </div>
       ) : null}
 
-      <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white/95 px-3 pb-[calc(0.55rem+env(safe-area-inset-bottom))] pt-2 shadow-[0_-16px_40px_rgba(15,23,42,0.12)] backdrop-blur-xl dark:border-slate-800 dark:bg-slate-950/95 lg:hidden">
-        <div className="mx-auto grid max-w-md grid-cols-4 gap-1">
+      <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white/95 px-3 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-3 shadow-[0_-16px_40px_rgba(15,23,42,0.12)] backdrop-blur-xl dark:border-slate-800 dark:bg-slate-950/95 lg:hidden">
+        <div className="mx-auto grid max-w-md grid-cols-4 gap-1.5">
           {mobilePrimaryTabs.map(({ id, label, icon: Icon }) => {
             const isActive = activeTab === id;
             return (
               <button
                 key={id}
-                className={`relative flex min-h-14 flex-col items-center justify-center gap-1 rounded-xl px-2 text-[11px] font-semibold transition ${isActive ? "text-blue-700 dark:text-blue-200" : "text-slate-500 hover:bg-slate-50 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100"}`}
+                className={`relative flex min-h-16 flex-col items-center justify-center gap-1 rounded-xl px-2 text-[11px] font-semibold transition ${isActive ? "text-blue-700 dark:text-blue-200" : "text-slate-500 hover:bg-slate-50 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100"}`}
                 type="button"
                 onClick={() => selectTab(id)}
               >
