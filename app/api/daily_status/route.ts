@@ -22,7 +22,8 @@ export async function PUT(request: Request) {
     steps: parseNumber(String(payload.steps ?? "")),
     strengthSession: parseBoolean(String(payload.strengthSession ?? "")),
     creatineTaken: parseBoolean(String(payload.creatineTaken ?? "")),
-    basketballMinutes: parseNumber(String(payload.basketballMinutes ?? ""))
+    basketballMinutes: parseNumber(String(payload.basketballMinutes ?? "")),
+    isTravelDay: parseBoolean(String(payload.isTravelDay ?? ""))
   };
 
   await upsertDailyStatus(status);

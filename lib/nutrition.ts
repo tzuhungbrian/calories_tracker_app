@@ -206,7 +206,8 @@ export function rowToDailyStatus(row: SheetRow): DailyStatus {
     steps: parseNumber(valueOf(row, ["steps", "Steps"])),
     strengthSession: parseBoolean(valueOf(row, ["strength_session", "Strength session", "strengthSession", "StrengthSession", "strength", "Strength"])),
     creatineTaken: parseBoolean(valueOf(row, ["creatine_taken", "Creatine Taken", "creatineTaken", "CreatineTaken", "creatine", "Creatine"])),
-    basketballMinutes: parseNumber(valueOf(row, ["basketball_minutes", "Basketball minutes", "basketballMinutes", "BasketballMinutes", "basketball", "Basketball"]))
+    basketballMinutes: parseNumber(valueOf(row, ["basketball_minutes", "Basketball minutes", "basketballMinutes", "BasketballMinutes", "basketball", "Basketball"])),
+    isTravelDay: parseBoolean(valueOf(row, ["is_travel_day", "Is Travel Day", "isTravelDay", "travel_day", "Travel Day", "travel", "Travel"]))
   };
 }
 
@@ -338,7 +339,8 @@ export function statusToSheetRow(status: DailyStatus): string[] {
     String(status.basketballMinutes),
     "",
     "",
-    now
+    now,
+    String(status.isTravelDay)
   ];
 }
 

@@ -145,6 +145,10 @@ function nutrientStatus(label: NutrientKey, data: DashboardData): { tone: "good"
   const remaining = data.remaining[label];
   const goalType = data.status?.goalType ?? "maintain";
 
+  if (data.status?.isTravelDay) {
+    return { tone: "neutral", message: "Travel", detail: "excluded from adherence" };
+  }
+
   if (label === "protein") {
     return total >= target
       ? { tone: "good", message: "Hit", detail: `target ${round(target)}g` }
@@ -181,25 +185,28 @@ export function StatsDashboard({ rows, dashboard, logs }: StatsDashboardProps) {
   const [showMoreInsights, setShowMoreInsights] = useState(false);
   const exerciseStepGoal = dashboard?.exerciseStepGoal ?? 8000;
   const scopedRows = useMemo(() => rows.slice(0, dayRange), [dayRange, rows]);
-  const orderedRows = useMemo(() => [...scopedRows].reverse(), [scopedRows]);
+  const analysisRows = useMemo(() => scopedRows.filter((row) => !row.isTravelDay), [scopedRows]);
+  const orderedRows = useMemo(() => [...analysisRows].reverse(), [analysisRows]);
   const recentSevenRows = useMemo(() => rows.slice(0, 7), [rows]);
-  const recentSevenOrderedRows = useMemo(() => [...recentSevenRows].reverse(), [recentSevenRows]);
-  const scopedDateSet = useMemo(() => new Set(scopedRows.map((row) => row.date)), [scopedRows]);
+  const recentSevenAnalysisRows = useMemo(() => recentSevenRows.filter((row) => !row.isTravelDay), [recentSevenRows]);
+  const recentSevenOrderedRows = useMemo(() => [...recentSevenAnalysisRows].reverse(), [recentSevenAnalysisRows]);
+  const scopedDateSet = useMemo(() => new Set(analysisRows.map((row) => row.date)), [analysisRows]);
   const scopedLogs = useMemo(() => logs.filter((log) => scopedDateSet.has(log.date)), [logs, scopedDateSet]);
-  const exerciseDays = scopedRows.filter((row) => row.strengthSession || row.basketballMinutes > 0 || row.steps > exerciseStepGoal).length;
-  const currentProteinStreak = proteinStreak(scopedRows);
-  const cutRows = scopedRows.filter((row) => row.goalType === "cut" && row.calories > 0);
-  const proteinRows = scopedRows.filter((row) => row.proteinGoal > 0 && row.calories > 0);
-  const overTargetDateSet = useMemo(() => new Set(scopedRows.filter((row) => row.calories > row.calorieTarget).map((row) => row.date)), [scopedRows]);
-  const sevenLoggedRows = recentSevenRows.filter((row) => row.calories > 0);
+  const travelDaysInRange = scopedRows.length - analysisRows.length;
+  const exerciseDays = analysisRows.filter((row) => row.strengthSession || row.basketballMinutes > 0 || row.steps > exerciseStepGoal).length;
+  const currentProteinStreak = proteinStreak(analysisRows);
+  const cutRows = analysisRows.filter((row) => row.goalType === "cut" && row.calories > 0);
+  const proteinRows = analysisRows.filter((row) => row.proteinGoal > 0 && row.calories > 0);
+  const overTargetDateSet = useMemo(() => new Set(analysisRows.filter((row) => row.calories > row.calorieTarget).map((row) => row.date)), [analysisRows]);
+  const sevenLoggedRows = recentSevenAnalysisRows.filter((row) => row.calories > 0);
   const sevenDayBalance = sevenLoggedRows.length ? average(sevenLoggedRows.map((row) => row.calories - row.dynamicTdee)) : 0;
   const cutSuccessRate = rate(cutRows.filter((row) => row.calories <= row.calorieTarget).length, cutRows.length);
   const proteinCompliance = rate(proteinRows.filter((row) => row.protein >= row.proteinGoal).length, proteinRows.length);
-  const exerciseConsistency = rate(scopedRows.filter((row) => isHabitDone(row, "exercise", exerciseStepGoal)).length, scopedRows.length);
-  const averageMacroRatio = useMemo(() => macroRatio(scopedRows), [scopedRows]);
-  const controlStreak = calorieControlStreak(rows);
-  const sevenDayProteinHits = recentSevenRows.filter((row) => row.calories > 0 && row.proteinGoal > 0 && row.protein >= row.proteinGoal).length;
-  const sevenDayExerciseHits = recentSevenRows.filter((row) => isHabitDone(row, "exercise", exerciseStepGoal)).length;
+  const exerciseConsistency = rate(analysisRows.filter((row) => isHabitDone(row, "exercise", exerciseStepGoal)).length, analysisRows.length);
+  const averageMacroRatio = useMemo(() => macroRatio(analysisRows), [analysisRows]);
+  const controlStreak = calorieControlStreak(rows.filter((row) => !row.isTravelDay));
+  const sevenDayProteinHits = recentSevenAnalysisRows.filter((row) => row.calories > 0 && row.proteinGoal > 0 && row.protein >= row.proteinGoal).length;
+  const sevenDayExerciseHits = recentSevenAnalysisRows.filter((row) => isHabitDone(row, "exercise", exerciseStepGoal)).length;
   const overageMeal = useMemo(() => {
     const totals = scopedLogs.filter((log) => overTargetDateSet.has(log.date)).reduce<Record<string, number>>((result, log) => {
       const meal = log.meal || "No meal";
@@ -226,6 +233,11 @@ export function StatsDashboard({ rows, dashboard, logs }: StatsDashboardProps) {
             Dashboard
           </h2>
           <p className="mt-1 text-sm text-slate-500">Nutrition balance, consistency, and energy trend.</p>
+          {travelDaysInRange > 0 ? (
+            <p className="mt-2 inline-flex rounded-full bg-sky-50 px-2.5 py-1 text-xs font-semibold text-sky-700">
+              Excluding {travelDaysInRange} travel day{travelDaysInRange === 1 ? "" : "s"} from adherence insights
+            </p>
+          ) : null}
         </div>
         <div className="inline-grid rounded-lg border border-slate-200 bg-slate-50 p-1 sm:grid-cols-3">
           {rangeOptions.map((option) => (
@@ -307,6 +319,7 @@ function CompactNutritionSummary({ data }: { data: DashboardData | null }) {
 
   const tdeeBalance = data.totals.calories - data.dynamicTdee;
   const goalType = data.status?.goalType ?? "maintain";
+  const isTravelDay = data.status?.isTravelDay ?? false;
 
   return (
     <section className="animate-enter-soft rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
@@ -317,6 +330,7 @@ function CompactNutritionSummary({ data }: { data: DashboardData | null }) {
         </div>
         <div className="flex flex-wrap gap-2 text-xs font-semibold">
           <span className="rounded-full bg-slate-100 px-2.5 py-1 capitalize text-slate-600">{goalType} mode</span>
+          {isTravelDay ? <span className="rounded-full bg-sky-50 px-2.5 py-1 text-sky-700">Travel day</span> : null}
           <span className="rounded-full bg-blue-50 px-2.5 py-1 text-blue-700">TDEE {round(data.dynamicTdee)} kcal</span>
           <span className="rounded-full bg-slate-100 px-2.5 py-1 text-slate-600">Target {round(data.targets.calories)} kcal</span>
           <span className={`rounded-full px-2.5 py-1 ${tdeeBalance <= 0 ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>vs TDEE {signedCalories(tdeeBalance)} kcal</span>
@@ -489,15 +503,16 @@ function EnergyBalancePanel({ rows }: { rows: DailySummary[] }) {
   const [historyRows, setHistoryRows] = useState<DailySummary[]>([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [historyError, setHistoryError] = useState<string | null>(null);
-  const loggedRows = rows.filter((row) => row.calories > 0);
+  const loggedRows = rows.filter((row) => !row.isTravelDay && row.calories > 0);
   const totalBalance = loggedRows.reduce((sum, row) => sum + row.calories - row.dynamicTdee, 0);
   const deficitDays = loggedRows.filter((row) => row.calories <= row.dynamicTdee).length;
   const surplusDays = loggedRows.length - deficitDays;
   const maxAbsBalance = Math.max(...loggedRows.map((row) => Math.abs(row.calories - row.dynamicTdee)), 250);
   const explorerRows = useMemo(() => {
-    const sourceRows = historyRows.length ? historyRows : rows;
+    const sourceRows = (historyRows.length ? historyRows : rows).filter((row) => !row.isTravelDay);
     return [...sourceRows].reverse();
   }, [historyRows, rows]);
+  const excludedTravelDays = (historyRows.length ? historyRows : rows).filter((row) => row.isTravelDay).length;
   const explorerLoggedRows = explorerRows.filter((row) => row.calories > 0);
   const explorerBalances = explorerLoggedRows.map((row) => row.calories - row.dynamicTdee);
   const explorerTotalBalance = explorerBalances.reduce((sum, balance) => sum + balance, 0);
@@ -604,6 +619,7 @@ function EnergyBalancePanel({ rows }: { rows: DailySummary[] }) {
         <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-emerald-700">{deficitDays} deficit days</span>
         <span className="rounded-full bg-amber-50 px-2.5 py-1 text-amber-700">{surplusDays} surplus days</span>
         <span className="rounded-full bg-slate-100 px-2.5 py-1">{loggedRows.length} logged days</span>
+        {excludedTravelDays > 0 ? <span className="rounded-full bg-sky-50 px-2.5 py-1 text-sky-700">{excludedTravelDays} travel excluded</span> : null}
       </div>
 
       <div className={`grid transition-all duration-500 ease-out ${isExpanded ? "mt-5 grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"}`}>
@@ -715,6 +731,7 @@ function EnergyBalancePanel({ rows }: { rows: DailySummary[] }) {
               <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-emerald-700">{explorerDeficitDays} deficit days</span>
               <span className="rounded-full bg-amber-50 px-2.5 py-1 text-amber-700">{explorerSurplusDays} surplus days</span>
               <span className="rounded-full bg-slate-100 px-2.5 py-1">{explorerLoggedRows.length} logged days</span>
+              {excludedTravelDays > 0 ? <span className="rounded-full bg-sky-50 px-2.5 py-1 text-sky-700">{excludedTravelDays} travel excluded</span> : null}
             </div>
           </div>
         </div>

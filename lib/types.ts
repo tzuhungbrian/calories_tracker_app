@@ -42,6 +42,7 @@ export type DailyStatus = {
   strengthSession: boolean;
   creatineTaken: boolean;
   basketballMinutes: number;
+  isTravelDay: boolean;
 };
 
 export type NutritionTotals = {
@@ -96,6 +97,7 @@ export type DailySummary = {
   fat: number;
   carbs: number;
   goalType: GoalType | "";
+  isTravelDay: boolean;
   steps: number;
   strengthSession: boolean;
   creatineTaken: boolean;

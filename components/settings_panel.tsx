@@ -1,8 +1,9 @@
 "use client";
 
-import { Download, Save, Settings, UserRound } from "lucide-react";
+import { CalendarDays, Download, Plane, Save, Settings, UserRound } from "lucide-react";
 import { useEffect, useState } from "react";
-import type { UserProfileSettings } from "@/lib/types";
+import { dateKey, dateRangeKeys } from "@/lib/date";
+import type { DailyStatus, UserProfileSettings } from "@/lib/types";
 
 type SettingsPanelProps = {
   onChanged: () => Promise<void>;
@@ -58,6 +59,18 @@ function calculateBmr(settings: Pick<UserProfileSettings, "weightKg" | "heightCm
 
 function effectiveBmr(settings: UserProfileSettings): number {
   return settings.bmrMode === "auto" ? calculateBmr(settings) || settings.bmr : settings.bmr;
+}
+
+function createEmptyStatus(date: string): DailyStatus {
+  return {
+    date,
+    goalType: "maintain",
+    steps: 0,
+    strengthSession: false,
+    creatineTaken: false,
+    basketballMinutes: 0,
+    isTravelDay: false
+  };
 }
 
 export function SettingsPanel({ onChanged }: SettingsPanelProps) {
@@ -157,68 +170,72 @@ export function SettingsPanel({ onChanged }: SettingsPanelProps) {
           </h2>
           <p className="mt-1 text-sm text-slate-500">Manage your profile, calorie model, and data exports.</p>
         </div>
-        <div className="w-full rounded-lg border border-slate-200 bg-slate-50 p-3 xl:max-w-xl">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <p className="text-sm font-semibold text-slate-800">Export Data</p>
-              <p className="mt-1 text-xs text-slate-500">Download a CSV backup for all data or a specific date range.</p>
-            </div>
-            <div className="inline-grid rounded-lg border border-slate-200 bg-white p-1 sm:grid-cols-2">
-              {(["all", "range"] as const).map((mode) => (
-                <button
-                  key={mode}
-                  className={`rounded-md px-3 py-1.5 text-xs font-semibold capitalize ${exportMode === mode ? "bg-ink text-white" : "text-slate-600"}`}
-                  type="button"
-                  onClick={() => setExportMode(mode)}
-                >
-                  {mode === "all" ? "All data" : "Date range"}
-                </button>
-              ))}
-            </div>
-          </div>
+        <div className="grid w-full gap-3 xl:max-w-2xl">
+          <TravelDayManager onChanged={onChanged} />
 
-          {exportMode === "range" ? (
-            <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
-              <label className="grid gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Start
-                <input
-                  className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium normal-case tracking-normal text-ink"
-                  type="date"
-                  value={exportStartDate}
-                  onChange={(event) => setExportStartDate(event.target.value)}
-                />
-              </label>
-              <label className="grid gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                End
-                <input
-                  className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium normal-case tracking-normal text-ink"
-                  type="date"
-                  value={exportEndDate}
-                  onChange={(event) => setExportEndDate(event.target.value)}
-                />
-              </label>
+          <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-sm font-semibold text-slate-800">Export Data</p>
+                <p className="mt-1 text-xs text-slate-500">Download a CSV backup for all data or a specific date range.</p>
+              </div>
+              <div className="inline-grid rounded-lg border border-slate-200 bg-white p-1 sm:grid-cols-2">
+                {(["all", "range"] as const).map((mode) => (
+                  <button
+                    key={mode}
+                    className={`rounded-md px-3 py-1.5 text-xs font-semibold capitalize ${exportMode === mode ? "bg-ink text-white" : "text-slate-600"}`}
+                    type="button"
+                    onClick={() => setExportMode(mode)}
+                  >
+                    {mode === "all" ? "All data" : "Date range"}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {exportMode === "range" ? (
+              <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
+                <label className="grid gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Start
+                  <input
+                    className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium normal-case tracking-normal text-ink"
+                    type="date"
+                    value={exportStartDate}
+                    onChange={(event) => setExportStartDate(event.target.value)}
+                  />
+                </label>
+                <label className="grid gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  End
+                  <input
+                    className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium normal-case tracking-normal text-ink"
+                    type="date"
+                    value={exportEndDate}
+                    onChange={(event) => setExportEndDate(event.target.value)}
+                  />
+                </label>
+                <a
+                  aria-disabled={!canExport}
+                  className={`inline-flex h-10 items-center justify-center gap-2 rounded-md px-4 text-sm font-semibold shadow-sm ${canExport ? "bg-ink text-white hover:bg-slate-800" : "pointer-events-none bg-slate-200 text-slate-400"}`}
+                  href={exportHref}
+                >
+                  <Download size={16} />
+                  Export Data
+                </a>
+              </div>
+            ) : (
               <a
-                aria-disabled={!canExport}
-                className={`inline-flex h-10 items-center justify-center gap-2 rounded-md px-4 text-sm font-semibold shadow-sm ${canExport ? "bg-ink text-white hover:bg-slate-800" : "pointer-events-none bg-slate-200 text-slate-400"}`}
+                className="mt-3 inline-flex h-10 w-fit items-center justify-center gap-2 rounded-md bg-ink px-4 text-sm font-semibold text-white shadow-sm hover:bg-slate-800"
                 href={exportHref}
               >
                 <Download size={16} />
                 Export Data
               </a>
-            </div>
-          ) : (
-            <a
-              className="mt-3 inline-flex h-10 w-fit items-center justify-center gap-2 rounded-md bg-ink px-4 text-sm font-semibold text-white shadow-sm hover:bg-slate-800"
-              href={exportHref}
-            >
-              <Download size={16} />
-              Export Data
-            </a>
-          )}
+            )}
 
-          {exportMode === "range" && exportStartDate && exportEndDate && exportStartDate > exportEndDate ? (
-            <p className="mt-2 rounded-md bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-700">Start date must be before end date.</p>
-          ) : null}
+            {exportMode === "range" && exportStartDate && exportEndDate && exportStartDate > exportEndDate ? (
+              <p className="mt-2 rounded-md bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-700">Start date must be before end date.</p>
+            ) : null}
+          </div>
         </div>
       </div>
 
@@ -329,6 +346,175 @@ export function SettingsPanel({ onChanged }: SettingsPanelProps) {
         </div>
       </div>
     </section>
+  );
+}
+
+function TravelDayManager({ onChanged }: { onChanged: () => Promise<void> }) {
+  const today = dateKey();
+  const [mode, setMode] = useState<"single" | "range">("single");
+  const [singleDate, setSingleDate] = useState(today);
+  const [startDate, setStartDate] = useState(today);
+  const [endDate, setEndDate] = useState(today);
+  const [markAsTravel, setMarkAsTravel] = useState(true);
+  const [isApplying, setIsApplying] = useState(false);
+  const [message, setMessage] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const dates = mode === "single" ? (singleDate ? [singleDate] : []) : dateRangeKeys(startDate, endDate);
+  const canApply = dates.length > 0 && !isApplying;
+
+  async function loadStatus(date: string): Promise<DailyStatus> {
+    const response = await fetch(`/api/daily_status?date=${encodeURIComponent(date)}`);
+
+    if (!response.ok) {
+      throw new Error(`Failed to load status for ${date}.`);
+    }
+
+    return ((await response.json()) as DailyStatus | null) ?? createEmptyStatus(date);
+  }
+
+  async function saveTravelStatus(date: string) {
+    const existingStatus = await loadStatus(date);
+    const response = await fetch("/api/daily_status", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        ...existingStatus,
+        date,
+        isTravelDay: markAsTravel
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to update travel day for ${date}.`);
+    }
+  }
+
+  async function applyTravelDays() {
+    if (!canApply) {
+      return;
+    }
+
+    setIsApplying(true);
+    setError(null);
+    setMessage("");
+
+    try {
+      for (const date of dates) {
+        await saveTravelStatus(date);
+      }
+
+      await onChanged();
+      setMessage(`${markAsTravel ? "Marked" : "Cleared"} ${dates.length} day${dates.length === 1 ? "" : "s"}.`);
+    } catch (applyError) {
+      setError(applyError instanceof Error ? applyError.message : "Failed to update travel days.");
+    } finally {
+      setIsApplying(false);
+    }
+  }
+
+  return (
+    <div className="rounded-lg border border-sky-100 bg-sky-50/70 p-3">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <p className="inline-flex items-center gap-2 text-sm font-semibold text-sky-800">
+            <Plane size={16} />
+            Travel days
+          </p>
+          <p className="mt-1 text-xs leading-5 text-slate-500">Mark past or future dates so AI ignores them for adherence analysis.</p>
+        </div>
+        <div className="inline-grid rounded-lg border border-sky-100 bg-white p-1 sm:grid-cols-2">
+          {(["single", "range"] as const).map((option) => (
+            <button
+              key={option}
+              className={`rounded-md px-3 py-1.5 text-xs font-semibold capitalize transition ${mode === option ? "bg-sky-600 text-white" : "text-slate-600 hover:bg-sky-50"}`}
+              type="button"
+              onClick={() => setMode(option)}
+            >
+              {option === "single" ? "One day" : "Range"}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="mt-3 grid gap-2 lg:grid-cols-[1fr_auto] lg:items-end">
+        {mode === "single" ? (
+          <label className="grid gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
+            Date
+            <input
+              className="rounded-md border border-sky-100 bg-white px-3 py-2 text-sm font-medium normal-case tracking-normal text-ink"
+              type="date"
+              value={singleDate}
+              onChange={(event) => setSingleDate(event.target.value)}
+            />
+          </label>
+        ) : (
+          <div className="grid gap-2 sm:grid-cols-2">
+            <label className="grid gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
+              Start
+              <input
+                className="rounded-md border border-sky-100 bg-white px-3 py-2 text-sm font-medium normal-case tracking-normal text-ink"
+                type="date"
+                value={startDate}
+                onChange={(event) => setStartDate(event.target.value)}
+              />
+            </label>
+            <label className="grid gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
+              End
+              <input
+                className="rounded-md border border-sky-100 bg-white px-3 py-2 text-sm font-medium normal-case tracking-normal text-ink"
+                type="date"
+                value={endDate}
+                onChange={(event) => setEndDate(event.target.value)}
+              />
+            </label>
+          </div>
+        )}
+
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            className={`inline-flex h-10 items-center justify-center gap-2 rounded-md px-3 text-sm font-semibold transition ${
+              markAsTravel ? "bg-sky-600 text-white shadow-sm" : "border border-sky-100 bg-white text-slate-600 hover:bg-sky-50"
+            }`}
+            type="button"
+            onClick={() => setMarkAsTravel(true)}
+          >
+            <Plane size={15} />
+            Mark
+          </button>
+          <button
+            className={`inline-flex h-10 items-center justify-center gap-2 rounded-md px-3 text-sm font-semibold transition ${
+              !markAsTravel ? "bg-ink text-white shadow-sm" : "border border-sky-100 bg-white text-slate-600 hover:bg-sky-50"
+            }`}
+            type="button"
+            onClick={() => setMarkAsTravel(false)}
+          >
+            Clear
+          </button>
+        </div>
+      </div>
+
+      {mode === "range" && startDate && endDate && startDate > endDate ? (
+        <p className="mt-2 rounded-md bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-700">Start date must be before end date.</p>
+      ) : null}
+
+      <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <p className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500">
+          <CalendarDays size={14} />
+          {dates.length ? `${dates.length} day${dates.length === 1 ? "" : "s"} selected` : "Select a valid date"}
+        </p>
+        <button
+          className="inline-flex h-10 items-center justify-center rounded-md bg-ink px-4 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none"
+          disabled={!canApply}
+          type="button"
+          onClick={() => void applyTravelDays()}
+        >
+          {isApplying ? "Applying..." : markAsTravel ? "Apply travel day" : "Clear travel day"}
+        </button>
+      </div>
+
+      {message ? <p className="mt-2 rounded-md bg-white/80 px-3 py-2 text-xs font-semibold text-sky-700">{message}</p> : null}
+      {error ? <p className="mt-2 rounded-md bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">{error}</p> : null}
+    </div>
   );
 }
 

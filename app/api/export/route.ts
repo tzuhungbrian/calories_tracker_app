@@ -29,8 +29,16 @@ function normalizeDateCell(value: string): string {
   return value.trim().slice(0, 10).replace(/\//g, "-");
 }
 
+function parseBooleanCell(value: string): boolean {
+  return ["true", "yes", "y", "1", "checked"].includes(value.trim().toLowerCase());
+}
+
 function findDateColumn(headers: string[]): number {
   return headers.findIndex((header) => ["date", "logdate", "day"].includes(normalizeHeader(header)));
+}
+
+function findTravelDayColumn(headers: string[]): number {
+  return headers.findIndex((header) => ["istravelday", "travelday", "travel"].includes(normalizeHeader(header)));
 }
 
 function filterRowsByDateRange(rows: string[][], startDate: string, endDate: string): Array<{ row: string[]; rowNumber: number }> {
@@ -56,6 +64,25 @@ function filterRowsByDateRange(rows: string[][], startDate: string, endDate: str
   ];
 }
 
+function travelDaysFromRows(rows: Array<{ row: string[]; rowNumber: number }>): string[] {
+  if (rows.length <= 1) {
+    return [];
+  }
+
+  const [headerRow, ...bodyRows] = rows;
+  const dateColumn = findDateColumn(headerRow.row);
+  const travelColumn = findTravelDayColumn(headerRow.row);
+
+  if (dateColumn < 0 || travelColumn < 0) {
+    return [];
+  }
+
+  return bodyRows
+    .filter(({ row }) => parseBooleanCell(row[travelColumn] || ""))
+    .map(({ row }) => normalizeDateCell(row[dateColumn] || ""))
+    .filter(Boolean);
+}
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const startDate = searchParams.get("start") || "";
@@ -67,10 +94,18 @@ export async function GET(request: Request) {
       rows: filterRowsByDateRange(await readSheetValues(tabName), startDate, endDate)
     }))
   );
-  const maxColumns = Math.max(...tables.flatMap((table) => table.rows.map(({ row }) => row.length)), 1);
+  const travelDays = travelDaysFromRows(tables.find((table) => table.label === "daily_status")?.rows ?? []);
+  const analysisRows = travelDays.length
+    ? [
+        ["analysis_notes", "1", "instruction", "Ignore travel days for adherence, calorie balance, macro consistency, and trend judgment."],
+        ...travelDays.map((travelDay, index) => ["analysis_notes", String(index + 2), "travel_day", travelDay])
+      ]
+    : [];
+  const maxColumns = Math.max(...tables.flatMap((table) => table.rows.map(({ row }) => row.length)), ...analysisRows.map((row) => row.length - 2), 1);
   const headers = ["table", "row_number", ...Array.from({ length: maxColumns }, (_, index) => `column_${index + 1}`)];
   const csvRows = [
     csvRow(headers),
+    ...analysisRows.map((row) => csvRow([...row, ...Array.from({ length: Math.max(0, maxColumns + 2 - row.length) }, () => "")])),
     ...tables.flatMap((table) =>
       table.rows.map(({ row, rowNumber }) => csvRow([table.label, String(rowNumber), ...Array.from({ length: maxColumns }, (_, columnIndex) => row[columnIndex] || "")]))
     )

@@ -40,6 +40,7 @@ export async function GET(request: Request) {
       fat: totals.fat,
       carbs: totals.carbs,
       goalType: status?.goalType ?? "",
+      isTravelDay: status?.isTravelDay ?? false,
       steps: status?.steps ?? 0,
       strengthSession: status?.strengthSession ?? false,
       creatineTaken: status?.creatineTaken ?? false,

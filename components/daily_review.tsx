@@ -1,4 +1,4 @@
-import { Activity, Beef, CheckCircle2, Flame, Footprints, Lightbulb, Target } from "lucide-react";
+import { Activity, Beef, CheckCircle2, Flame, Footprints, Lightbulb, Plane, Target } from "lucide-react";
 import type { ReactNode } from "react";
 import type { DailyStatus, DashboardData } from "@/lib/types";
 
@@ -88,41 +88,56 @@ export function DailyReview({ dashboard, status, compact = false }: DailyReviewP
     return <section className={`border border-slate-200 bg-white p-4 shadow-sm ${compact ? "rounded-2xl" : "rounded-lg"}`}>Loading daily review...</section>;
   }
 
-  const effectiveStatus = dashboard.status ?? status;
+  const effectiveStatus = { ...(dashboard.status ?? status), ...status };
   const calorie = calorieGuidance(dashboard);
   const protein = proteinGuidance(dashboard);
   const exercise = exerciseGuidance(dashboard, effectiveStatus);
   const mode = effectiveStatus.goalType ?? "maintain";
+  const isTravelDay = effectiveStatus.isTravelDay;
 
   return (
-    <section className={`animate-enter border border-blue-100 bg-white p-4 shadow-sm ${compact ? "rounded-2xl" : "rounded-lg"}`}>
+    <section className={`animate-enter border bg-white p-4 shadow-sm ${isTravelDay ? "border-sky-100" : "border-blue-100"} ${compact ? "rounded-2xl" : "rounded-lg"}`}>
       <div className={`flex flex-col gap-3 ${compact ? "" : "lg:flex-row lg:items-start lg:justify-between"}`}>
         <div>
           <h2 className="inline-flex items-center gap-2 text-lg font-semibold">
             <Lightbulb size={20} className="text-blue-700" />
             Daily review
           </h2>
-          <p className="mt-1 text-sm text-slate-500">What the numbers say about the rest of today.</p>
+          <p className="mt-1 text-sm text-slate-500">
+            {isTravelDay ? "Travel day is excluded from adherence judgment." : "What the numbers say about the rest of today."}
+          </p>
         </div>
-        <div className="inline-flex w-fit items-center gap-2 rounded-full bg-blue-50 px-3 py-1.5 text-sm font-semibold capitalize text-blue-700">
-          <Target size={15} />
-          {mode} mode
+        <div className={`inline-flex w-fit items-center gap-2 rounded-full px-3 py-1.5 text-sm font-semibold capitalize ${isTravelDay ? "bg-sky-50 text-sky-700" : "bg-blue-50 text-blue-700"}`}>
+          {isTravelDay ? <Plane size={15} /> : <Target size={15} />}
+          {isTravelDay ? "travel day" : `${mode} mode`}
         </div>
       </div>
 
-      <div className={`mt-4 grid gap-3 ${compact ? "grid-cols-1" : "md:grid-cols-3"}`}>
-        <ReviewCard icon={<Flame size={18} />} title={calorie.title} body={calorie.body} tone={calorie.tone} />
-        <ReviewCard icon={<Beef size={18} />} title={protein.title} body={protein.body} tone={protein.tone} />
-        <ReviewCard icon={<Footprints size={18} />} title={exercise.title} body={exercise.body} tone={exercise.tone} />
-      </div>
+      {isTravelDay ? (
+        <div className="mt-4 rounded-lg border border-sky-100 bg-sky-50/70 p-3 text-sm text-slate-600">
+          <p className="inline-flex items-center gap-2 font-semibold text-sky-800">
+            <Plane size={16} />
+            Travel mode
+          </p>
+          <p className="mt-1 leading-6">Food logs stay saved, but AI export and dashboard insights should not grade this date like a normal tracking day.</p>
+        </div>
+      ) : (
+        <>
+          <div className={`mt-4 grid gap-3 ${compact ? "grid-cols-1" : "md:grid-cols-3"}`}>
+            <ReviewCard icon={<Flame size={18} />} title={calorie.title} body={calorie.body} tone={calorie.tone} />
+            <ReviewCard icon={<Beef size={18} />} title={protein.title} body={protein.body} tone={protein.tone} />
+            <ReviewCard icon={<Footprints size={18} />} title={exercise.title} body={exercise.body} tone={exercise.tone} />
+          </div>
 
-      <div className="mt-3 rounded-lg bg-slate-50 p-3 text-sm text-slate-600">
-        <p className="inline-flex items-center gap-2 font-semibold text-slate-800">
-          <Activity size={16} />
-          Macro guardrail
-        </p>
-        <p className="mt-1">{macroGuardrail(dashboard)}</p>
-      </div>
+          <div className="mt-3 rounded-lg bg-slate-50 p-3 text-sm text-slate-600">
+            <p className="inline-flex items-center gap-2 font-semibold text-slate-800">
+              <Activity size={16} />
+              Macro guardrail
+            </p>
+            <p className="mt-1">{macroGuardrail(dashboard)}</p>
+          </div>
+        </>
+      )}
     </section>
   );
 }

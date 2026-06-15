@@ -1,6 +1,6 @@
 "use client";
 
-import { Activity, CalendarDays, Dumbbell, Footprints, X } from "lucide-react";
+import { Activity, CalendarDays, Dumbbell, Footprints, Plane, X } from "lucide-react";
 import { useState } from "react";
 import { createPortal } from "react-dom";
 import type { DailyStatus, GoalType } from "@/lib/types";
@@ -63,6 +63,29 @@ export function DailyStatusEditor({ value, today, isSaving, onChange, onDateSele
           <option value="bulk">Bulk</option>
         </select>
       </label>
+      <label
+        className={`flex cursor-pointer items-start gap-3 rounded-lg border px-3 py-3 text-sm transition ${
+          value.isTravelDay
+            ? "border-sky-200 bg-sky-50 text-sky-800"
+            : "border-slate-200 bg-slate-50 text-slate-600 hover:border-slate-300 hover:bg-white"
+        }`}
+      >
+        <input
+          className="mt-1"
+          type="checkbox"
+          checked={value.isTravelDay}
+          onChange={(event) => onChange({ ...value, isTravelDay: event.target.checked })}
+        />
+        <span className="min-w-0">
+          <span className="inline-flex items-center gap-1.5 font-semibold">
+            <Plane size={16} />
+            Travel day
+          </span>
+          <span className="mt-0.5 block text-xs leading-5 text-slate-500">
+            Exclude this date from AI adherence judgment while keeping the food logs.
+          </span>
+        </span>
+      </label>
       <label className="grid gap-1 text-sm font-medium text-slate-700">
         <span className="inline-flex items-center gap-1.5">
           <Footprints size={16} />
@@ -99,7 +122,9 @@ export function DailyStatusEditor({ value, today, isSaving, onChange, onDateSele
           </h2>
           <p className="mt-1 text-sm text-slate-500">Update steps, training, and supplements.</p>
         </div>
-        <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold capitalize text-slate-600">{value.goalType}</span>
+        <span className={`rounded-full px-2.5 py-1 text-xs font-semibold capitalize ${value.isTravelDay ? "bg-sky-50 text-sky-700" : "bg-slate-100 text-slate-600"}`}>
+          {value.isTravelDay ? "travel" : value.goalType}
+        </span>
       </div>
 
       <div className="mt-4 grid grid-cols-3 gap-2 text-center text-xs font-semibold">

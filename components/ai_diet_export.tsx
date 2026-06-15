@@ -66,14 +66,23 @@ function buildFoodLines(logs: FoodLog[], dashboard: DashboardData | null): strin
 }
 
 function buildAiDietPrompt(today: string, dashboard: DashboardData | null, logs: FoodLog[], status: DailyStatus): string {
-  const effectiveStatus = dashboard?.status ?? status;
+  const effectiveStatus = { ...(dashboard?.status ?? status), ...status };
   const exerciseStepGoal = dashboard?.exerciseStepGoal ?? 8000;
   const foodLines = buildFoodLines(logs, dashboard);
   const totalsLines = buildTotalsLines(dashboard);
+  const isTravelDay = effectiveStatus.isTravelDay;
 
   return [
     "# AI-friendly nutrition log",
     "",
+    ...(isTravelDay
+      ? [
+          "Important context: this date is marked as a travel day.",
+          "Ignore this day's food logs, totals, calorie balance, and macro consistency when judging adherence or trend quality.",
+          "You may still use the raw entries as background context if helpful.",
+          ""
+        ]
+      : []),
     "Please review this day of eating like a nutrition coach. Tell me:",
     "1. Whether the day fits my goal mode.",
     "2. What I should eat next, if anything.",
@@ -83,6 +92,7 @@ function buildAiDietPrompt(today: string, dashboard: DashboardData | null, logs:
     "## Date and goal",
     `- Date: ${today}`,
     `- Goal mode: ${effectiveStatus.goalType}`,
+    `- Travel day: ${yesNo(isTravelDay)}`,
     dashboard ? `- Dynamic TDEE: ${round(dashboard.dynamicTdee)} kcal` : "- Dynamic TDEE: loading/not available",
     "",
     "## Totals vs targets",
@@ -99,6 +109,7 @@ function buildAiDietPrompt(today: string, dashboard: DashboardData | null, logs:
     "",
     "## Context",
     "- This log may include AI-estimated foods, so treat those entries as approximate.",
+    ...(isTravelDay ? ["- This travel day should not count against adherence, deficit/surplus, or macro consistency."] : []),
     "- I care about practical next actions more than perfect theory."
   ].join("\n");
 }
@@ -169,6 +180,9 @@ export function AiDietExport({ today, dashboard, logs, status }: AiDietExportPro
           <div className="min-w-0">
             <h2 className="truncate text-sm font-semibold">AI diet export</h2>
             <p className="truncate text-xs text-slate-500">
+              {status.isTravelDay ? "Travel day marked - AI will ignore adherence" : `${todayLogs.length} food${todayLogs.length === 1 ? "" : "s"} today - AI-ready prompt`}
+            </p>
+            <p className="hidden truncate text-xs text-slate-500">
               {todayLogs.length} food{todayLogs.length === 1 ? "" : "s"} today · AI-ready prompt
             </p>
           </div>

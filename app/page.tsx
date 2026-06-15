@@ -63,7 +63,8 @@ function createEmptyStatus(date: string): DailyStatus {
     steps: 0,
     strengthSession: false,
     creatineTaken: false,
-    basketballMinutes: 0
+    basketballMinutes: 0,
+    isTravelDay: false
   };
 }
 

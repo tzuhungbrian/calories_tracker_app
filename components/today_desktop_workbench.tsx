@@ -1,6 +1,6 @@
 "use client";
 
-import { Activity, Beef, CheckCircle2, ClipboardList, Flame, Footprints, Gauge, ListChecks, Target, Utensils } from "lucide-react";
+import { Activity, Beef, CheckCircle2, ClipboardList, Flame, Footprints, Gauge, ListChecks, Plane, Target, Utensils } from "lucide-react";
 import { useMemo } from "react";
 import type { ReactNode } from "react";
 import { AiDietExport } from "@/components/ai_diet_export";
@@ -62,8 +62,12 @@ function formatSigned(value: number, unit = ""): string {
   return `${rounded > 0 ? "+" : ""}${rounded}${unit ? ` ${unit}` : ""}`;
 }
 
-function calorieTone(dashboard: DashboardData | null): Tone {
+function calorieTone(dashboard: DashboardData | null, status: DailyStatus): Tone {
   if (!dashboard) {
+    return "neutral";
+  }
+
+  if (status.isTravelDay || dashboard.status?.isTravelDay) {
     return "neutral";
   }
 
@@ -91,6 +95,14 @@ function buildNextAction(dashboard: DashboardData | null, status: DailyStatus, t
     return {
       title: "Load today's numbers",
       body: "The dashboard is still loading. Once totals arrive, this panel will choose the next move.",
+      tone: "neutral"
+    };
+  }
+
+  if (status.isTravelDay || dashboard.status?.isTravelDay) {
+    return {
+      title: "Travel day is marked",
+      body: "Log only what is useful. This date will stay in your records, but AI adherence review will ignore it.",
       tone: "neutral"
     };
   }
@@ -170,9 +182,9 @@ export function TodayDesktopWorkbench({
   onOpenLogs
 }: TodayDesktopWorkbenchProps) {
   const todayLogs = useMemo(() => logs.filter((log) => log.date === today), [logs, today]);
-  const effectiveStatus = dashboard?.status ?? dailyStatus;
+  const effectiveStatus = { ...(dashboard?.status ?? dailyStatus), ...dailyStatus };
   const nextAction = buildNextAction(dashboard, effectiveStatus, todayLogs);
-  const caloriesTone = calorieTone(dashboard);
+  const caloriesTone = calorieTone(dashboard, effectiveStatus);
   const proteinTone: Tone = dashboard && dashboard.remaining.protein <= 0 ? "good" : dashboard ? "warn" : "neutral";
   const calorieProgress = dashboard && dashboard.targets.calories > 0 ? clamp((dashboard.totals.calories / dashboard.targets.calories) * 100, 0, 125) : 0;
   const proteinProgress = dashboard && dashboard.targets.protein > 0 ? clamp((dashboard.totals.protein / dashboard.targets.protein) * 100, 0, 125) : 0;
@@ -229,10 +241,10 @@ export function TodayDesktopWorkbench({
           <div className="flex items-center justify-between gap-3">
             <div>
               <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Energy status</p>
-              <h2 className="mt-1 text-lg font-semibold capitalize">{effectiveStatus.goalType} day</h2>
+              <h2 className="mt-1 text-lg font-semibold capitalize">{effectiveStatus.isTravelDay ? "travel day" : `${effectiveStatus.goalType} day`}</h2>
             </div>
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-blue-700">
-              <Gauge size={20} />
+              {effectiveStatus.isTravelDay ? <Plane size={20} /> : <Gauge size={20} />}
             </div>
           </div>
           <div className="mt-4 grid gap-3">

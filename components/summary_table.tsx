@@ -22,6 +22,7 @@ export function SummaryTable({ rows }: SummaryTableProps) {
               <th className="px-4 py-3">Fat</th>
               <th className="px-4 py-3">Carbs</th>
               <th className="px-4 py-3">Goal</th>
+              <th className="px-4 py-3">Context</th>
               <th className="px-4 py-3">Steps</th>
               <th className="px-4 py-3">Training</th>
             </tr>
@@ -35,6 +36,7 @@ export function SummaryTable({ rows }: SummaryTableProps) {
                 <td className="px-4 py-3">{Math.round(row.fat)}</td>
                 <td className="px-4 py-3">{Math.round(row.carbs)}</td>
                 <td className="px-4 py-3">{row.goalType || "-"}</td>
+                <td className="px-4 py-3">{row.isTravelDay ? "Travel" : "-"}</td>
                 <td className="px-4 py-3">{row.steps}</td>
                 <td className="px-4 py-3">{row.strengthSession ? "Strength" : "-"} / {row.basketballMinutes} min</td>
               </tr>

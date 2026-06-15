@@ -99,6 +99,42 @@ function quoteSheetName(title: string): string {
   return `'${title.replace(/'/g, "''")}'`;
 }
 
+function findDailyStatusHeaderIndex(rows: string[][]): number {
+  return rows.findIndex((row) => {
+    const headers = row.map(normalizeHeader);
+    return headers.includes("date") && (headers.includes("goaltype") || headers.includes("goal"));
+  });
+}
+
+async function ensureDailyStatusTravelColumn(sheets: sheets_v4.Sheets, rows: string[][]): Promise<string[][]> {
+  const headerIndex = findDailyStatusHeaderIndex(rows);
+
+  if (headerIndex < 0) {
+    return rows;
+  }
+
+  const headers = rows[headerIndex];
+  const hasTravelColumn = headers.some((header) => normalizeHeader(header) === "istravelday");
+
+  if (hasTravelColumn) {
+    return rows;
+  }
+
+  const nextColumnIndex = headers.length;
+  const nextColumnName = columnName(nextColumnIndex + 1);
+  const updatedRows = rows.map((row) => [...row]);
+  updatedRows[headerIndex][nextColumnIndex] = "is_travel_day";
+
+  await sheets.spreadsheets.values.update({
+    spreadsheetId,
+    range: `${quoteSheetName(sheetTabs.dailyStatus)}!${nextColumnName}${headerIndex + 1}`,
+    valueInputOption: "USER_ENTERED",
+    requestBody: { values: [["is_travel_day"]] }
+  });
+
+  return updatedRows;
+}
+
 export async function readSheetValues(tabName: string): Promise<string[][]> {
   const sheets = getSheetsClient();
   const response = await sheets.spreadsheets.values.get({
@@ -198,9 +234,9 @@ export async function upsertDailyStatus(status: DailyStatus): Promise<void> {
   const sheets = getSheetsClient();
   const response = await sheets.spreadsheets.values.get({
     spreadsheetId,
-    range: `${sheetTabs.dailyStatus}!A:J`
+    range: `${quoteSheetName(sheetTabs.dailyStatus)}!A:Z`
   });
-  const rows = asRows(response.data.values);
+  const rows = await ensureDailyStatusTravelColumn(sheets, asRows(response.data.values));
   const rowIndex = rows.findIndex((row, index) => index > 0 && row[1] === status.date);
   const existingId = rowIndex >= 0 ? rows[rowIndex][0] : "";
   const values = statusToSheetRow({ ...status, id: existingId || status.id });
@@ -208,7 +244,7 @@ export async function upsertDailyStatus(status: DailyStatus): Promise<void> {
   if (rowIndex >= 0) {
     await sheets.spreadsheets.values.update({
       spreadsheetId,
-      range: `${sheetTabs.dailyStatus}!A${rowIndex + 1}:J${rowIndex + 1}`,
+      range: `${quoteSheetName(sheetTabs.dailyStatus)}!A${rowIndex + 1}:${columnName(values.length)}${rowIndex + 1}`,
       valueInputOption: "USER_ENTERED",
       requestBody: { values: [values] }
     });
