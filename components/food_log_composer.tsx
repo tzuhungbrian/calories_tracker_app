@@ -75,6 +75,7 @@ export function FoodLogComposer({ foods, recentLogs = [], value, isSaving, onCha
   const [servings, setServings] = useState(1);
   const [customMacroMode, setCustomMacroMode] = useState<"total" | "label">("total");
   const [labelScale, setLabelScale] = useState<LabelScaleState>(defaultLabelScale);
+  const [quickPickMode, setQuickPickMode] = useState<"recent" | "frequent">("recent");
   const [isMobileSheetOpen, setIsMobileSheetOpen] = useState(false);
   const [mobileStep, setMobileStep] = useState<MobileStep>("Meal");
   const [desktopStep, setDesktopStep] = useState<DesktopStep>("Meal");
@@ -109,8 +110,34 @@ export function FoodLogComposer({ foods, recentLogs = [], value, isSaving, onCha
         seen.add(food.id);
         return true;
       })
-      .slice(0, 6);
+      .slice(0, 10);
   }, [foods, recentLogs]);
+
+  const frequentFoods = useMemo(() => {
+    const foodStats = new Map<string, { food: CommonFood; count: number; lastSeen: string }>();
+
+    recentLogs.forEach((log) => {
+      const food = foods.find((item) => (log.foodId && item.id === log.foodId) || item.name.toLowerCase() === log.foodName.toLowerCase());
+      if (!food) {
+        return;
+      }
+
+      const current = foodStats.get(food.id);
+      const lastSeen = log.createdAt || log.date;
+      foodStats.set(food.id, {
+        food,
+        count: (current?.count ?? 0) + 1,
+        lastSeen: current && current.lastSeen > lastSeen ? current.lastSeen : lastSeen
+      });
+    });
+
+    return Array.from(foodStats.values())
+      .sort((a, b) => b.count - a.count || b.lastSeen.localeCompare(a.lastSeen) || a.food.name.localeCompare(b.food.name))
+      .map((item) => item.food)
+      .slice(0, 10);
+  }, [foods, recentLogs]);
+
+  const quickPickFoods = quickPickMode === "recent" ? recentFoods : frequentFoods;
 
   function applyFood(food: CommonFood, nextServings = servings) {
     setSelectedFood(food);
@@ -847,23 +874,43 @@ export function FoodLogComposer({ foods, recentLogs = [], value, isSaving, onCha
                         ))}
                       </select>
                     </label>
-                    {recentFoods.length > 0 ? (
+                    {recentFoods.length > 0 || frequentFoods.length > 0 ? (
                       <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-950/70">
-                        <p className="inline-flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-200">
-                          <Clock3 size={16} className="text-blue-700 dark:text-blue-300" />
-                          Recent
-                        </p>
-                        <div className="mt-3 grid gap-2">
-                          {recentFoods.slice(0, 4).map((food) => (
-                            <button
-                              key={food.id}
-                              className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-left text-sm font-semibold text-slate-700 transition hover:border-blue-200 hover:bg-blue-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-blue-950/30"
-                              type="button"
-                              onClick={() => applyFood(food, 1)}
-                            >
-                              {food.name}
-                            </button>
-                          ))}
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="inline-flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-200">
+                            <Clock3 size={16} className="text-blue-700 dark:text-blue-300" />
+                            Quick picks
+                          </p>
+                          <div className="inline-grid grid-cols-2 rounded-lg border border-slate-200 bg-white p-0.5 dark:border-slate-800 dark:bg-slate-900">
+                            {(["recent", "frequent"] as const).map((mode) => (
+                              <button
+                                key={mode}
+                                className={`rounded-md px-2 py-1 text-[11px] font-semibold transition ${quickPickMode === mode ? "bg-ink text-white dark:bg-blue-600" : "text-slate-500 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800"}`}
+                                type="button"
+                                onClick={() => setQuickPickMode(mode)}
+                              >
+                                {mode === "recent" ? "Recent" : "Frequent"}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                        <div className="mt-3 grid max-h-[27rem] gap-2 overflow-y-auto pr-1">
+                          {quickPickFoods.length > 0 ? (
+                            quickPickFoods.map((food) => (
+                              <button
+                                key={food.id}
+                                className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-left text-sm font-semibold text-slate-700 transition hover:border-blue-200 hover:bg-blue-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-blue-950/30"
+                                type="button"
+                                onClick={() => applyFood(food, 1)}
+                              >
+                                {food.name}
+                              </button>
+                            ))
+                          ) : (
+                            <p className="rounded-lg border border-dashed border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400">
+                              No frequent foods yet.
+                            </p>
+                          )}
                         </div>
                       </div>
                     ) : null}

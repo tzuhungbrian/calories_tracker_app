@@ -35,18 +35,31 @@ type LogDateGroup = {
   totals: FoodLogTotals;
   mealGroups: MealGroup[];
 };
+type LogSortMode = "newest" | "oldest" | "caloriesDesc" | "proteinDesc" | "foodName";
 
 const mealOrder = new Map<string, number>(mealOptions.map((meal, index) => [meal, index]));
 
-function sortLogs(logs: FoodLog[]): FoodLog[] {
+function sortLogs(logs: FoodLog[], sortMode: LogSortMode): FoodLog[] {
   return [...logs].sort((a, b) => {
-    const dateCompare = b.date.localeCompare(a.date);
-    if (dateCompare !== 0) {
-      return dateCompare;
+    if (sortMode === "foodName") {
+      return a.foodName.localeCompare(b.foodName) || (b.createdAt || "").localeCompare(a.createdAt || "");
     }
 
-    return (b.createdAt || "").localeCompare(a.createdAt || "");
+    if (sortMode === "caloriesDesc") {
+      return b.calories - a.calories || (b.createdAt || "").localeCompare(a.createdAt || "");
+    }
+
+    if (sortMode === "proteinDesc") {
+      return b.protein - a.protein || (b.createdAt || "").localeCompare(a.createdAt || "");
+    }
+
+    const dateCompare = sortMode === "oldest" ? a.date.localeCompare(b.date) : b.date.localeCompare(a.date);
+    return dateCompare || (sortMode === "oldest" ? (a.createdAt || "").localeCompare(b.createdAt || "") : (b.createdAt || "").localeCompare(a.createdAt || ""));
   });
+}
+
+function sortDateKeys(dates: string[], sortMode: LogSortMode): string[] {
+  return [...dates].sort((a, b) => (sortMode === "oldest" ? a.localeCompare(b) : b.localeCompare(a)));
 }
 
 function emptyTotals(): FoodLogTotals {
@@ -146,9 +159,10 @@ function sortMealGroups(groups: MealGroup[]): MealGroup[] {
 export function FoodLogManager({ logs, foods, today, onChanged, onNotify }: FoodLogManagerProps) {
   const [selectedLog, setSelectedLog] = useState<FoodLog | null>(null);
   const [macroBaseline, setMacroBaseline] = useState<MacroBaseline | null>(null);
-  const [dateFilter, setDateFilter] = useState("");
+  const [dateFilter, setDateFilter] = useState(today);
   const [mealFilter, setMealFilter] = useState("");
   const [query, setQuery] = useState("");
+  const [sortMode, setSortMode] = useState<LogSortMode>("newest");
   const [isBatchMode, setIsBatchMode] = useState(false);
   const [selectedLogIds, setSelectedLogIds] = useState<Set<string>>(new Set());
   const [isSaving, setIsSaving] = useState(false);
@@ -159,7 +173,7 @@ export function FoodLogManager({ logs, foods, today, onChanged, onNotify }: Food
   const visibleLogs = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
 
-    return sortLogs(logs)
+    return logs
       .filter((log) => !dateFilter || log.date === dateFilter)
       .filter((log) => !mealFilter || log.meal === mealFilter)
       .filter((log) => !normalizedQuery || log.foodName.toLowerCase().includes(normalizedQuery) || log.notes?.toLowerCase().includes(normalizedQuery));
@@ -178,7 +192,8 @@ export function FoodLogManager({ logs, foods, today, onChanged, onNotify }: Food
       return result;
     }, new Map());
 
-    return Array.from(groups.entries()).map(([date, dateLogs]) => {
+    return sortDateKeys(Array.from(groups.keys()), sortMode).map((date) => {
+      const dateLogs = sortLogs(groups.get(date) ?? [], sortMode);
       const mealGroups = dateLogs.reduce<Map<string, FoodLog[]>>((result, log) => {
         const meal = log.meal || "No meal";
         const mealLogs = result.get(meal) ?? [];
@@ -194,13 +209,13 @@ export function FoodLogManager({ logs, foods, today, onChanged, onNotify }: Food
         mealGroups: sortMealGroups(
           Array.from(mealGroups.entries()).map(([meal, mealLogs]) => ({
             meal,
-            logs: mealLogs,
+            logs: sortLogs(mealLogs, sortMode),
             totals: mealLogs.reduce(addLogToTotals, emptyTotals())
           }))
         )
       };
     });
-  }, [visibleLogs]);
+  }, [sortMode, visibleLogs]);
 
   function notify(toast: ToastInput) {
     onNotify?.(toast);
@@ -506,7 +521,7 @@ export function FoodLogManager({ logs, foods, today, onChanged, onNotify }: Food
               </button>
             </div>
           </div>
-        <div className="mt-3 grid gap-3 sm:grid-cols-[170px_170px_1fr]">
+        <div className="mt-3 grid gap-3 sm:grid-cols-[170px_170px_180px_1fr]">
           <label className="grid gap-1 text-sm font-medium text-slate-700 dark:text-slate-200">
             <span className="inline-flex items-center gap-1.5">
               <CalendarDays size={16} />
@@ -523,6 +538,16 @@ export function FoodLogManager({ logs, foods, today, onChanged, onNotify }: Food
                   {meal}
                 </option>
               ))}
+            </select>
+          </label>
+          <label className="grid gap-1 text-sm font-medium text-slate-700 dark:text-slate-200">
+            Sort
+            <select className="rounded-md border border-slate-300 bg-white px-3 py-2 font-normal dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100" value={sortMode} onChange={(event) => setSortMode(event.target.value as LogSortMode)}>
+              <option value="newest">Newest first</option>
+              <option value="oldest">Oldest first</option>
+              <option value="caloriesDesc">Highest calories</option>
+              <option value="proteinDesc">Highest protein</option>
+              <option value="foodName">Food name A-Z</option>
             </select>
           </label>
           <label className="grid gap-1 text-sm font-medium text-slate-700 dark:text-slate-200">
