@@ -20,6 +20,7 @@ type TodayDesktopWorkbenchProps = {
   isSavingStatus: boolean;
   onFoodLogChange: (value: FoodLogInput) => void;
   onFoodLogSubmit: () => Promise<boolean>;
+  onFoodLogsSubmit: (logs: FoodLogInput[]) => Promise<boolean>;
   onDailyStatusChange: (value: DailyStatus) => void;
   onDailyStatusDateSelect: (date: string) => Promise<void>;
   onDailyStatusSubmit: () => Promise<void>;
@@ -176,6 +177,7 @@ export function TodayDesktopWorkbench({
   isSavingStatus,
   onFoodLogChange,
   onFoodLogSubmit,
+  onFoodLogsSubmit,
   onDailyStatusChange,
   onDailyStatusDateSelect,
   onDailyStatusSubmit,
@@ -229,7 +231,7 @@ export function TodayDesktopWorkbench({
               </div>
             </div>
           </div>
-          <FoodLogComposer foods={foods} recentLogs={logs} value={foodLog} isSaving={isSavingFood} onChange={onFoodLogChange} onSubmit={onFoodLogSubmit} />
+          <FoodLogComposer foods={foods} recentLogs={logs} value={foodLog} isSaving={isSavingFood} onChange={onFoodLogChange} onSubmit={onFoodLogSubmit} onSubmitMany={onFoodLogsSubmit} />
         </section>
 
         <DailyReview dashboard={dashboard} status={dailyStatus} />

@@ -284,6 +284,45 @@ export default function HomePage() {
     }
   }
 
+  async function saveFoodLogs(logs: FoodLogInput[]): Promise<boolean> {
+    if (!logs.length) {
+      return false;
+    }
+
+    setIsSavingFood(true);
+    try {
+      for (const log of logs) {
+        const response = await fetch("/api/daily_log", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(log)
+        });
+
+        if (!response.ok) {
+          throw new Error("Failed to save one or more food logs.");
+        }
+      }
+
+      setFoodLog(createEmptyFoodLog(today));
+      await refreshData();
+      addToast({
+        tone: "success",
+        title: "Foods added",
+        message: `${logs.length} items saved to ${logs[0]?.meal || "the selected meal"}.`
+      });
+      return true;
+    } catch (saveError) {
+      addToast({
+        tone: "error",
+        title: "Could not save foods",
+        message: saveError instanceof Error ? saveError.message : "Failed to save food logs."
+      });
+      return false;
+    } finally {
+      setIsSavingFood(false);
+    }
+  }
+
   async function undoDatabaseFood(food: CommonFood) {
     setIsUndoingDatabaseFood(true);
 
@@ -434,7 +473,7 @@ export default function HomePage() {
                   <p className="mt-1 text-sm text-slate-500">Log food, update activity, and keep today accurate.</p>
                 </section>
                 <section className="grid gap-4">
-                  <FoodLogComposer foods={commonFoods} recentLogs={foodLogs} value={foodLog} isSaving={isSavingFood} onChange={setFoodLog} onSubmit={saveFoodLog} />
+                  <FoodLogComposer foods={commonFoods} recentLogs={foodLogs} value={foodLog} isSaving={isSavingFood} onChange={setFoodLog} onSubmit={saveFoodLog} onSubmitMany={saveFoodLogs} />
                   <DailyStatusEditor
                     value={dailyStatus}
                     today={today}
@@ -459,6 +498,7 @@ export default function HomePage() {
                 isSavingStatus={isSavingStatus}
                 onFoodLogChange={setFoodLog}
                 onFoodLogSubmit={saveFoodLog}
+                onFoodLogsSubmit={saveFoodLogs}
                 onDailyStatusChange={setDailyStatus}
                 onDailyStatusDateSelect={loadDailyStatusForDate}
                 onDailyStatusSubmit={saveDailyStatus}

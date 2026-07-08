@@ -15,6 +15,7 @@ type FoodLogComposerProps = {
   isSaving: boolean;
   onChange: (value: FoodLogInput) => void;
   onSubmit: () => Promise<boolean>;
+  onSubmitMany?: (logs: FoodLogInput[]) => Promise<boolean>;
 };
 
 const macroFields: Array<keyof Pick<FoodLogInput, "calories" | "protein" | "fat" | "carbs">> = [
@@ -52,6 +53,11 @@ const defaultLabelScale: LabelScaleState = {
   carbs: 0
 };
 
+type SelectedSavedFood = {
+  food: CommonFood;
+  servings: number;
+};
+
 function roundMacro(value: number): number {
   return Math.round(value * 10) / 10;
 }
@@ -67,12 +73,11 @@ function calculateScaledMacros(labelScale: LabelScaleState): Pick<FoodLogInput, 
   };
 }
 
-export function FoodLogComposer({ foods, recentLogs = [], value, isSaving, onChange, onSubmit }: FoodLogComposerProps) {
+export function FoodLogComposer({ foods, recentLogs = [], value, isSaving, onChange, onSubmit, onSubmitMany }: FoodLogComposerProps) {
   const [entryMode, setEntryMode] = useState<"saved" | "custom">("saved");
   const [selectedCategory, setSelectedCategory] = useState("");
   const [query, setQuery] = useState("");
-  const [selectedFood, setSelectedFood] = useState<CommonFood | null>(null);
-  const [servings, setServings] = useState(1);
+  const [selectedFoods, setSelectedFoods] = useState<SelectedSavedFood[]>([]);
   const [customMacroMode, setCustomMacroMode] = useState<"total" | "label">("total");
   const [labelScale, setLabelScale] = useState<LabelScaleState>(defaultLabelScale);
   const [quickPickMode, setQuickPickMode] = useState<"recent" | "frequent">("recent");
@@ -139,12 +144,27 @@ export function FoodLogComposer({ foods, recentLogs = [], value, isSaving, onCha
 
   const quickPickFoods = quickPickMode === "recent" ? recentFoods : frequentFoods;
 
-  function applyFood(food: CommonFood, nextServings = servings) {
-    setSelectedFood(food);
-    setServings(nextServings);
-    setDesktopStep("Amount");
-    setFeedbackMessage("");
-    onChange({
+  const selectedFoodSummary =
+    entryMode === "saved"
+      ? selectedFoods.length === 0
+        ? ""
+        : selectedFoods.length === 1
+          ? selectedFoods[0].food.name
+          : `${selectedFoods.length} foods selected`
+      : value.foodName;
+
+  const selectedSavedTotals = selectedFoods.reduce(
+    (totals, item) => ({
+      calories: totals.calories + item.food.calories * item.servings,
+      protein: totals.protein + item.food.protein * item.servings,
+      fat: totals.fat + item.food.fat * item.servings,
+      carbs: totals.carbs + item.food.carbs * item.servings
+    }),
+    { calories: 0, protein: 0, fat: 0, carbs: 0 }
+  );
+
+  function buildSavedLog(food: CommonFood, nextServings: number, notes = value.notes || food.notes): FoodLogInput {
+    return {
       ...value,
       foodId: food.id,
       foodName: food.name,
@@ -153,22 +173,65 @@ export function FoodLogComposer({ foods, recentLogs = [], value, isSaving, onCha
       protein: roundMacro(food.protein * nextServings),
       fat: roundMacro(food.fat * nextServings),
       carbs: roundMacro(food.carbs * nextServings),
-      notes: value.foodId === food.id && value.notes ? value.notes : food.notes,
+      notes,
       isAiEstimated: false,
       saveToDatabase: false,
       databaseCategory: ""
+    };
+  }
+
+  function syncPrimarySavedFood(nextSelectedFoods: SelectedSavedFood[]) {
+    const primary = nextSelectedFoods[0];
+    if (!primary) {
+      onChange({
+        ...value,
+        foodId: "",
+        foodName: "",
+        amount: "",
+        calories: 0,
+        protein: 0,
+        fat: 0,
+        carbs: 0,
+        notes: "",
+        isAiEstimated: false,
+        saveToDatabase: false,
+        databaseCategory: ""
+      });
+      return;
+    }
+
+    onChange(buildSavedLog(primary.food, primary.servings, primary.food.notes));
+  }
+
+  function notesForSavedSubmit(food: CommonFood): string {
+    const primaryNotes = selectedFoods[0]?.food.notes ?? "";
+    const sharedUserNotes = value.notes && value.notes !== primaryNotes ? value.notes : "";
+    return sharedUserNotes || food.notes;
+  }
+
+  function toggleSavedFood(food: CommonFood, nextServings = 1) {
+    setFeedbackMessage("");
+    setSelectedFoods((current) => {
+      const exists = current.some((item) => item.food.id === food.id);
+      const nextSelectedFoods = exists
+        ? current.filter((item) => item.food.id !== food.id)
+        : [...current, { food, servings: nextServings }];
+
+      syncPrimarySavedFood(nextSelectedFoods);
+      return nextSelectedFoods;
     });
   }
 
   function applyMobileFood(food: CommonFood, nextServings = 1) {
-    applyFood(food, nextServings);
+    setSelectedFoods([{ food, servings: nextServings }]);
+    onChange(buildSavedLog(food, nextServings));
+    setFeedbackMessage("");
     setMobileStep("Review");
   }
 
   function switchMode(nextMode: "saved" | "custom") {
     setEntryMode(nextMode);
-    setSelectedFood(null);
-    setServings(1);
+    setSelectedFoods([]);
     setDesktopStep("Food");
     setFeedbackMessage("");
     if (nextMode === "custom") {
@@ -190,15 +253,14 @@ export function FoodLogComposer({ foods, recentLogs = [], value, isSaving, onCha
     }
   }
 
-  function updateServings(nextServings: number) {
+  function updateSelectedFoodServings(foodId: string, nextServings: number) {
     const safeServings = Number.isFinite(nextServings) ? Math.max(nextServings, 0) : 0;
-    setServings(safeServings);
     setFeedbackMessage("");
-    if (selectedFood) {
-      applyFood(selectedFood, safeServings);
-    } else {
-      onChange({ ...value, amount: String(safeServings) });
-    }
+    setSelectedFoods((current) => {
+      const nextSelectedFoods = current.map((item) => (item.food.id === foodId ? { ...item, servings: safeServings } : item));
+      syncPrimarySavedFood(nextSelectedFoods);
+      return nextSelectedFoods;
+    });
   }
 
   function updateCustomField(field: keyof FoodLogInput, fieldValue: string | boolean) {
@@ -239,8 +301,7 @@ export function FoodLogComposer({ foods, recentLogs = [], value, isSaving, onCha
   }
 
   function resetAfterSave() {
-    setSelectedFood(null);
-    setServings(1);
+    setSelectedFoods([]);
     setQuery("");
     setEntryMode("saved");
     setMobileStep("Meal");
@@ -248,13 +309,14 @@ export function FoodLogComposer({ foods, recentLogs = [], value, isSaving, onCha
   }
 
   async function submitLog(): Promise<boolean> {
-    const wasSaved = await onSubmit();
+    const savedLogs = selectedFoods.map((item) => buildSavedLog(item.food, item.servings, notesForSavedSubmit(item.food)));
+    const wasSaved = entryMode === "saved" && savedLogs.length > 0 && onSubmitMany ? await onSubmitMany(savedLogs) : await onSubmit();
     if (!wasSaved) {
       return false;
     }
 
     resetAfterSave();
-    setFeedbackMessage("Food added to your log.");
+    setFeedbackMessage(savedLogs.length > 1 ? `${savedLogs.length} foods added to your log.` : "Food added to your log.");
     return true;
   }
 
@@ -267,23 +329,24 @@ export function FoodLogComposer({ foods, recentLogs = [], value, isSaving, onCha
 
   const missingRequirements = [
     !value.meal ? "meal" : "",
-    !value.foodName ? "food" : ""
+    !selectedFoodSummary ? "food" : ""
   ].filter(Boolean);
   const canSubmit = !isSaving && missingRequirements.length === 0;
   const mobileStepIndex = mobileSteps.indexOf(mobileStep);
   const desktopStepIndex = desktopSteps.indexOf(desktopStep);
   const canContinueFromMeal = Boolean(value.meal);
-  const canContinueFromFood = Boolean(value.foodName);
+  const canContinueFromFood = entryMode === "saved" ? selectedFoods.length > 0 : Boolean(value.foodName);
   const canContinueFromAmount = entryMode === "custom" ? Boolean(value.amount && value.calories >= 0) : Boolean(value.amount);
+  const canContinueFromSavedAmount = entryMode === "saved" ? selectedFoods.length > 0 && selectedFoods.every((item) => item.servings > 0) : canContinueFromAmount;
   const canOpenDesktopStep = (step: DesktopStep) =>
     step === "Meal" ||
     (step === "Food" && canContinueFromMeal) ||
     (step === "Amount" && canContinueFromMeal && canContinueFromFood) ||
-    (step === "Review" && canContinueFromMeal && canContinueFromFood && canContinueFromAmount);
+    (step === "Review" && canContinueFromMeal && canContinueFromFood && canContinueFromSavedAmount);
   const desktopContinueDisabled =
     (desktopStep === "Meal" && !canContinueFromMeal) ||
     (desktopStep === "Food" && !canContinueFromFood) ||
-    (desktopStep === "Amount" && !canContinueFromAmount);
+    (desktopStep === "Amount" && !canContinueFromSavedAmount);
   const desktopContinueHint =
     desktopStep === "Meal"
       ? "Choose a meal to continue."
@@ -296,7 +359,7 @@ export function FoodLogComposer({ foods, recentLogs = [], value, isSaving, onCha
       setDesktopStep("Food");
     } else if (desktopStep === "Food" && canContinueFromFood) {
       setDesktopStep("Amount");
-    } else if (desktopStep === "Amount" && canContinueFromAmount) {
+    } else if (desktopStep === "Amount" && canContinueFromSavedAmount) {
       setDesktopStep("Review");
     }
   }
@@ -320,9 +383,9 @@ export function FoodLogComposer({ foods, recentLogs = [], value, isSaving, onCha
           <p>Meal</p>
           <p className="mt-1 truncate text-sm text-ink">{value.meal || "Pick"}</p>
         </div>
-        <div className={`rounded-lg border px-2 py-2 ${value.foodName ? "border-emerald-100 bg-emerald-50 text-emerald-700" : "border-slate-200 bg-slate-50 text-slate-500"}`}>
+        <div className={`rounded-lg border px-2 py-2 ${selectedFoodSummary ? "border-emerald-100 bg-emerald-50 text-emerald-700" : "border-slate-200 bg-slate-50 text-slate-500"}`}>
           <p>Food</p>
-          <p className="mt-1 truncate text-sm text-ink">{value.foodName || "Choose"}</p>
+          <p className="mt-1 truncate text-sm text-ink">{selectedFoodSummary || "Choose"}</p>
         </div>
         <div className="rounded-lg border border-slate-200 bg-slate-50 px-2 py-2 text-slate-500">
           <p>Total</p>
@@ -343,7 +406,7 @@ export function FoodLogComposer({ foods, recentLogs = [], value, isSaving, onCha
         onClick={() => {
           setFeedbackMessage("");
           setIsMobileSheetOpen(true);
-          setMobileStep(value.meal ? value.foodName ? "Review" : "Food" : "Meal");
+          setMobileStep(value.meal ? selectedFoodSummary ? "Review" : "Food" : "Meal");
         }}
       >
         <Plus size={18} />
@@ -502,24 +565,36 @@ export function FoodLogComposer({ foods, recentLogs = [], value, isSaving, onCha
                         </button>
                       ))}
                     </div>
+                    {selectedFoods.length > 0 ? (
+                      <div className="rounded-xl border border-blue-100 bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-700">
+                        {selectedFoods.length} selected. Tap a selected food again to remove it.
+                      </div>
+                    ) : null}
                     <div className="grid max-h-[42vh] gap-2 overflow-y-auto pr-1">
-                      {filteredFoods.map((food) => (
-                        <button
-                          key={food.id}
-                          className={`rounded-xl border p-3 text-left transition ${selectedFood?.id === food.id ? "border-blue-200 bg-blue-50" : "border-slate-200 bg-white dark:bg-slate-900"}`}
-                          type="button"
-                          onClick={() => applyMobileFood(food)}
-                        >
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="min-w-0">
-                              <p className="truncate font-semibold">{food.name}</p>
-                              <p className="mt-1 text-xs text-slate-500">{food.serving || "1 serving"}</p>
+                      {filteredFoods.map((food) => {
+                        const isSelected = selectedFoods.some((item) => item.food.id === food.id);
+
+                        return (
+                          <button
+                            key={food.id}
+                            className={`rounded-xl border p-3 text-left transition ${isSelected ? "border-blue-200 bg-blue-50 shadow-sm" : "border-slate-200 bg-white dark:bg-slate-900"}`}
+                            type="button"
+                            onClick={() => toggleSavedFood(food)}
+                          >
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                <p className="truncate font-semibold">{food.name}</p>
+                                <p className="mt-1 text-xs text-slate-500">{food.serving || "1 serving"}</p>
+                              </div>
+                              <span className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-1 text-xs font-semibold ${isSelected ? "bg-blue-600 text-white" : "bg-slate-50 text-slate-600"}`}>
+                                {isSelected ? <CheckCircle2 size={13} /> : null}
+                                {isSelected ? "Selected" : `${food.calories} kcal`}
+                              </span>
                             </div>
-                            <span className="shrink-0 rounded-full bg-slate-50 px-2 py-1 text-xs font-semibold text-slate-600">{food.calories} kcal</span>
-                          </div>
-                          <p className="mt-2 text-sm text-slate-700">P {food.protein} / F {food.fat} / C {food.carbs}</p>
-                        </button>
-                      ))}
+                            <p className="mt-2 text-sm text-slate-700">P {food.protein} / F {food.fat} / C {food.carbs}</p>
+                          </button>
+                        );
+                      })}
                     </div>
                   </>
                 ) : (
@@ -571,34 +646,52 @@ export function FoodLogComposer({ foods, recentLogs = [], value, isSaving, onCha
               <div className="grid gap-4">
                 <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
                   <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Ready to log</p>
-                  <h3 className="mt-1 text-lg font-semibold">{value.foodName || "Choose a food"}</h3>
-                  <p className="mt-1 text-sm text-slate-500">{value.meal || "No meal"} · {value.amount || "1 serving"}</p>
+                  <h3 className="mt-1 text-lg font-semibold">{selectedFoodSummary || "Choose a food"}</h3>
+                  <p className="mt-1 text-sm text-slate-500">{value.meal || "No meal"} - {entryMode === "saved" ? `${selectedFoods.length} item${selectedFoods.length === 1 ? "" : "s"}` : value.amount || "1 serving"}</p>
                 </div>
 
                 {entryMode === "saved" ? (
-                  <label className="grid gap-1 text-sm font-medium text-slate-700">
-                    Servings
-                    <input
-                      className="rounded-md border border-slate-300 px-3 py-2 font-normal"
-                      min="0"
-                      step="0.1"
-                      type="number"
-                      value={servings}
-                      onChange={(event) => updateServings(Number(event.target.value))}
-                    />
-                    <span className="mt-1 grid grid-cols-4 gap-1">
-                      {[0.5, 1, 1.5, 2].map((amount) => (
-                        <button
-                          key={amount}
-                          className={`rounded-md border px-2 py-1 text-xs font-semibold transition ${servings === amount ? "border-blue-200 bg-blue-50 text-blue-700" : "border-slate-200 bg-white text-slate-600"}`}
-                          type="button"
-                          onClick={() => updateServings(amount)}
-                        >
-                          {amount}x
-                        </button>
-                      ))}
-                    </span>
-                  </label>
+                  <div className="grid gap-3">
+                    {selectedFoods.map((item) => (
+                      <div key={item.food.id} className="rounded-xl border border-slate-200 bg-white p-3">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="truncate font-semibold text-slate-900">{item.food.name}</p>
+                            <p className="mt-1 text-xs text-slate-500">{item.food.serving || "1 serving"}</p>
+                          </div>
+                          <button className="text-xs font-semibold text-slate-500" type="button" onClick={() => toggleSavedFood(item.food)}>
+                            Remove
+                          </button>
+                        </div>
+                        <label className="mt-3 grid gap-1 text-sm font-medium text-slate-700">
+                          Servings
+                          <input
+                            className="rounded-md border border-slate-300 px-3 py-2 font-normal"
+                            min="0"
+                            step="0.1"
+                            type="number"
+                            value={item.servings}
+                            onChange={(event) => updateSelectedFoodServings(item.food.id, Number(event.target.value))}
+                          />
+                        </label>
+                        <div className="mt-2 grid grid-cols-4 gap-1">
+                          {[0.5, 1, 1.5, 2].map((amount) => (
+                            <button
+                              key={amount}
+                              className={`rounded-md border px-2 py-1 text-xs font-semibold transition ${item.servings === amount ? "border-blue-200 bg-blue-50 text-blue-700" : "border-slate-200 bg-white text-slate-600"}`}
+                              type="button"
+                              onClick={() => updateSelectedFoodServings(item.food.id, amount)}
+                            >
+                              {amount}x
+                            </button>
+                          ))}
+                        </div>
+                        <p className="mt-3 text-sm font-semibold text-slate-700">
+                          {roundMacro(item.food.calories * item.servings)} kcal / P {roundMacro(item.food.protein * item.servings)} / F {roundMacro(item.food.fat * item.servings)} / C {roundMacro(item.food.carbs * item.servings)}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
                 ) : (
                   <>
                     <div className="inline-grid grid-cols-2 rounded-lg border border-slate-200 bg-slate-50 p-1">
@@ -665,7 +758,7 @@ export function FoodLogComposer({ foods, recentLogs = [], value, isSaving, onCha
                         />
                       ) : (
                         <p className="mt-1 text-lg font-semibold">
-                          {value[field]} <span className="text-xs font-normal text-slate-500">{field === "calories" ? "kcal" : "g"}</span>
+                          {entryMode === "saved" ? roundMacro(selectedSavedTotals[field]) : value[field]} <span className="text-xs font-normal text-slate-500">{field === "calories" ? "kcal" : "g"}</span>
                         </p>
                       )}
                     </div>
@@ -857,12 +950,12 @@ export function FoodLogComposer({ foods, recentLogs = [], value, isSaving, onCha
               </div>
 
               {entryMode === "saved" ? (
-                <div className="grid gap-3 xl:grid-cols-[220px_minmax(0,1fr)]">
-                  <div className="grid content-start gap-3">
-                    <label className="grid gap-1 text-sm font-semibold text-slate-700 dark:text-slate-200">
+                <div className="grid min-w-0 gap-3 xl:grid-cols-[minmax(0,220px)_minmax(0,1fr)]">
+                  <div className="grid min-w-0 content-start gap-3">
+                    <label className="grid min-w-0 gap-1 text-sm font-semibold text-slate-700 dark:text-slate-200">
                       Category
                       <select
-                        className="h-10 rounded-lg border border-slate-300 bg-white px-3 text-sm font-normal text-ink outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:focus:ring-blue-950"
+                        className="h-10 min-w-0 rounded-lg border border-slate-300 bg-white px-3 text-sm font-normal text-ink outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:focus:ring-blue-950"
                         value={selectedCategory}
                         onChange={(event) => setSelectedCategory(event.target.value)}
                       >
@@ -875,13 +968,13 @@ export function FoodLogComposer({ foods, recentLogs = [], value, isSaving, onCha
                       </select>
                     </label>
                     {recentFoods.length > 0 || frequentFoods.length > 0 ? (
-                      <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-950/70">
+                      <div className="min-w-0 overflow-hidden rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-950/70">
                         <div className="flex items-center justify-between gap-2">
-                          <p className="inline-flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-200">
+                          <p className="inline-flex min-w-0 items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-200">
                             <Clock3 size={16} className="text-blue-700 dark:text-blue-300" />
                             Quick picks
                           </p>
-                          <div className="inline-grid grid-cols-2 rounded-lg border border-slate-200 bg-white p-0.5 dark:border-slate-800 dark:bg-slate-900">
+                          <div className="grid shrink-0 grid-cols-2 rounded-lg border border-slate-200 bg-white p-0.5 dark:border-slate-800 dark:bg-slate-900">
                             {(["recent", "frequent"] as const).map((mode) => (
                               <button
                                 key={mode}
@@ -894,18 +987,25 @@ export function FoodLogComposer({ foods, recentLogs = [], value, isSaving, onCha
                             ))}
                           </div>
                         </div>
-                        <div className="mt-3 grid max-h-[27rem] gap-2 overflow-y-auto pr-1">
+                        <div className="mt-3 grid max-h-[27rem] min-w-0 gap-2 overflow-y-auto pr-1">
                           {quickPickFoods.length > 0 ? (
-                            quickPickFoods.map((food) => (
-                              <button
-                                key={food.id}
-                                className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-left text-sm font-semibold text-slate-700 transition hover:border-blue-200 hover:bg-blue-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-blue-950/30"
-                                type="button"
-                                onClick={() => applyFood(food, 1)}
-                              >
-                                {food.name}
-                              </button>
-                            ))
+                            quickPickFoods.map((food) => {
+                              const isSelected = selectedFoods.some((item) => item.food.id === food.id);
+
+                              return (
+                                <button
+                                  key={food.id}
+                                  className={`min-w-0 overflow-hidden rounded-lg border px-3 py-2 text-left text-sm font-semibold transition hover:border-blue-200 hover:bg-blue-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-blue-950/30 ${isSelected ? "border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-200" : "border-slate-200 bg-white text-slate-700"}`}
+                                  type="button"
+                                  onClick={() => toggleSavedFood(food)}
+                                >
+                                  <span className="flex min-w-0 items-center justify-between gap-2">
+                                    <span className="min-w-0 truncate">{food.name}</span>
+                                    {isSelected ? <CheckCircle2 className="shrink-0" size={15} /> : null}
+                                  </span>
+                                </button>
+                              );
+                            })
                           ) : (
                             <p className="rounded-lg border border-dashed border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400">
                               No frequent foods yet.
@@ -929,21 +1029,35 @@ export function FoodLogComposer({ foods, recentLogs = [], value, isSaving, onCha
                         onChange={(event) => setQuery(event.target.value)}
                       />
                     </label>
+                    {selectedFoods.length > 0 ? (
+                      <div className="mt-3 rounded-xl border border-blue-100 bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-700 dark:border-blue-900 dark:bg-blue-950/40 dark:text-blue-200">
+                        {selectedFoods.length} selected for {value.meal}. Continue to adjust each serving.
+                      </div>
+                    ) : null}
                     <div className="mt-3 grid max-h-[23rem] min-w-0 gap-2 overflow-y-auto pr-1 md:grid-cols-2">
-                      {filteredFoods.map((food) => (
-                        <button
-                          key={food.id}
-                          className={`rounded-xl border p-3 text-left transition duration-200 hover:-translate-y-0.5 hover:border-blue-200 hover:bg-blue-50 hover:shadow-sm dark:hover:bg-blue-950/30 ${selectedFood?.id === food.id ? "border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-950/40" : "border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950"}`}
-                          type="button"
-                          onClick={() => applyFood(food, 1)}
-                        >
-                          <p className="line-clamp-2 font-semibold text-slate-900 dark:text-slate-100">{food.name}</p>
-                          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{food.serving || "1 serving"}</p>
-                          <p className="mt-2 text-sm text-slate-700 dark:text-slate-300">
-                            {food.calories} kcal / P {food.protein} / F {food.fat} / C {food.carbs}
-                          </p>
-                        </button>
-                      ))}
+                      {filteredFoods.map((food) => {
+                        const isSelected = selectedFoods.some((item) => item.food.id === food.id);
+
+                        return (
+                          <button
+                            key={food.id}
+                            className={`rounded-xl border p-3 text-left transition duration-200 hover:-translate-y-0.5 hover:border-blue-200 hover:bg-blue-50 hover:shadow-sm dark:hover:bg-blue-950/30 ${isSelected ? "border-blue-200 bg-blue-50 shadow-sm dark:border-blue-800 dark:bg-blue-950/40" : "border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950"}`}
+                            type="button"
+                            onClick={() => toggleSavedFood(food)}
+                          >
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                <p className="line-clamp-2 font-semibold text-slate-900 dark:text-slate-100">{food.name}</p>
+                                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{food.serving || "1 serving"}</p>
+                              </div>
+                              {isSelected ? <CheckCircle2 className="shrink-0 text-blue-700 dark:text-blue-200" size={18} /> : null}
+                            </div>
+                            <p className="mt-2 text-sm text-slate-700 dark:text-slate-300">
+                              {food.calories} kcal / P {food.protein} / F {food.fat} / C {food.carbs}
+                            </p>
+                          </button>
+                        );
+                      })}
                       {filteredFoods.length === 0 ? (
                         <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-4 text-sm font-medium text-slate-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-400 md:col-span-2">
                           No saved foods match this search.
@@ -994,7 +1108,7 @@ export function FoodLogComposer({ foods, recentLogs = [], value, isSaving, onCha
             <div className="grid gap-4">
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">{value.foodName || "Selected food"}</p>
+                  <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">{selectedFoodSummary || "Selected food"}</p>
                   <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{entryMode === "saved" ? "Adjust servings and the macro preview updates automatically." : "Enter total macros, or scale from a nutrition label."}</p>
                 </div>
                 <button
@@ -1007,29 +1121,51 @@ export function FoodLogComposer({ foods, recentLogs = [], value, isSaving, onCha
               </div>
 
               {entryMode === "saved" ? (
-                <label className="grid max-w-xs gap-2 text-sm font-semibold text-slate-700 dark:text-slate-200">
-                  Servings
-                  <input
-                    className="h-11 rounded-lg border border-slate-300 bg-white px-3 font-normal text-ink outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:focus:ring-blue-950"
-                    min="0"
-                    step="0.1"
-                    type="number"
-                    value={servings}
-                    onChange={(event) => updateServings(Number(event.target.value))}
-                  />
-                  <span className="grid grid-cols-4 gap-2">
-                    {[0.5, 1, 1.5, 2].map((amount) => (
-                      <button
-                        key={amount}
-                        className={`rounded-lg border px-2 py-2 text-xs font-semibold transition ${servings === amount ? "border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-200" : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-300 dark:hover:bg-slate-800"}`}
-                        type="button"
-                        onClick={() => updateServings(amount)}
-                      >
-                        {amount}x
-                      </button>
-                    ))}
-                  </span>
-                </label>
+                <div className="grid gap-3 md:grid-cols-2">
+                  {selectedFoods.map((item) => (
+                    <div key={item.food.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-950/70">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="line-clamp-2 text-sm font-semibold text-slate-900 dark:text-slate-100">{item.food.name}</p>
+                          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{item.food.serving || "1 serving"}</p>
+                        </div>
+                        <button
+                          className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-500 transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300"
+                          type="button"
+                          onClick={() => toggleSavedFood(item.food)}
+                        >
+                          Remove
+                        </button>
+                      </div>
+                      <label className="mt-3 grid gap-2 text-sm font-semibold text-slate-700 dark:text-slate-200">
+                        Servings
+                        <input
+                          className="h-11 rounded-lg border border-slate-300 bg-white px-3 font-normal text-ink outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:focus:ring-blue-950"
+                          min="0"
+                          step="0.1"
+                          type="number"
+                          value={item.servings}
+                          onChange={(event) => updateSelectedFoodServings(item.food.id, Number(event.target.value))}
+                        />
+                        <span className="grid grid-cols-4 gap-2">
+                          {[0.5, 1, 1.5, 2].map((amount) => (
+                            <button
+                              key={amount}
+                              className={`rounded-lg border px-2 py-2 text-xs font-semibold transition ${item.servings === amount ? "border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-200" : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-300 dark:hover:bg-slate-800"}`}
+                              type="button"
+                              onClick={() => updateSelectedFoodServings(item.food.id, amount)}
+                            >
+                              {amount}x
+                            </button>
+                          ))}
+                        </span>
+                      </label>
+                      <p className="mt-3 text-sm font-semibold text-slate-700 dark:text-slate-300">
+                        {roundMacro(item.food.calories * item.servings)} kcal / P {roundMacro(item.food.protein * item.servings)} / F {roundMacro(item.food.fat * item.servings)} / C {roundMacro(item.food.carbs * item.servings)}
+                      </p>
+                    </div>
+                  ))}
+                </div>
               ) : (
                 <div className="grid gap-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-950/70">
                   <label className="grid max-w-xs gap-1 text-sm font-semibold text-slate-700 dark:text-slate-200">
@@ -1135,7 +1271,7 @@ export function FoodLogComposer({ foods, recentLogs = [], value, isSaving, onCha
                       />
                     ) : (
                       <p className="mt-1 truncate text-lg font-semibold text-slate-900 dark:text-slate-100">
-                        {value[field]} <span className="text-xs font-normal text-slate-500 dark:text-slate-400">{field === "calories" ? "kcal" : "g"}</span>
+                        {entryMode === "saved" ? roundMacro(selectedSavedTotals[field]) : value[field]} <span className="text-xs font-normal text-slate-500 dark:text-slate-400">{field === "calories" ? "kcal" : "g"}</span>
                       </p>
                     )}
                   </div>
@@ -1148,18 +1284,27 @@ export function FoodLogComposer({ foods, recentLogs = [], value, isSaving, onCha
             <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_260px]">
               <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-950/70">
                 <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">Ready to log</p>
-                <h3 className="mt-2 text-2xl font-semibold text-ink dark:text-slate-100">{value.foodName || "No food selected"}</h3>
+                <h3 className="mt-2 text-2xl font-semibold text-ink dark:text-slate-100">{selectedFoodSummary || "No food selected"}</h3>
                 <div className="mt-4 grid gap-2 text-sm text-slate-600 dark:text-slate-300 md:grid-cols-3">
                   <p className="rounded-lg bg-white px-3 py-2 dark:bg-slate-900"><span className="font-semibold">Meal:</span> {value.meal || "Missing"}</p>
-                  <p className="rounded-lg bg-white px-3 py-2 dark:bg-slate-900"><span className="font-semibold">Amount:</span> {value.amount || "Missing"}</p>
+                  <p className="rounded-lg bg-white px-3 py-2 dark:bg-slate-900"><span className="font-semibold">Amount:</span> {entryMode === "saved" ? `${selectedFoods.length} item${selectedFoods.length === 1 ? "" : "s"}` : value.amount || "Missing"}</p>
                   <p className="rounded-lg bg-white px-3 py-2 dark:bg-slate-900"><span className="font-semibold">Source:</span> {entryMode === "custom" ? (value.isAiEstimated ? "AI estimate" : "Custom") : "Saved food"}</p>
                 </div>
+                {entryMode === "saved" && selectedFoods.length > 1 ? (
+                  <div className="mt-4 grid gap-2">
+                    {selectedFoods.map((item) => (
+                      <p key={item.food.id} className="rounded-lg bg-white px-3 py-2 text-sm font-semibold text-slate-700 dark:bg-slate-900 dark:text-slate-200">
+                        {item.food.name} <span className="font-normal text-slate-500 dark:text-slate-400">x {item.servings}</span>
+                      </p>
+                    ))}
+                  </div>
+                ) : null}
                 <div className="mt-4 grid min-w-0 grid-cols-4 gap-2">
                   {macroFields.map((field) => (
                     <div key={field} className="min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-3 dark:border-slate-800 dark:bg-slate-900">
                       <p className="truncate text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">{macroLabels[field]}</p>
                       <p className="mt-1 truncate text-lg font-semibold text-slate-900 dark:text-slate-100">
-                        {value[field]} <span className="text-xs font-normal text-slate-500 dark:text-slate-400">{field === "calories" ? "kcal" : "g"}</span>
+                        {entryMode === "saved" ? roundMacro(selectedSavedTotals[field]) : value[field]} <span className="text-xs font-normal text-slate-500 dark:text-slate-400">{field === "calories" ? "kcal" : "g"}</span>
                       </p>
                     </div>
                   ))}
