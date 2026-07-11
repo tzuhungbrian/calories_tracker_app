@@ -95,7 +95,9 @@ export type DailySummary = {
   protein: number;
   proteinGoal: number;
   fat: number;
+  fatGoal: number;
   carbs: number;
+  carbsGoal: number;
   goalType: GoalType | "";
   isTravelDay: boolean;
   steps: number;

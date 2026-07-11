@@ -2,7 +2,7 @@
 
 import { Activity, BarChart3, Beef, CheckCircle2, ChevronDown, Flame, Footprints, Leaf, PieChart, Target, Trophy, Utensils, Wheat } from "lucide-react";
 import type { ReactNode } from "react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { DailySummary, DashboardData, FoodLog } from "@/lib/types";
 
 type StatsDashboardProps = {
@@ -13,6 +13,7 @@ type StatsDashboardProps = {
 
 type HabitKey = "logged" | "protein" | "creatine" | "exercise";
 type NutrientKey = "calories" | "protein" | "fat" | "carbs";
+type EnergyMetric = "balance" | NutrientKey;
 
 const rangeOptions = [7, 14, 30];
 const energyRangeOptions = [30, 60, 90, 180] as const;
@@ -495,8 +496,124 @@ function MacroRatioPanel({ ratio, dayRange }: { ratio: ReturnType<typeof macroRa
   );
 }
 
+const energyMetricOptions: Array<{ value: EnergyMetric; label: string }> = [
+  { value: "balance", label: "Energy balance" },
+  { value: "calories", label: "Calories" },
+  { value: "protein", label: "Protein" },
+  { value: "fat", label: "Fat" },
+  { value: "carbs", label: "Carbs" }
+];
+
+function metricValue(row: DailySummary, metric: EnergyMetric): number {
+  return metric === "balance" ? row.calories - row.dynamicTdee : row[metric];
+}
+
+function metricTarget(row: DailySummary, metric: EnergyMetric): number {
+  if (metric === "calories") return row.calorieTarget;
+  if (metric === "protein") return row.proteinGoal;
+  if (metric === "fat") return row.fatGoal;
+  if (metric === "carbs") return row.carbsGoal;
+  return 0;
+}
+
+function metricHit(row: DailySummary, metric: EnergyMetric): boolean | null {
+  if (metric === "balance") return metricValue(row, metric) <= 0;
+  const value = metricValue(row, metric);
+  const target = metricTarget(row, metric);
+  if (target <= 0) return null;
+  if (metric === "protein") return value >= target;
+  if (metric === "fat") return value >= target * 0.8 && value <= target * 1.2;
+  return row.goalType === "bulk" ? value >= target : value <= target;
+}
+
+function metricUnit(metric: EnergyMetric): string {
+  return metric === "balance" || metric === "calories" ? "kcal" : "g";
+}
+
+function metricDescription(metric: EnergyMetric): string {
+  if (metric === "balance") return "Daily calories minus dynamic TDEE. Green is deficit, amber is surplus.";
+  if (metric === "protein") return "Daily protein intake against the day's protein target.";
+  if (metric === "fat") return "Daily fat intake against the day's target. Within 80-120% is on track.";
+  if (metric === "carbs") return "Daily carb intake against the day's target and goal mode.";
+  return "Daily calorie intake against the day's target and goal mode.";
+}
+
+function MetricDateChart({ rows, metric, expanded = false }: { rows: DailySummary[]; metric: EnergyMetric; expanded?: boolean }) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const values = rows.flatMap((row) => (metric === "balance" ? [Math.abs(metricValue(row, metric))] : [metricValue(row, metric), metricTarget(row, metric)]));
+  const scaleMax = Math.max(...values, metric === "balance" ? 250 : 1);
+
+  useEffect(() => {
+    const viewport = scrollRef.current;
+    if (viewport) viewport.scrollLeft = viewport.scrollWidth;
+  }, [expanded, metric, rows]);
+
+  return (
+    <div ref={scrollRef} className="calorie-scrollbar overflow-x-auto overflow-y-hidden pb-2">
+      <div
+        key={metric}
+        className="animate-enter-soft relative flex h-56 items-stretch gap-2 border-y border-slate-200 px-2"
+        style={{ minWidth: expanded ? `${Math.max(rows.length * 48, 720)}px` : "100%" }}
+      >
+        {metric === "balance" ? <span className="absolute left-0 right-0 top-1/2 h-px bg-slate-300" /> : <span className="absolute bottom-10 left-0 right-0 h-px bg-slate-200" />}
+        {rows.map((row, index) => {
+          const value = metricValue(row, metric);
+          const target = metricTarget(row, metric);
+          const hit = metricHit(row, metric);
+          const balanceHeight = clamp((Math.abs(value) / scaleMax) * 42, 3, 42);
+          const nutrientHeight = clamp((value / scaleMax) * 72, value > 0 ? 3 : 0, 72);
+          const targetBottom = clamp((target / scaleMax) * 72, 0, 72);
+          const balanceClass = value <= 0 ? "top-1/2 bg-emerald-500" : "bottom-1/2 bg-amber-500";
+          const nutrientClass = hit === null ? "bg-slate-400" : hit ? "bg-emerald-500" : "bg-rose-500";
+          const attainment = target > 0 ? Math.round((value / target) * 100) : 0;
+
+          return (
+            <button key={row.date} className={`group relative z-10 h-full flex-1 focus:outline-none ${expanded ? "min-w-10" : "min-w-0"}`} type="button" aria-label={`${row.date}: ${round(value)} ${metricUnit(metric)}`}>
+              {metric === "balance" ? (
+                <span
+                  className={`absolute left-1/2 w-5 -translate-x-1/2 rounded-full transition-all duration-300 motion-reduce:transition-none group-hover:w-7 group-focus-visible:w-7 ${balanceClass}`}
+                  style={{ height: `${balanceHeight}%` }}
+                />
+              ) : (
+                <>
+                  <span
+                    className={`absolute bottom-10 left-1/2 w-5 -translate-x-1/2 rounded-t-md transition-all duration-300 motion-reduce:transition-none group-hover:w-7 group-focus-visible:w-7 ${nutrientClass}`}
+                    style={{ height: `${nutrientHeight}%` }}
+                  />
+                  {target > 0 ? (
+                    <span
+                      className="absolute left-1/2 z-10 h-0.5 w-8 -translate-x-1/2 bg-slate-700 shadow-[0_0_0_1px_rgba(255,255,255,0.75)] dark:bg-slate-100"
+                      style={{ bottom: `calc(2.5rem + ${targetBottom}%)` }}
+                    />
+                  ) : null}
+                </>
+              )}
+              <span className={`pointer-events-none absolute top-3 z-30 hidden w-40 rounded-lg border border-slate-200 bg-white p-2 text-left text-xs shadow-lg group-hover:block group-focus-visible:block ${index === 0 ? "left-0" : index === rows.length - 1 ? "right-0" : "left-1/2 -translate-x-1/2"}`}>
+                <span className="block font-semibold text-slate-800">{row.date}</span>
+                {metric === "balance" ? (
+                  <>
+                    <span className={`block ${value <= 0 ? "text-emerald-700" : "text-amber-700"}`}>{value > 0 ? "+" : ""}{round(value)} kcal vs TDEE</span>
+                    <span className="mt-1 block text-slate-500">{round(row.calories)} eaten / {round(row.dynamicTdee)} TDEE</span>
+                  </>
+                ) : (
+                  <>
+                    <span className={`block ${hit ? "text-emerald-700" : hit === false ? "text-red-700" : "text-slate-500"}`}>{round(value)} {metricUnit(metric)} consumed</span>
+                    <span className="mt-1 block text-slate-500">Target {round(target)} {metricUnit(metric)}{target > 0 ? ` / ${attainment}%` : ""}</span>
+                  </>
+                )}
+              </span>
+              <span className="absolute bottom-1 left-1/2 -translate-x-1/2 -rotate-45 whitespace-nowrap text-[11px] font-semibold text-slate-500">{row.date.slice(5)}</span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function EnergyBalancePanel({ rows }: { rows: DailySummary[] }) {
   const [isExpanded, setIsExpanded] = useState(false);
+  const [selectedMetric, setSelectedMetric] = useState<EnergyMetric>("balance");
   const [energyRange, setEnergyRange] = useState<"custom" | number>(30);
   const [customStartDate, setCustomStartDate] = useState("");
   const [customEndDate, setCustomEndDate] = useState("");
@@ -507,7 +624,6 @@ function EnergyBalancePanel({ rows }: { rows: DailySummary[] }) {
   const totalBalance = loggedRows.reduce((sum, row) => sum + row.calories - row.dynamicTdee, 0);
   const deficitDays = loggedRows.filter((row) => row.calories <= row.dynamicTdee).length;
   const surplusDays = loggedRows.length - deficitDays;
-  const maxAbsBalance = Math.max(...loggedRows.map((row) => Math.abs(row.calories - row.dynamicTdee)), 250);
   const explorerRows = useMemo(() => {
     const sourceRows = (historyRows.length ? historyRows : rows).filter((row) => !row.isTravelDay);
     return [...sourceRows].reverse();
@@ -518,11 +634,21 @@ function EnergyBalancePanel({ rows }: { rows: DailySummary[] }) {
   const explorerTotalBalance = explorerBalances.reduce((sum, balance) => sum + balance, 0);
   const explorerDeficitDays = explorerBalances.filter((balance) => balance <= 0).length;
   const explorerSurplusDays = explorerLoggedRows.length - explorerDeficitDays;
-  const explorerMaxAbsBalance = Math.max(...explorerBalances.map((balance) => Math.abs(balance)), 250);
   const averageBalance = explorerLoggedRows.length ? explorerTotalBalance / explorerLoggedRows.length : 0;
   const biggestDeficit = Math.min(...explorerBalances, 0);
   const biggestSurplus = Math.max(...explorerBalances, 0);
   const deficitRate = rate(explorerDeficitDays, explorerLoggedRows.length);
+  const metricLabel = energyMetricOptions.find((option) => option.value === selectedMetric)?.label ?? "Energy balance";
+  const recentHitDays = loggedRows.filter((row) => metricHit(row, selectedMetric) === true).length;
+  const recentMissedDays = loggedRows.filter((row) => metricHit(row, selectedMetric) === false).length;
+  const recentAverage = average(loggedRows.map((row) => metricValue(row, selectedMetric)));
+  const recentAverageTarget = average(loggedRows.map((row) => metricTarget(row, selectedMetric)).filter((target) => target > 0));
+  const explorerHitDays = explorerLoggedRows.filter((row) => metricHit(row, selectedMetric) === true).length;
+  const explorerMissedDays = explorerLoggedRows.filter((row) => metricHit(row, selectedMetric) === false).length;
+  const explorerMetricAverage = average(explorerLoggedRows.map((row) => metricValue(row, selectedMetric)));
+  const explorerTargetAverage = average(explorerLoggedRows.map((row) => metricTarget(row, selectedMetric)).filter((target) => target > 0));
+  const explorerHitRate = rate(explorerHitDays, explorerHitDays + explorerMissedDays);
+  const explorerHighestValue = Math.max(...explorerLoggedRows.map((row) => metricValue(row, selectedMetric)), 0);
 
   useEffect(() => {
     if (!isExpanded) {
@@ -562,7 +688,7 @@ function EnergyBalancePanel({ rows }: { rows: DailySummary[] }) {
   }, [customEndDate, customStartDate, energyRange, isExpanded]);
 
   return (
-    <section className="animate-enter-soft rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+    <section className="min-w-0 animate-enter-soft rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <button
@@ -574,50 +700,36 @@ function EnergyBalancePanel({ rows }: { rows: DailySummary[] }) {
             Recent energy balance
             <ChevronDown className={`transition-transform duration-300 ${isExpanded ? "rotate-180" : ""}`} size={18} />
           </button>
-          <p className="mt-1 text-sm text-slate-500">Daily calories minus dynamic TDEE. Green is deficit, amber is surplus.</p>
+          <p className="mt-1 text-sm text-slate-500">{metricDescription(selectedMetric)}</p>
         </div>
-        <button
-          className={`inline-flex w-fit items-center gap-2 rounded-full px-3 py-1.5 text-sm font-semibold transition hover:-translate-y-0.5 hover:shadow-sm ${totalBalance <= 0 ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}
-          type="button"
-          onClick={() => setIsExpanded((current) => !current)}
-        >
-          {totalBalance <= 0 ? "Net deficit" : "Net surplus"} {Math.abs(round(totalBalance))} kcal
-          <BarChart3 size={16} />
-        </button>
+        <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+          <label className="sr-only" htmlFor="energy-metric">Chart metric</label>
+          <select
+            id="energy-metric"
+            className="min-h-10 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-100"
+            value={selectedMetric}
+            onChange={(event) => setSelectedMetric(event.target.value as EnergyMetric)}
+          >
+            {energyMetricOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+          </select>
+          <button
+            className={`inline-flex min-h-10 w-fit items-center gap-2 rounded-full px-3 py-1.5 text-sm font-semibold transition hover:-translate-y-0.5 hover:shadow-sm ${selectedMetric === "balance" ? totalBalance <= 0 ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700" : recentHitDays >= recentMissedDays ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"}`}
+            type="button"
+            onClick={() => setIsExpanded((current) => !current)}
+          >
+            {selectedMetric === "balance" ? <>{totalBalance <= 0 ? "Net deficit" : "Net surplus"} {Math.abs(round(totalBalance))} kcal</> : <>Avg {round(recentAverage)} / {round(recentAverageTarget)} {metricUnit(selectedMetric)}</>}
+            <BarChart3 size={16} />
+          </button>
+        </div>
       </div>
 
-      <div className="mt-4 grid gap-2">
-        {loggedRows.length > 0 ? (
-          loggedRows.map((row) => {
-            const balance = row.calories - row.dynamicTdee;
-            const isDeficit = balance <= 0;
-            const width = clamp((Math.abs(balance) / maxAbsBalance) * 100, 6, 100);
-
-            return (
-              <div key={row.date} className="grid grid-cols-[56px_minmax(0,1fr)_86px] items-center gap-3">
-                <p className="text-xs font-semibold text-slate-500">{row.date.slice(5)}</p>
-                <div className="relative h-6 overflow-hidden rounded-full bg-slate-100">
-                  <span
-                    className={`absolute bottom-0 top-0 rounded-full ${isDeficit ? "right-1/2 bg-emerald-500" : "left-1/2 bg-amber-500"}`}
-                    style={{ width: `${width / 2}%` }}
-                  />
-                  <span className="absolute bottom-0 left-1/2 top-0 w-px bg-slate-300" />
-                </div>
-                <p className={`text-right text-sm font-semibold ${isDeficit ? "text-emerald-700" : "text-amber-700"}`}>
-                  {balance > 0 ? "+" : ""}
-                  {round(balance)}
-                </p>
-              </div>
-            );
-          })
-        ) : (
-          <div className="rounded-lg border border-dashed border-slate-300 p-5 text-center text-sm text-slate-500">Log calories to see daily deficit and surplus.</div>
-        )}
+      <div className="mt-4">
+        {loggedRows.length > 0 ? <MetricDateChart rows={loggedRows} metric={selectedMetric} /> : <div className="rounded-lg border border-dashed border-slate-300 p-5 text-center text-sm text-slate-500">Log food to see daily nutrition trends.</div>}
       </div>
 
       <div className="mt-4 flex flex-wrap gap-2 text-xs font-semibold text-slate-500">
-        <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-emerald-700">{deficitDays} deficit days</span>
-        <span className="rounded-full bg-amber-50 px-2.5 py-1 text-amber-700">{surplusDays} surplus days</span>
+        <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-emerald-700">{selectedMetric === "balance" ? `${deficitDays} deficit days` : `${recentHitDays} on-track days`}</span>
+        <span className={`rounded-full px-2.5 py-1 ${selectedMetric === "balance" ? "bg-amber-50 text-amber-700" : "bg-red-50 text-red-700"}`}>{selectedMetric === "balance" ? `${surplusDays} surplus days` : `${recentMissedDays} missed days`}</span>
         <span className="rounded-full bg-slate-100 px-2.5 py-1">{loggedRows.length} logged days</span>
         {excludedTravelDays > 0 ? <span className="rounded-full bg-sky-50 px-2.5 py-1 text-sky-700">{excludedTravelDays} travel excluded</span> : null}
       </div>
@@ -627,7 +739,7 @@ function EnergyBalancePanel({ rows }: { rows: DailySummary[] }) {
           <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
               <div>
-                <p className="text-sm font-semibold text-slate-800">Energy history explorer</p>
+                <p className="text-sm font-semibold text-slate-800">{metricLabel} history explorer</p>
                 <p className="mt-1 text-xs text-slate-500">Choose a longer window or set a custom date range.</p>
               </div>
               <div className="flex flex-wrap gap-2">
@@ -679,57 +791,37 @@ function EnergyBalancePanel({ rows }: { rows: DailySummary[] }) {
               <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-700">Start date must be before end date.</p>
             ) : null}
 
-            <div className="mt-4 grid gap-3 sm:grid-cols-4">
-              <EnergyStat label="Avg / day" value={`${averageBalance > 0 ? "+" : ""}${round(averageBalance)} kcal`} tone={averageBalance <= 0 ? "good" : "warn"} />
-              <EnergyStat label="Deficit rate" value={`${deficitRate}%`} tone={deficitRate >= 70 ? "good" : "warn"} />
-              <EnergyStat label="Biggest deficit" value={`${round(biggestDeficit)} kcal`} tone="good" />
-              <EnergyStat label="Biggest surplus" value={`+${round(biggestSurplus)} kcal`} tone={biggestSurplus > 0 ? "warn" : "neutral"} />
+            <div key={`${selectedMetric}-stats`} className="mt-4 grid animate-enter-soft gap-3 sm:grid-cols-4">
+              {selectedMetric === "balance" ? (
+                <>
+                  <EnergyStat label="Avg / day" value={`${averageBalance > 0 ? "+" : ""}${round(averageBalance)} kcal`} tone={averageBalance <= 0 ? "good" : "warn"} />
+                  <EnergyStat label="Deficit rate" value={`${deficitRate}%`} tone={deficitRate >= 70 ? "good" : "warn"} />
+                  <EnergyStat label="Biggest deficit" value={`${round(biggestDeficit)} kcal`} tone="good" />
+                  <EnergyStat label="Biggest surplus" value={`+${round(biggestSurplus)} kcal`} tone={biggestSurplus > 0 ? "warn" : "neutral"} />
+                </>
+              ) : (
+                <>
+                  <EnergyStat label="Avg intake" value={`${round(explorerMetricAverage)} ${metricUnit(selectedMetric)}`} tone="neutral" />
+                  <EnergyStat label="Avg target" value={`${round(explorerTargetAverage)} ${metricUnit(selectedMetric)}`} tone="neutral" />
+                  <EnergyStat label="On-track rate" value={`${explorerHitRate}%`} tone={explorerHitRate >= 70 ? "good" : "warn"} />
+                  <EnergyStat label="Highest day" value={`${round(explorerHighestValue)} ${metricUnit(selectedMetric)}`} tone="neutral" />
+                </>
+              )}
             </div>
 
             {isLoadingHistory ? <p className="mt-5 rounded-lg border border-dashed border-slate-300 bg-white p-5 text-center text-sm font-semibold text-slate-500">Loading energy history...</p> : null}
 
-            {!isLoadingHistory && explorerLoggedRows.length > 0 ? (
-              <div className="mt-5 overflow-x-auto pb-2">
-                <div className="relative flex h-56 min-w-[720px] items-center gap-2 border-y border-slate-200 px-2">
-                  <span className="absolute left-0 right-0 top-1/2 h-px bg-slate-300" />
-                  {explorerLoggedRows.map((row) => {
-                    const balance = row.calories - row.dynamicTdee;
-                    const isDeficit = balance <= 0;
-                    const height = clamp((Math.abs(balance) / explorerMaxAbsBalance) * 44, 4, 44);
-
-                    return (
-                      <div key={row.date} className="group relative z-10 flex h-full flex-1 min-w-10 items-center justify-center">
-                        <div className="relative h-full w-full">
-                          <span
-                            className={`absolute left-1/2 w-5 -translate-x-1/2 rounded-full transition-all duration-300 group-hover:w-7 ${isDeficit ? "top-1/2 bg-emerald-500" : "bottom-1/2 bg-amber-500"}`}
-                            style={{ height: `${height}%` }}
-                          />
-                          <div className="pointer-events-none absolute left-1/2 top-4 z-20 hidden w-36 -translate-x-1/2 rounded-lg border border-slate-200 bg-white p-2 text-xs shadow-lg group-hover:block">
-                            <p className="font-semibold text-slate-800">{row.date}</p>
-                            <p className={isDeficit ? "text-emerald-700" : "text-amber-700"}>
-                              {balance > 0 ? "+" : ""}
-                              {round(balance)} kcal vs TDEE
-                            </p>
-                            <p className="mt-1 text-slate-500">{round(row.calories)} kcal eaten / {round(row.dynamicTdee)} TDEE</p>
-                          </div>
-                        </div>
-                        <span className="absolute bottom-0 rotate-[-45deg] text-[11px] font-semibold text-slate-500">{row.date.slice(5)}</span>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            ) : null}
+            {!isLoadingHistory && explorerLoggedRows.length > 0 ? <div className="mt-5"><MetricDateChart rows={explorerLoggedRows} metric={selectedMetric} expanded /></div> : null}
 
             {!isLoadingHistory && !explorerLoggedRows.length ? (
               <div className="mt-5 rounded-lg border border-dashed border-slate-300 bg-white p-5 text-center text-sm text-slate-500">
-                No logged calorie days in this range.
+                No logged nutrition days in this range.
               </div>
             ) : null}
 
             <div className="mt-3 flex flex-wrap gap-2 text-xs font-semibold text-slate-500">
-              <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-emerald-700">{explorerDeficitDays} deficit days</span>
-              <span className="rounded-full bg-amber-50 px-2.5 py-1 text-amber-700">{explorerSurplusDays} surplus days</span>
+              <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-emerald-700">{selectedMetric === "balance" ? `${explorerDeficitDays} deficit days` : `${explorerHitDays} on-track days`}</span>
+              <span className={`rounded-full px-2.5 py-1 ${selectedMetric === "balance" ? "bg-amber-50 text-amber-700" : "bg-red-50 text-red-700"}`}>{selectedMetric === "balance" ? `${explorerSurplusDays} surplus days` : `${explorerMissedDays} missed days`}</span>
               <span className="rounded-full bg-slate-100 px-2.5 py-1">{explorerLoggedRows.length} logged days</span>
               {excludedTravelDays > 0 ? <span className="rounded-full bg-sky-50 px-2.5 py-1 text-sky-700">{excludedTravelDays} travel excluded</span> : null}
             </div>
