@@ -1,8 +1,9 @@
 "use client";
 
-import { CalendarDays, Clock3, Copy, ListChecks, Pencil, Save, Search, Trash2, Utensils } from "lucide-react";
+import { CalendarDays, Clock3, Copy, ListChecks, Pencil, Save, Search, SlidersHorizontal, Trash2, Utensils, X } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
 import { DecimalNumberInput } from "@/components/decimal_number_input";
+import { useModalAccessibility } from "@/components/use_modal_accessibility";
 import { mealOptions } from "@/lib/food_options";
 import type { ToastInput } from "@/components/toast_viewport";
 import type { CommonFood, FoodLog } from "@/lib/types";
@@ -164,11 +165,13 @@ export function FoodLogManager({ logs, foods, today, onChanged, onNotify }: Food
   const [query, setQuery] = useState("");
   const [sortMode, setSortMode] = useState<LogSortMode>("newest");
   const [isBatchMode, setIsBatchMode] = useState(false);
+  const [isFiltersOpen, setIsFiltersOpen] = useState(false);
   const [selectedLogIds, setSelectedLogIds] = useState<Set<string>>(new Set());
   const [isSaving, setIsSaving] = useState(false);
   const [mobileActionLog, setMobileActionLog] = useState<FoodLog | null>(null);
   const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const suppressNextClickRef = useRef(false);
+  const mobileActionDialogRef = useModalAccessibility(Boolean(mobileActionLog), () => setMobileActionLog(null));
 
   const visibleLogs = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
@@ -483,81 +486,66 @@ export function FoodLogManager({ logs, foods, today, onChanged, onNotify }: Food
   const filterLabel = dateFilter || "All dates";
 
   return (
-    <section className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1fr)_380px]">
+    <section className={`grid min-w-0 gap-4 transition-[grid-template-columns] duration-300 ease-out ${selectedLog ? "lg:grid-cols-[minmax(0,1fr)_400px]" : "lg:grid-cols-1"}`}>
       <div className="animate-enter min-w-0 overflow-hidden rounded-lg border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
             <h2 className="inline-flex items-center gap-2 text-lg font-semibold">
               <Utensils size={20} />
               Food log manager
             </h2>
-            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Review logged meals by day, then edit or reuse entries when needed.</p>
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{filterLabel} · {visibleLogs.length} items</p>
           </div>
-          <div className="grid grid-cols-4 gap-2 rounded-lg bg-slate-50 p-2 text-center text-xs font-semibold text-slate-600 dark:bg-slate-950 dark:text-slate-300">
-            <span>{Math.round(visibleTotals.calories)} kcal</span>
-            <span>P {Math.round(visibleTotals.protein)}</span>
-            <span>F {Math.round(visibleTotals.fat)}</span>
-            <span>C {Math.round(visibleTotals.carbs)}</span>
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <div className="grid grid-cols-4 gap-2 rounded-lg bg-slate-50 px-3 py-2 text-center text-xs font-semibold text-slate-600 dark:bg-slate-950 dark:text-slate-300">
+              <span>{Math.round(visibleTotals.calories)} kcal</span><span>P {Math.round(visibleTotals.protein)}</span><span>F {Math.round(visibleTotals.fat)}</span><span>C {Math.round(visibleTotals.carbs)}</span>
+            </div>
+            <button className={`inline-flex min-h-10 items-center gap-2 rounded-md px-3 text-sm font-semibold ${isBatchMode ? "bg-ink text-white dark:bg-blue-600" : "border border-slate-200 text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"}`} type="button" onClick={toggleBatchMode}>
+              <ListChecks size={16} />{isBatchMode ? "Done" : "Batch"}
+            </button>
           </div>
-          <button
-            className={`inline-flex w-fit items-center gap-2 rounded-md px-3 py-2 text-sm font-semibold ${isBatchMode ? "bg-ink text-white dark:bg-blue-600" : "border border-slate-200 text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"}`}
-            type="button"
-            onClick={toggleBatchMode}
-          >
-            <ListChecks size={16} />
-            {isBatchMode ? "Done" : "Batch"}
-          </button>
         </div>
 
-        <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-950/70">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">{filterLabel} / {visibleLogs.length} items</p>
-            <div className="flex gap-2">
-              <button className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800" type="button" onClick={() => setDateFilter(today)}>
-                Today
-              </button>
-              <button className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800" type="button" onClick={() => setDateFilter("")}>
-                All
-              </button>
+        <div className="sticky top-0 z-20 mt-4 rounded-lg border border-slate-200 bg-slate-50/95 p-2.5 backdrop-blur dark:border-slate-800 dark:bg-slate-950/90">
+          <div className={`grid grid-cols-[minmax(0,1fr)_auto] gap-2 ${selectedLog ? "md:grid-cols-[170px_minmax(160px,1fr)_auto]" : "md:grid-cols-[170px_minmax(220px,1fr)_auto_auto]"}`}>
+            <input aria-label="Date" className="h-10 min-w-0 rounded-md border border-slate-300 bg-white px-3 text-sm dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100" type="date" value={dateFilter} onChange={(event) => setDateFilter(event.target.value)} />
+            <label className="relative col-span-2 md:col-span-1">
+              <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+              <input aria-label="Search" className="h-10 w-full rounded-md border border-slate-300 bg-white pl-9 pr-3 text-sm dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100" placeholder="Search food or notes" value={query} onChange={(event) => setQuery(event.target.value)} />
+            </label>
+            <div className={`${selectedLog ? "hidden" : "flex"} gap-1 rounded-md border border-slate-200 bg-white p-1 dark:border-slate-700 dark:bg-slate-900`}>
+              <button className={`rounded px-2.5 text-xs font-semibold ${dateFilter === today ? "bg-blue-50 text-blue-700 dark:bg-blue-950" : "text-slate-500"}`} type="button" onClick={() => setDateFilter(today)}>Today</button>
+              <button className={`rounded px-2.5 text-xs font-semibold ${!dateFilter ? "bg-blue-50 text-blue-700 dark:bg-blue-950" : "text-slate-500"}`} type="button" onClick={() => setDateFilter("")}>All</button>
             </div>
+            <button className={`inline-flex h-10 items-center justify-center gap-2 rounded-md border px-3 text-sm font-semibold ${isFiltersOpen || mealFilter ? "border-blue-200 bg-blue-50 text-blue-700" : "border-slate-200 bg-white text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300"}`} type="button" onClick={() => setIsFiltersOpen((current) => !current)}>
+              <SlidersHorizontal size={16} /> Filters
+            </button>
           </div>
-        <div className="mt-3 grid gap-3 sm:grid-cols-[170px_170px_180px_1fr]">
-          <label className="grid gap-1 text-sm font-medium text-slate-700 dark:text-slate-200">
-            <span className="inline-flex items-center gap-1.5">
-              <CalendarDays size={16} />
-              Date
-            </span>
-            <input className="rounded-md border border-slate-300 bg-white px-3 py-2 font-normal dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100" type="date" value={dateFilter} onChange={(event) => setDateFilter(event.target.value)} />
-          </label>
-          <label className="grid gap-1 text-sm font-medium text-slate-700 dark:text-slate-200">
-            Meal
-            <select className="rounded-md border border-slate-300 bg-white px-3 py-2 font-normal dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100" value={mealFilter} onChange={(event) => setMealFilter(event.target.value)}>
+          <div className={`grid transition-[grid-template-rows] duration-200 ${isFiltersOpen ? "mt-2 grid-rows-[1fr]" : "grid-rows-[0fr]"}`}>
+            <div className="min-h-0 overflow-hidden">
+              <div className="grid gap-2 border-t border-slate-200 pt-2 sm:grid-cols-2 dark:border-slate-800">
+                <label className="grid gap-1 text-xs font-semibold text-slate-500">Meal
+                  <select className="h-10 rounded-md border border-slate-300 bg-white px-3 text-sm font-normal dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100" value={mealFilter} onChange={(event) => setMealFilter(event.target.value)}>
               <option value="">All meals</option>
               {mealOptions.map((meal) => (
                 <option key={meal} value={meal}>
                   {meal}
                 </option>
               ))}
-            </select>
-          </label>
-          <label className="grid gap-1 text-sm font-medium text-slate-700 dark:text-slate-200">
-            Sort
-            <select className="rounded-md border border-slate-300 bg-white px-3 py-2 font-normal dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100" value={sortMode} onChange={(event) => setSortMode(event.target.value as LogSortMode)}>
+                  </select>
+                </label>
+                <label className="grid gap-1 text-xs font-semibold text-slate-500">Sort
+                  <select className="h-10 rounded-md border border-slate-300 bg-white px-3 text-sm font-normal dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100" value={sortMode} onChange={(event) => setSortMode(event.target.value as LogSortMode)}>
               <option value="newest">Newest first</option>
               <option value="oldest">Oldest first</option>
               <option value="caloriesDesc">Highest calories</option>
               <option value="proteinDesc">Highest protein</option>
               <option value="foodName">Food name A-Z</option>
-            </select>
-          </label>
-          <label className="grid gap-1 text-sm font-medium text-slate-700 dark:text-slate-200">
-            <span className="inline-flex items-center gap-1.5">
-              <Search size={16} />
-              Search
-            </span>
-            <input className="rounded-md border border-slate-300 bg-white px-3 py-2 font-normal dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100" placeholder="Search food or notes" value={query} onChange={(event) => setQuery(event.target.value)} />
-          </label>
-        </div>
+                  </select>
+                </label>
+              </div>
+            </div>
+          </div>
         </div>
 
         {isBatchMode ? (
@@ -653,16 +641,9 @@ export function FoodLogManager({ logs, foods, today, onChanged, onNotify }: Food
                                 </div>
                                 <span className="w-fit rounded-full bg-slate-50 px-2 py-1 text-xs font-semibold text-slate-600 dark:bg-slate-900 dark:text-slate-300">{Math.round(log.calories)} kcal</span>
                               </div>
-                              <div className="mt-3 grid grid-cols-3 gap-2 text-sm text-slate-700 dark:text-slate-300">
-                                <span>Protein {log.protein}g</span>
-                                <span>Fat {log.fat}g</span>
-                                <span>Carbs {log.carbs}g</span>
-                              </div>
-                              <div className="mt-3 grid grid-cols-2 gap-2 text-xs font-semibold text-slate-600 sm:grid-cols-4">
-                                <PercentChip label="Calories" percent={percentOfDay(log.calories, group.totals.calories)} />
-                                <PercentChip label="Protein" percent={percentOfDay(log.protein, group.totals.protein)} />
-                                <PercentChip label="Fat" percent={percentOfDay(log.fat, group.totals.fat)} />
-                                <PercentChip label="Carbs" percent={percentOfDay(log.carbs, group.totals.carbs)} />
+                              <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs font-medium text-slate-600 dark:text-slate-300">
+                                <span>P {roundMacro(log.protein)}g</span><span>F {roundMacro(log.fat)}g</span><span>C {roundMacro(log.carbs)}g</span>
+                                <span className="text-blue-700 dark:text-blue-300">{percentOfDay(log.calories, group.totals.calories)}% of day</span>
                               </div>
                             </div>
                           ))}
@@ -687,7 +668,7 @@ export function FoodLogManager({ logs, foods, today, onChanged, onNotify }: Food
             type="button"
             onClick={() => setMobileActionLog(null)}
           />
-          <div className="mobile-sheet-enter absolute inset-x-0 bottom-0 rounded-t-2xl border border-slate-200 bg-white p-4 shadow-2xl">
+          <div ref={mobileActionDialogRef} className="mobile-sheet-enter absolute inset-x-0 bottom-0 rounded-t-2xl border border-slate-200 bg-white p-4 shadow-2xl">
             <div className="mx-auto mb-4 h-1.5 w-12 rounded-full bg-slate-200" />
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Log actions</p>
             <h3 className="mt-1 text-lg font-semibold">{mobileActionLog.foodName}</h3>
@@ -732,13 +713,12 @@ export function FoodLogManager({ logs, foods, today, onChanged, onNotify }: Food
         </div>
       ) : null}
 
-      <aside className="animate-enter min-w-0 overflow-hidden rounded-lg border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-        <h2 className="inline-flex items-center gap-2 text-lg font-semibold">
-          <Pencil size={20} />
-          Edit logged food
-        </h2>
-
-        {selectedLog ? (
+      {selectedLog ? (
+      <aside className="animate-enter min-w-0 overflow-hidden rounded-lg border border-slate-200 bg-white p-4 shadow-sm lg:sticky lg:top-5 lg:max-h-[calc(100vh-2.5rem)] lg:overflow-y-auto dark:border-slate-800 dark:bg-slate-900">
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="inline-flex items-center gap-2 text-lg font-semibold"><Pencil size={20} />Edit logged food</h2>
+          <button aria-label="Close editor" className="grid h-10 w-10 place-items-center rounded-md border border-slate-200 text-slate-500 dark:border-slate-700" type="button" onClick={() => setSelectedLog(null)}><X size={17} /></button>
+        </div>
           <>
             <div className="mt-4 grid gap-3">
               <label className="grid gap-1 text-sm font-medium text-slate-700 dark:text-slate-200">
@@ -793,18 +773,8 @@ export function FoodLogManager({ logs, foods, today, onChanged, onNotify }: Food
               </button>
             </div>
           </>
-        ) : (
-          <div className="mt-4 rounded-lg border border-dashed border-slate-300 p-6 text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">Choose a logged food from the list to edit it.</div>
-        )}
       </aside>
+      ) : null}
     </section>
-  );
-}
-
-function PercentChip({ label, percent }: { label: string; percent: number }) {
-  return (
-    <span className="rounded-md bg-slate-50 px-2.5 py-2 dark:bg-slate-950 dark:text-slate-300">
-      {label} <span className="text-blue-700 dark:text-blue-300">{percent}%</span>
-    </span>
   );
 }

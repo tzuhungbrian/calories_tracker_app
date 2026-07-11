@@ -227,24 +227,16 @@ export function StatsDashboard({ rows, dashboard, logs }: StatsDashboardProps) {
 
   return (
     <section className="grid gap-4">
-      <div className="flex flex-col gap-3 rounded-lg border border-slate-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h2 className="inline-flex items-center gap-2 text-lg font-semibold">
-            <BarChart3 size={20} />
-            Dashboard
-          </h2>
-          <p className="mt-1 text-sm text-slate-500">Nutrition balance, consistency, and energy trend.</p>
-          {travelDaysInRange > 0 ? (
-            <p className="mt-2 inline-flex rounded-full bg-sky-50 px-2.5 py-1 text-xs font-semibold text-sky-700">
-              Excluding {travelDaysInRange} travel day{travelDaysInRange === 1 ? "" : "s"} from adherence insights
-            </p>
-          ) : null}
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">Analysis window</p>
+          {travelDaysInRange > 0 ? <p className="truncate text-xs text-sky-700">Excluding {travelDaysInRange} travel day{travelDaysInRange === 1 ? "" : "s"}</p> : <p className="text-xs text-slate-500">Choose how much recent history to include.</p>}
         </div>
-        <div className="inline-grid rounded-lg border border-slate-200 bg-slate-50 p-1 sm:grid-cols-3">
+        <div className="grid shrink-0 grid-cols-3 rounded-lg border border-slate-200 bg-slate-50 p-1 dark:border-slate-700 dark:bg-slate-900">
           {rangeOptions.map((option) => (
             <button
               key={option}
-              className={`rounded-md px-4 py-2 text-sm font-semibold ${dayRange === option ? "bg-ink text-white" : "text-slate-600"}`}
+              className={`min-h-10 rounded-md px-3 text-sm font-semibold transition sm:px-4 ${dayRange === option ? "bg-ink text-white shadow-sm dark:bg-blue-600" : "text-slate-600 dark:text-slate-300"}`}
               type="button"
               onClick={() => setDayRange(option)}
             >
@@ -323,22 +315,15 @@ function CompactNutritionSummary({ data }: { data: DashboardData | null }) {
   const isTravelDay = data.status?.isTravelDay ?? false;
 
   return (
-    <section className="animate-enter-soft rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-        <div>
-          <h2 className="text-lg font-semibold">Today at a glance</h2>
-          <p className="mt-1 text-sm text-slate-500">Compact macro status for today, with target and TDEE context kept in view.</p>
-        </div>
-        <div className="flex flex-wrap gap-2 text-xs font-semibold">
+    <section className="animate-enter-soft rounded-lg border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+      <div className="flex flex-wrap items-center gap-2 text-xs font-semibold">
           <span className="rounded-full bg-slate-100 px-2.5 py-1 capitalize text-slate-600">{goalType} mode</span>
           {isTravelDay ? <span className="rounded-full bg-sky-50 px-2.5 py-1 text-sky-700">Travel day</span> : null}
-          <span className="rounded-full bg-blue-50 px-2.5 py-1 text-blue-700">TDEE {round(data.dynamicTdee)} kcal</span>
           <span className="rounded-full bg-slate-100 px-2.5 py-1 text-slate-600">Target {round(data.targets.calories)} kcal</span>
           <span className={`rounded-full px-2.5 py-1 ${tdeeBalance <= 0 ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>vs TDEE {signedCalories(tdeeBalance)} kcal</span>
-        </div>
       </div>
 
-      <div className="mt-4 grid gap-2 md:grid-cols-2 xl:grid-cols-4">
+      <div className="mt-3 grid grid-cols-2 gap-2 xl:grid-cols-5">
         {nutrientKeys.map((key) => {
           const Icon = nutrientIcons[key];
           const status = nutrientStatus(key, data);
@@ -369,6 +354,16 @@ function CompactNutritionSummary({ data }: { data: DashboardData | null }) {
             </div>
           );
         })}
+        <div className="rounded-lg border border-blue-100 bg-blue-50/60 px-3 py-2.5 text-blue-700 dark:border-blue-900 dark:bg-blue-950/40 dark:text-blue-200">
+          <div className="flex items-center gap-2">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-white/80 dark:bg-slate-900/80"><Activity size={16} /></span>
+            <div>
+              <p className="text-sm font-semibold">TDEE</p>
+              <p className="text-xs text-slate-500">Dynamic today</p>
+            </div>
+          </div>
+          <p className="mt-2 text-xl font-semibold text-ink dark:text-slate-100">{round(data.dynamicTdee)} kcal</p>
+        </div>
       </div>
     </section>
   );

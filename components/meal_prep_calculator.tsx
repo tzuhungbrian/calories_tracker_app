@@ -4,6 +4,7 @@ import { CheckCircle2, CookingPot, Database, GripVertical, Minus, Plus, RotateCc
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { DragEvent } from "react";
 import { CategorySelect } from "@/components/category_select";
+import { useModalAccessibility } from "@/components/use_modal_accessibility";
 import type { CommonFood, NutritionTotals } from "@/lib/types";
 
 type PrepIngredient = {
@@ -135,6 +136,10 @@ export function MealPrepCalculator({ foods: providedFoods, onChanged, editReques
   const [customIngredient, setCustomIngredient] = useState<CustomIngredientInput>(() => createEmptyCustomIngredient());
   const [isSavingIngredientId, setIsSavingIngredientId] = useState<string | null>(null);
   const [isCustomIngredientOpen, setIsCustomIngredientOpen] = useState(false);
+  const [isSaveDrawerOpen, setIsSaveDrawerOpen] = useState(false);
+  const [mobileWorkspaceStep, setMobileWorkspaceStep] = useState<"ingredients" | "basket">("ingredients");
+  const saveMealDialogRef = useModalAccessibility(isSaveDrawerOpen, () => setIsSaveDrawerOpen(false));
+  const customIngredientDialogRef = useModalAccessibility(isCustomIngredientOpen, () => setIsCustomIngredientOpen(false));
 
   useEffect(() => {
     if (providedFoods) {
@@ -171,6 +176,7 @@ export function MealPrepCalculator({ foods: providedFoods, onChanged, editReques
     setServingCount(parsed.servingCount);
     setIngredients(parsed.ingredients);
     setEditingFoodId(editRequest.food.id);
+    setIsSaveDrawerOpen(true);
     setLastAddedFood(null);
     setError(parsed.ingredients.length ? null : "Meal prep notes were found, but no ingredients matched foods in the database.");
     setMessage(parsed.ingredients.length ? `Loaded ${editRequest.food.name} for meal prep editing.` : "");
@@ -369,6 +375,7 @@ export function MealPrepCalculator({ foods: providedFoods, onChanged, editReques
     setLastAddedFood(null);
     setMessage("");
     setError(null);
+    setIsSaveDrawerOpen(false);
   }
 
   async function saveMealToFoods() {
@@ -403,6 +410,7 @@ export function MealPrepCalculator({ foods: providedFoods, onChanged, editReques
       setLastAddedFood(editingFoodId ? null : savedFood);
       setMessage(editingFoodId ? `Updated ${savedFood.name} in foods database.` : `Saved ${savedFood.name} to foods database.`);
       setEditingFoodId(null);
+      setIsSaveDrawerOpen(false);
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : "Failed to save meal to foods database.");
     } finally {
@@ -441,10 +449,16 @@ export function MealPrepCalculator({ foods: providedFoods, onChanged, editReques
   const canUseCustomIngredient = Boolean(customIngredient.name.trim());
 
   return (
-    <section className="grid min-w-0 gap-4 xl:grid-cols-[minmax(280px,0.85fr)_minmax(360px,1.15fr)_360px]">
-      {error ? <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800 xl:col-span-3">{error}</div> : null}
+    <section className="grid min-w-0 gap-4 xl:grid-cols-[minmax(320px,0.75fr)_minmax(0,1.25fr)]">
+      {error ? <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800 xl:col-span-2">{error}</div> : null}
 
-      <div className="animate-enter min-w-0 overflow-hidden rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="grid grid-cols-3 rounded-lg border border-slate-200 bg-white p-1 lg:hidden">
+        <button className={`min-h-10 rounded-md text-xs font-semibold ${mobileWorkspaceStep === "ingredients" ? "bg-ink text-white" : "text-slate-500"}`} type="button" onClick={() => setMobileWorkspaceStep("ingredients")}>1 Ingredients</button>
+        <button className={`min-h-10 rounded-md text-xs font-semibold ${mobileWorkspaceStep === "basket" ? "bg-ink text-white" : "text-slate-500"}`} type="button" onClick={() => setMobileWorkspaceStep("basket")}>2 Basket ({ingredients.length})</button>
+        <button className="min-h-10 rounded-md text-xs font-semibold text-slate-500 disabled:opacity-40" disabled={!ingredients.length} type="button" onClick={() => setIsSaveDrawerOpen(true)}>3 Save</button>
+      </div>
+
+      <div className={`${mobileWorkspaceStep === "ingredients" ? "block" : "hidden"} animate-enter min-w-0 overflow-hidden rounded-lg border border-slate-200 bg-white p-4 shadow-sm lg:block`}>
         <div>
           <h2 className="inline-flex items-center gap-2 text-lg font-semibold">
             <Search size={20} />
@@ -525,7 +539,7 @@ export function MealPrepCalculator({ foods: providedFoods, onChanged, editReques
       </div>
 
       <div
-        className={`animate-enter min-w-0 overflow-hidden rounded-lg border bg-white p-4 shadow-sm transition ${isBasketActive ? "border-blue-300 bg-blue-50/60 ring-4 ring-blue-100" : "border-slate-200"}`}
+        className={`${mobileWorkspaceStep === "basket" ? "block" : "hidden"} animate-enter min-w-0 overflow-hidden rounded-lg border bg-white p-4 shadow-sm transition lg:block ${isBasketActive ? "border-blue-300 bg-blue-50/60 ring-4 ring-blue-100" : "border-slate-200"}`}
         onDragEnter={(event) => {
           event.preventDefault();
           setIsBasketActive(true);
@@ -609,10 +623,30 @@ export function MealPrepCalculator({ foods: providedFoods, onChanged, editReques
             );
           })}
         </div>
+        <div className="sticky bottom-0 -mx-4 mt-4 flex flex-col gap-3 border-t border-slate-200 bg-white/95 px-4 pb-1 pt-3 backdrop-blur sm:flex-row sm:items-center sm:justify-between">
+          <div className="grid grid-cols-4 gap-3 text-xs text-slate-500">
+            <span><strong className="block text-base text-slate-900">{roundMacro(totals.calories)}</strong>kcal</span>
+            <span><strong className="block text-base text-slate-900">{roundMacro(totals.protein)}</strong>protein</span>
+            <span><strong className="block text-base text-slate-900">{roundMacro(totals.fat)}</strong>fat</span>
+            <span><strong className="block text-base text-slate-900">{roundMacro(totals.carbs)}</strong>carbs</span>
+          </div>
+          <button className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-ink px-5 text-sm font-semibold text-white disabled:opacity-40" disabled={!ingredients.length} type="button" onClick={() => setIsSaveDrawerOpen(true)}>
+            <Utensils size={16} /> Save meal
+          </button>
+        </div>
       </div>
 
-      <aside className="flex min-w-0 flex-col gap-4">
-        <div className="animate-enter rounded-lg border border-slate-200 bg-white p-4 shadow-sm xl:sticky xl:top-6">
+      {mobileWorkspaceStep === "ingredients" ? (
+        <button className="fixed inset-x-4 bottom-[calc(7.25rem+env(safe-area-inset-bottom))] z-20 flex min-h-12 items-center justify-between rounded-xl bg-ink px-4 text-sm font-semibold text-white shadow-xl lg:hidden" type="button" onClick={() => setMobileWorkspaceStep("basket")}>
+          <span>{ingredients.length} ingredient{ingredients.length === 1 ? "" : "s"}</span><span>{roundMacro(totals.calories)} kcal · View basket</span>
+        </button>
+      ) : null}
+
+      {isSaveDrawerOpen ? (
+      <div className="fixed inset-0 z-50" role="dialog" aria-modal="true" aria-label="Save meal">
+        <button aria-label="Close save meal" className="absolute inset-0 h-full w-full bg-slate-950/45 backdrop-blur-sm" type="button" onClick={() => setIsSaveDrawerOpen(false)} />
+      <aside ref={saveMealDialogRef} className="mobile-sheet-enter absolute inset-x-0 bottom-0 max-h-[92vh] overflow-y-auto rounded-t-2xl border border-slate-200 bg-white p-4 shadow-2xl lg:inset-y-0 lg:left-auto lg:right-0 lg:w-[430px] lg:rounded-none lg:border-y-0 lg:border-r-0">
+        <div className="animate-enter">
           <div className="flex items-start justify-between gap-3">
             <div>
               <h2 className="inline-flex items-center gap-2 text-lg font-semibold">
@@ -621,11 +655,10 @@ export function MealPrepCalculator({ foods: providedFoods, onChanged, editReques
               </h2>
               {editingFoodId ? <p className="mt-1 text-xs font-semibold text-blue-700">Editing an existing database food. Saving will update it.</p> : null}
             </div>
-            {editingFoodId ? (
-              <button className="rounded-md border border-slate-200 px-2.5 py-1.5 text-xs font-semibold text-slate-600" type="button" onClick={resetMealPrepEditor}>
-                Cancel edit
-              </button>
-            ) : null}
+            <div className="flex gap-2">
+              {editingFoodId ? <button className="rounded-md border border-slate-200 px-2.5 py-1.5 text-xs font-semibold text-slate-600" type="button" onClick={resetMealPrepEditor}>Cancel edit</button> : null}
+              <button aria-label="Close save meal" className="grid h-9 w-9 place-items-center rounded-md border border-slate-200 text-slate-500" type="button" onClick={() => setIsSaveDrawerOpen(false)}><X size={16} /></button>
+            </div>
           </div>
           <p className="mt-1 text-sm text-slate-500">Name the finished prep and save one portion as a reusable database food.</p>
           <div className="mt-4 grid gap-3">
@@ -708,10 +741,12 @@ export function MealPrepCalculator({ foods: providedFoods, onChanged, editReques
           ) : null}
         </div>
       </aside>
+      </div>
+      ) : null}
 
       {isCustomIngredientOpen ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 px-4 py-6 backdrop-blur-sm">
-          <div className="max-h-full w-full max-w-2xl overflow-y-auto rounded-lg border border-slate-200 bg-white p-4 shadow-2xl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 px-4 py-6 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label="Quick custom ingredient">
+          <div ref={customIngredientDialogRef} className="max-h-full w-full max-w-2xl overflow-y-auto rounded-lg border border-slate-200 bg-white p-4 shadow-2xl">
             <div className="flex items-start justify-between gap-3">
               <div>
                 <h2 className="inline-flex items-center gap-2 text-lg font-semibold">

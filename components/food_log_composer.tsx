@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { CategorySelect } from "@/components/category_select";
 import { DecimalNumberInput } from "@/components/decimal_number_input";
+import { useModalAccessibility } from "@/components/use_modal_accessibility";
 import { mealOptions } from "@/lib/food_options";
 import type { CommonFood, FoodLog, FoodLogInput } from "@/lib/types";
 
@@ -85,6 +86,7 @@ export function FoodLogComposer({ foods, recentLogs = [], value, isSaving, onCha
   const [mobileStep, setMobileStep] = useState<MobileStep>("Meal");
   const [desktopStep, setDesktopStep] = useState<DesktopStep>("Meal");
   const [feedbackMessage, setFeedbackMessage] = useState("");
+  const mobileDialogRef = useModalAccessibility(isMobileSheetOpen, () => setIsMobileSheetOpen(false));
 
   const categories = useMemo(
     () =>
@@ -304,8 +306,8 @@ export function FoodLogComposer({ foods, recentLogs = [], value, isSaving, onCha
     setSelectedFoods([]);
     setQuery("");
     setEntryMode("saved");
-    setMobileStep("Meal");
-    setDesktopStep("Meal");
+    setMobileStep("Food");
+    setDesktopStep("Food");
   }
 
   async function submitLog(): Promise<boolean> {
@@ -446,7 +448,7 @@ export function FoodLogComposer({ foods, recentLogs = [], value, isSaving, onCha
           type="button"
           onClick={() => setIsMobileSheetOpen(false)}
         />
-        <div className="mobile-sheet-enter absolute inset-x-0 bottom-0 flex max-h-[90vh] flex-col rounded-t-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900">
+        <div ref={mobileDialogRef} className="mobile-sheet-enter absolute inset-x-0 bottom-0 flex max-h-[90vh] flex-col rounded-t-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900">
           <div className="shrink-0 border-b border-slate-200 px-4 pb-3 pt-3 dark:border-slate-700">
             <div className="mx-auto mb-3 h-1.5 w-12 rounded-full bg-slate-200 dark:bg-slate-700" />
             <div className="flex items-center justify-between gap-3">
@@ -534,6 +536,17 @@ export function FoodLogComposer({ foods, recentLogs = [], value, isSaving, onCha
 
                 {entryMode === "saved" ? (
                   <>
+                    <div className="rounded-lg border border-slate-200 bg-slate-50 p-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-xs font-semibold text-slate-600">Quick picks</p>
+                        <div className="grid grid-cols-2 rounded-md bg-white p-1">
+                          {(["recent", "frequent"] as const).map((mode) => <button key={mode} className={`rounded px-2 py-1 text-[11px] font-semibold capitalize ${quickPickMode === mode ? "bg-ink text-white" : "text-slate-500"}`} type="button" onClick={() => setQuickPickMode(mode)}>{mode}</button>)}
+                        </div>
+                      </div>
+                      <div className="mt-2 flex gap-2 overflow-x-auto pb-1">
+                        {quickPickFoods.map((food) => <button key={food.id} className="shrink-0 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700" type="button" onClick={() => toggleSavedFood(food)}>{food.name}</button>)}
+                      </div>
+                    </div>
                     <label className="grid gap-1 text-sm font-medium text-slate-700">
                       <span className="inline-flex items-center gap-1.5">
                         <Search size={16} />
@@ -565,13 +578,15 @@ export function FoodLogComposer({ foods, recentLogs = [], value, isSaving, onCha
                         </button>
                       ))}
                     </div>
+                    <p className="text-xs font-semibold text-slate-500">{filteredFoods.length} results</p>
                     {selectedFoods.length > 0 ? (
-                      <div className="rounded-xl border border-blue-100 bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-700">
-                        {selectedFoods.length} selected. Tap a selected food again to remove it.
+                      <div className="sticky top-0 z-10 rounded-xl border border-blue-100 bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-700 shadow-sm">
+                        <p>{selectedFoods.length} selected</p>
+                        <div className="mt-2 flex gap-1.5 overflow-x-auto pb-1">{selectedFoods.map((item) => <button key={item.food.id} className="shrink-0 rounded-full bg-white px-2.5 py-1 text-xs" type="button" onClick={() => toggleSavedFood(item.food)}>{item.food.name} ×</button>)}</div>
                       </div>
                     ) : null}
                     <div className="grid max-h-[42vh] gap-2 overflow-y-auto pr-1">
-                      {filteredFoods.map((food) => {
+                      {filteredFoods.slice(0, 60).map((food) => {
                         const isSelected = selectedFoods.some((item) => item.food.id === food.id);
 
                         return (
@@ -595,6 +610,7 @@ export function FoodLogComposer({ foods, recentLogs = [], value, isSaving, onCha
                           </button>
                         );
                       })}
+                      {filteredFoods.length > 60 ? <p className="rounded-lg bg-slate-50 p-3 text-center text-xs font-medium text-slate-500">Showing 60 results. Search or choose a category to narrow the list.</p> : null}
                     </div>
                   </>
                 ) : (

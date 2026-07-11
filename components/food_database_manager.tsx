@@ -4,6 +4,7 @@ import { AlertTriangle, Calculator, CookingPot, Database, FolderCog, ListChecks,
 import { useMemo, useState } from "react";
 import { CategorySelect } from "@/components/category_select";
 import { DecimalNumberInput } from "@/components/decimal_number_input";
+import { useModalAccessibility } from "@/components/use_modal_accessibility";
 import type { CommonFood, FoodLog } from "@/lib/types";
 
 type FoodDatabaseManagerProps = {
@@ -58,6 +59,7 @@ const defaultLabelScale: LabelScaleState = {
 };
 
 type QualityFilter = "all" | "duplicates" | "unused" | "ai";
+type FoodSortMode = "name" | "category" | "calories" | "protein" | "recent";
 
 function roundMacro(value: number): number {
   return Math.round(value * 10) / 10;
@@ -113,11 +115,21 @@ function wasUsedRecently(food: CommonFood, logs: FoodLog[], dayWindow = 30): boo
   });
 }
 
+function lastUsedDate(food: CommonFood, logs: FoodLog[]): string {
+  const normalizedFoodName = normalizeFoodName(food.name);
+  return logs
+    .filter((log) => (log.foodId && log.foodId === food.id) || normalizeFoodName(log.foodName) === normalizedFoodName)
+    .map((log) => log.date)
+    .sort((a, b) => b.localeCompare(a))[0] ?? "";
+}
+
 export function FoodDatabaseManager({ foods, logs, onChanged, onEditMealPrep }: FoodDatabaseManagerProps) {
   const [form, setForm] = useState<FoodFormState>(emptyFood);
   const [selectedCategory, setSelectedCategory] = useState("");
   const [qualityFilter, setQualityFilter] = useState<QualityFilter>("all");
   const [query, setQuery] = useState("");
+  const [sortMode, setSortMode] = useState<FoodSortMode>("name");
+  const [visibleLimit, setVisibleLimit] = useState(50);
   const [macroMode, setMacroMode] = useState<"total" | "label">("total");
   const [labelScale, setLabelScale] = useState<LabelScaleState>(defaultLabelScale);
   const [renameFromCategory, setRenameFromCategory] = useState("");
@@ -131,6 +143,8 @@ export function FoodDatabaseManager({ foods, logs, onChanged, onEditMealPrep }: 
   const [lastAddedFood, setLastAddedFood] = useState<CommonFood | null>(null);
   const [message, setMessage] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const categoryDialogRef = useModalAccessibility(isCategoryManagerOpen, () => setIsCategoryManagerOpen(false));
+  const foodEditorDialogRef = useModalAccessibility(isFoodEditorOpen, () => setIsFoodEditorOpen(false));
 
   const categories = useMemo(
     () =>
@@ -189,8 +203,16 @@ export function FoodDatabaseManager({ foods, logs, onChanged, onEditMealPrep }: 
         }
         return true;
       })
-      .filter((food) => !normalizedQuery || food.name.toLowerCase().includes(normalizedQuery));
-  }, [duplicateNameSet, foods, logs, qualityFilter, query, selectedCategory]);
+      .filter((food) => !normalizedQuery || food.name.toLowerCase().includes(normalizedQuery))
+      .sort((a, b) => {
+        if (sortMode === "category") return (a.category || "").localeCompare(b.category || "") || a.name.localeCompare(b.name);
+        if (sortMode === "calories") return b.calories - a.calories || a.name.localeCompare(b.name);
+        if (sortMode === "protein") return b.protein - a.protein || a.name.localeCompare(b.name);
+        if (sortMode === "recent") return lastUsedDate(b, logs).localeCompare(lastUsedDate(a, logs)) || a.name.localeCompare(b.name);
+        return a.name.localeCompare(b.name);
+      });
+  }, [duplicateNameSet, foods, logs, qualityFilter, query, selectedCategory, sortMode]);
+  const visibleFoods = filteredFoods.slice(0, visibleLimit);
 
   function editFood(food: CommonFood) {
     setForm(food);
@@ -499,7 +521,7 @@ export function FoodDatabaseManager({ foods, logs, onChanged, onEditMealPrep }: 
           </div>
         </div>
 
-        <div className="mt-4 grid gap-3 sm:grid-cols-[220px_1fr]">
+        <div className="sticky top-0 z-20 mt-4 grid gap-2 rounded-lg border border-slate-200 bg-white/95 p-2.5 backdrop-blur sm:grid-cols-[180px_170px_1fr]">
           <label className="grid gap-1 text-sm font-medium text-slate-700">
             Category
             <select
@@ -516,6 +538,12 @@ export function FoodDatabaseManager({ foods, logs, onChanged, onEditMealPrep }: 
             </select>
           </label>
           <label className="grid gap-1 text-sm font-medium text-slate-700">
+            Sort
+            <select className="rounded-md border border-slate-300 px-3 py-2 font-normal" value={sortMode} onChange={(event) => setSortMode(event.target.value as FoodSortMode)}>
+              <option value="name">Name A-Z</option><option value="category">Category</option><option value="calories">Highest calories</option><option value="protein">Highest protein</option><option value="recent">Recently used</option>
+            </select>
+          </label>
+          <label className="grid gap-1 text-sm font-medium text-slate-700">
             <span className="inline-flex items-center gap-1.5">
               <Search size={16} />
               Search
@@ -529,7 +557,7 @@ export function FoodDatabaseManager({ foods, logs, onChanged, onEditMealPrep }: 
           </label>
         </div>
 
-        <div className="mt-4 grid gap-2 sm:grid-cols-4">
+        <div className="mt-3 flex flex-wrap gap-2">
           <QualityButton active={qualityFilter === "all"} label="All foods" value={foods.length} onClick={() => setQualityFilter("all")} />
           <QualityButton active={qualityFilter === "duplicates"} label="Duplicates" value={qualityCounts.duplicates} onClick={() => setQualityFilter("duplicates")} />
           <QualityButton active={qualityFilter === "unused"} label="Unused 30d" value={qualityCounts.unused} onClick={() => setQualityFilter("unused")} />
@@ -537,13 +565,15 @@ export function FoodDatabaseManager({ foods, logs, onChanged, onEditMealPrep }: 
         </div>
 
         {isCategoryManagerOpen ? (
-        <div className="mt-4 animate-enter-soft rounded-lg border border-slate-200 bg-slate-50 p-3">
+        <div className="fixed inset-0 z-50 grid place-items-center p-4" role="dialog" aria-modal="true" aria-label="Category management">
+          <button aria-label="Close category management" className="absolute inset-0 h-full w-full bg-slate-950/45 backdrop-blur-sm" type="button" onClick={() => setIsCategoryManagerOpen(false)} />
+        <div ref={categoryDialogRef} className="relative z-10 w-full max-w-2xl animate-enter-soft rounded-lg border border-slate-200 bg-slate-50 p-4 shadow-2xl">
           <div className="flex items-center justify-between gap-3">
             <p className="inline-flex items-center gap-2 text-sm font-semibold text-slate-800">
               <FolderCog size={16} className="text-blue-700" />
               Category management
             </p>
-            <p className="text-xs text-slate-500">{categories.length} categories</p>
+            <button aria-label="Close category management" className="grid h-9 w-9 place-items-center rounded-md border border-slate-200 bg-white text-slate-500" type="button" onClick={() => setIsCategoryManagerOpen(false)}><X size={16} /></button>
           </div>
           <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
             {categoryStats.map((stat) => (
@@ -572,6 +602,7 @@ export function FoodDatabaseManager({ foods, logs, onChanged, onEditMealPrep }: 
               Rename
             </button>
           </div>
+        </div>
         </div>
         ) : null}
 
@@ -613,8 +644,34 @@ export function FoodDatabaseManager({ foods, logs, onChanged, onEditMealPrep }: 
         </div>
         ) : null}
 
-        <div className="mt-4 grid max-h-[620px] min-w-0 gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
-          {filteredFoods.map((food) => (
+        <div className="mt-4 hidden max-h-[620px] overflow-y-auto rounded-lg border border-slate-200 lg:block">
+          <div className="sticky top-0 z-10 grid grid-cols-[minmax(190px,1.6fr)_110px_105px_64px_50px_50px_50px_92px_120px] gap-2 border-b border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+            <span>Name</span><span>Category</span><span>Serving</span><span>Kcal</span><span>P</span><span>F</span><span>C</span><span>Last used</span><span>Quality</span>
+          </div>
+          {visibleFoods.map((food) => {
+            const lastUsed = lastUsedDate(food, logs);
+            const quality = duplicateNameSet.has(normalizeFoodName(food.name)) ? "Duplicate" : isAiEstimatedFood(food) ? "AI estimated" : !wasUsedRecently(food, logs) ? "Unused 30d" : "Clean";
+            return (
+              <div key={food.id} className={`grid grid-cols-[minmax(190px,1.6fr)_110px_105px_64px_50px_50px_50px_92px_120px] items-center gap-2 border-b border-slate-100 px-3 py-2 text-sm transition last:border-b-0 hover:bg-blue-50/60 ${selectedFoodIds.has(food.id) ? "bg-blue-50" : "bg-white"}`}>
+                <div className="flex min-w-0 items-center gap-2">
+                  {isBatchMode ? <input aria-label={`Select ${food.name}`} checked={selectedFoodIds.has(food.id)} type="checkbox" onChange={() => toggleFoodSelection(food.id)} /> : null}
+                  <button className="min-w-0 truncate text-left font-semibold hover:text-blue-700" type="button" onClick={() => (isBatchMode ? toggleFoodSelection(food.id) : editFood(food))}>{food.name}</button>
+                </div>
+                <span className="truncate text-slate-600">{food.category || "Uncategorized"}</span>
+                <span className="truncate text-slate-500">{food.serving}</span>
+                <span className="font-semibold">{roundMacro(food.calories)}</span><span>{roundMacro(food.protein)}</span><span>{roundMacro(food.fat)}</span><span>{roundMacro(food.carbs)}</span>
+                <span className="text-xs text-slate-500">{lastUsed ? lastUsed.slice(5) : "Never"}</span>
+                <div className="flex min-w-0 items-center gap-1">
+                  <span className={`truncate rounded-full px-2 py-1 text-[11px] font-semibold ${quality === "Clean" ? "bg-emerald-50 text-emerald-700" : quality === "Duplicate" ? "bg-amber-50 text-amber-700" : "bg-slate-100 text-slate-600"}`}>{quality}</span>
+                  {isMealPrepFood(food) ? <button aria-label={`Edit ${food.name} in meal prep`} className="grid h-7 w-7 shrink-0 place-items-center rounded-md text-blue-700 hover:bg-blue-100" type="button" onClick={() => onEditMealPrep(food)}><CookingPot size={14} /></button> : null}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="mt-4 grid max-h-[620px] min-w-0 gap-2 overflow-y-auto pr-1 sm:grid-cols-2 lg:hidden">
+          {visibleFoods.map((food) => (
             <div
               key={food.id}
               className={`rounded-lg border p-3 transition hover:border-accent hover:bg-blue-50 hover:shadow-sm ${form.id === food.id ? "border-accent bg-blue-50" : selectedFoodIds.has(food.id) ? "border-blue-200 bg-blue-50/60" : "border-slate-200"}`}
@@ -667,6 +724,7 @@ export function FoodDatabaseManager({ foods, logs, onChanged, onEditMealPrep }: 
             </div>
           ))}
         </div>
+        {visibleLimit < filteredFoods.length ? <button className="mx-auto mt-3 flex min-h-10 items-center rounded-md border border-slate-200 px-4 text-sm font-semibold text-slate-600 hover:bg-slate-50" type="button" onClick={() => setVisibleLimit((current) => current + 50)}>Load 50 more</button> : null}
       </div>
 
       {isFoodEditorOpen ? (
@@ -677,7 +735,7 @@ export function FoodDatabaseManager({ foods, logs, onChanged, onEditMealPrep }: 
             type="button"
             onClick={() => setIsFoodEditorOpen(false)}
           />
-          <aside className="mobile-sheet-enter absolute inset-x-0 bottom-0 max-h-[90vh] overflow-y-auto rounded-t-2xl border border-slate-200 bg-white p-4 shadow-2xl lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)] lg:w-full lg:translate-x-0 lg:animate-enter-soft lg:rounded-2xl">
+          <aside ref={foodEditorDialogRef} className="mobile-sheet-enter absolute inset-x-0 bottom-0 max-h-[90vh] overflow-y-auto rounded-t-2xl border border-slate-200 bg-white p-4 shadow-2xl lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)] lg:w-full lg:translate-x-0 lg:animate-enter-soft lg:rounded-2xl">
             <div className="flex items-start justify-between gap-3">
               <div>
                 <h2 className="inline-flex items-center gap-2 text-lg font-semibold">
@@ -840,12 +898,12 @@ export function FoodDatabaseManager({ foods, logs, onChanged, onEditMealPrep }: 
 function QualityButton({ active, label, value, onClick }: { active: boolean; label: string; value: number; onClick: () => void }) {
   return (
     <button
-      className={`rounded-lg border px-3 py-2 text-left transition ${active ? "border-blue-200 bg-blue-50 text-blue-700" : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"}`}
+      className={`inline-flex min-h-9 items-center gap-2 rounded-full border px-3 text-xs font-semibold transition ${active ? "border-blue-200 bg-blue-50 text-blue-700" : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"}`}
       type="button"
       onClick={onClick}
     >
-      <span className="block text-xs font-semibold uppercase tracking-wide">{label}</span>
-      <span className="mt-1 block text-lg font-semibold">{value}</span>
+      <span>{label}</span>
+      <span className={`rounded-full px-1.5 py-0.5 ${active ? "bg-white/80" : "bg-slate-100"}`}>{value}</span>
     </button>
   );
 }

@@ -8,6 +8,7 @@
     "build": "next build",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
+    "test:e2e": "playwright test",
     "migrate:sheet": "node scripts/migrate_sheet_v2.cjs"
   },
   "dependencies": {
@@ -19,6 +20,7 @@
     "server-only": "^0.0.1"
   },
   "devDependencies": {
+    "@playwright/test": "^1.61.1",
     "@types/node": "^20.14.10",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",

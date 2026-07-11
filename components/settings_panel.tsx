@@ -1,13 +1,16 @@
 "use client";
 
-import { CalendarDays, Download, Plane, Save, Settings, UserRound } from "lucide-react";
+import { Activity, CalendarDays, Download, Plane, Save, Target, UserRound } from "lucide-react";
 import { useEffect, useState } from "react";
 import { dateKey, dateRangeKeys } from "@/lib/date";
 import type { DailyStatus, UserProfileSettings } from "@/lib/types";
 
 type SettingsPanelProps = {
   onChanged: () => Promise<void>;
+  onDirtyChange?: (isDirty: boolean) => void;
 };
+
+type SettingsSection = "profile" | "energy" | "targets" | "travel" | "data";
 
 const emptySettings: UserProfileSettings = {
   displayName: "Brian",
@@ -73,8 +76,10 @@ function createEmptyStatus(date: string): DailyStatus {
   };
 }
 
-export function SettingsPanel({ onChanged }: SettingsPanelProps) {
+export function SettingsPanel({ onChanged, onDirtyChange }: SettingsPanelProps) {
   const [settings, setSettings] = useState<UserProfileSettings>(emptySettings);
+  const [savedSettings, setSavedSettings] = useState<UserProfileSettings>(emptySettings);
+  const [activeSection, setActiveSection] = useState<SettingsSection>("profile");
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [exportMode, setExportMode] = useState<"all" | "range">("all");
@@ -97,6 +102,7 @@ export function SettingsPanel({ onChanged }: SettingsPanelProps) {
         const data = (await response.json()) as UserProfileSettings;
         if (isActive) {
           setSettings(data);
+          setSavedSettings(data);
         }
       } catch (loadError) {
         if (isActive) {
@@ -141,7 +147,9 @@ export function SettingsPanel({ onChanged }: SettingsPanelProps) {
         throw new Error("Failed to save settings.");
       }
 
-      setSettings((await response.json()) as UserProfileSettings);
+      const saved = (await response.json()) as UserProfileSettings;
+      setSettings(saved);
+      setSavedSettings(saved);
       await onChanged();
       setMessage("Settings saved.");
     } catch (saveError) {
@@ -154,25 +162,45 @@ export function SettingsPanel({ onChanged }: SettingsPanelProps) {
   const calculatedBmr = calculateBmr(settings);
   const displayBmr = effectiveBmr(settings);
   const canAutoCalculateBmr = calculatedBmr > 0;
+  const isDirty = JSON.stringify(settings) !== JSON.stringify(savedSettings);
   const canExport = exportMode === "all" || Boolean(exportStartDate && exportEndDate && exportStartDate <= exportEndDate);
   const exportHref =
     exportMode === "range" && canExport
       ? `/api/export?start=${encodeURIComponent(exportStartDate)}&end=${encodeURIComponent(exportEndDate)}`
       : "/api/export";
 
-  return (
-    <section className="grid gap-4">
-      <div className="flex flex-col gap-4 rounded-lg border border-slate-200 bg-white p-4 shadow-sm xl:flex-row xl:items-start xl:justify-between">
-        <div>
-          <h2 className="inline-flex items-center gap-2 text-lg font-semibold">
-            <Settings size={20} />
-            Settings
-          </h2>
-          <p className="mt-1 text-sm text-slate-500">Manage your profile, calorie model, and data exports.</p>
-        </div>
-        <div className="grid w-full gap-3 xl:max-w-2xl">
-          <TravelDayManager onChanged={onChanged} />
+  useEffect(() => {
+    onDirtyChange?.(isDirty);
+    if (!isDirty) return;
+    function warnBeforeUnload(event: BeforeUnloadEvent) {
+      event.preventDefault();
+      event.returnValue = "";
+    }
+    window.addEventListener("beforeunload", warnBeforeUnload);
+    return () => window.removeEventListener("beforeunload", warnBeforeUnload);
+  }, [isDirty, onDirtyChange]);
 
+  return (
+    <section className="grid gap-4 lg:grid-cols-[220px_minmax(0,1fr)] lg:items-start">
+      <aside className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm lg:sticky lg:top-5">
+        <div className="flex items-center gap-3 border-b border-slate-200 px-2 pb-3">
+          <div className="grid h-10 w-10 place-items-center rounded-full bg-blue-50 text-blue-700"><UserRound size={20} /></div>
+          <div className="min-w-0"><p className="truncate font-semibold">{settings.displayName || "Brian"}</p><p className="text-xs text-slate-500">{isDirty ? "Unsaved changes" : "Settings saved"}</p></div>
+        </div>
+        <nav className="mt-3 grid gap-1">
+          {([
+            ["profile", "Profile", UserRound], ["energy", "Energy model", Activity], ["targets", "Targets", Target], ["travel", "Travel days", Plane], ["data", "Data export", Download]
+          ] as const).map(([id, label, Icon]) => (
+            <button key={id} className={`flex min-h-10 items-center gap-2 rounded-md px-3 text-left text-sm font-semibold transition ${activeSection === id ? "bg-blue-50 text-blue-700" : "text-slate-600 hover:bg-slate-50"}`} type="button" onClick={() => setActiveSection(id)}><Icon size={17} />{label}</button>
+          ))}
+        </nav>
+      </aside>
+
+      <div className="grid min-w-0 gap-4">
+      <div className={`${activeSection === "travel" || activeSection === "data" ? "grid" : "hidden"} gap-3 rounded-lg border border-slate-200 bg-white p-4 shadow-sm`}>
+        {activeSection === "travel" ? <TravelDayManager onChanged={onChanged} /> : null}
+
+          {activeSection === "data" ? (
           <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
@@ -236,11 +264,11 @@ export function SettingsPanel({ onChanged }: SettingsPanelProps) {
               <p className="mt-2 rounded-md bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-700">Start date must be before end date.</p>
             ) : null}
           </div>
-        </div>
+          ) : null}
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-[360px_minmax(0,1fr)]">
-        <aside className="animate-enter-soft rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+      <div className={`${activeSection === "profile" || activeSection === "energy" || activeSection === "targets" ? "grid" : "hidden"} gap-4 ${activeSection === "profile" ? "lg:grid-cols-[320px_minmax(0,1fr)]" : "grid-cols-1"}`}>
+        <aside className={`${activeSection === "profile" ? "animate-enter-soft" : "hidden"} rounded-lg border border-slate-200 bg-white p-4 shadow-sm`}>
           <div className="flex items-center gap-3">
             <div className="flex h-14 w-14 items-center justify-center rounded-full bg-blue-50 text-blue-700">
               <UserRound size={26} />
@@ -262,12 +290,15 @@ export function SettingsPanel({ onChanged }: SettingsPanelProps) {
         </aside>
 
         <div className="animate-enter-soft rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-          <h3 className="text-lg font-semibold">Personal settings</h3>
+          <div className="flex items-center justify-between gap-3">
+            <div><h3 className="text-lg font-semibold">{activeSection === "profile" ? "Profile" : activeSection === "energy" ? "Energy model" : "Nutrition targets"}</h3><p className="mt-1 text-sm text-slate-500">Update only the values in this section.</p></div>
+            {isDirty ? <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700">Unsaved</span> : null}
+          </div>
           {isLoading ? (
             <p className="mt-4 text-sm text-slate-500">Loading settings...</p>
           ) : (
             <div className="mt-4 grid gap-5">
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <div className={`${activeSection === "profile" ? "grid" : "hidden"} gap-3 sm:grid-cols-2 lg:grid-cols-4`}>
                 <TextField label="Display name" value={settings.displayName} onChange={(value) => updateField("displayName", value)} />
                 <label className="grid gap-1 text-sm font-medium text-slate-700">
                   <span className="flex h-10 flex-col justify-end">Sex</span>
@@ -281,8 +312,7 @@ export function SettingsPanel({ onChanged }: SettingsPanelProps) {
                 <NumberField label="Height (cm)" value={settings.heightCm} onChange={(value) => updateField("heightCm", value)} />
               </div>
 
-              <div>
-                <p className="mb-3 text-sm font-semibold text-slate-700">Energy model</p>
+              <div className={activeSection === "energy" ? "block" : "hidden"}>
                 <div className="mb-3 inline-grid rounded-lg border border-slate-200 bg-slate-50 p-1 sm:grid-cols-2">
                   {(["auto", "manual"] as const).map((mode) => (
                     <button
@@ -319,8 +349,7 @@ export function SettingsPanel({ onChanged }: SettingsPanelProps) {
                 </div>
               </div>
 
-              <div>
-                <p className="mb-3 text-sm font-semibold text-slate-700">Targets</p>
+              <div className={activeSection === "targets" ? "block" : "hidden"}>
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                   <NumberField label="Protein g / kg" step="0.1" value={settings.proteinTargetPerKg} onChange={(value) => updateField("proteinTargetPerKg", value)} />
                   <NumberField label="Fat g / kg" step="0.1" value={settings.fatTargetPerKg} onChange={(value) => updateField("fatTargetPerKg", value)} />
@@ -335,8 +364,9 @@ export function SettingsPanel({ onChanged }: SettingsPanelProps) {
           {error ? <p className="mt-4 rounded-md bg-red-50 p-3 text-sm text-red-700">{error}</p> : null}
           {message ? <p className="mt-4 rounded-md bg-green-50 p-3 text-sm text-green-700">{message}</p> : null}
 
-          <div className="mt-5">
-            <button className="rounded-md bg-accent px-4 py-2 font-semibold text-white disabled:opacity-60" disabled={isLoading || isSaving} type="button" onClick={saveSettings}>
+          <div className="sticky bottom-0 -mx-4 mt-5 flex items-center justify-between gap-3 border-t border-slate-200 bg-white/95 px-4 pb-1 pt-3 backdrop-blur">
+            <p className="text-xs font-medium text-slate-500">{isDirty ? "Changes are not saved yet." : "Everything is up to date."}</p>
+            <button className="shrink-0 rounded-md bg-accent px-4 py-2 font-semibold text-white disabled:opacity-50" disabled={isLoading || isSaving || !isDirty} type="button" onClick={saveSettings}>
               <span className="inline-flex items-center gap-2">
                 <Save size={16} />
                 {isSaving ? "Saving..." : "Save settings"}
@@ -344,6 +374,7 @@ export function SettingsPanel({ onChanged }: SettingsPanelProps) {
             </button>
           </div>
         </div>
+      </div>
       </div>
     </section>
   );
