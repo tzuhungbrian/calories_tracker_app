@@ -59,7 +59,7 @@ test("URL navigation survives reload and browser history", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "Food log manager" })).toBeVisible();
   await page.reload();
   await expect(page).toHaveURL(/\/logs$/);
-  await page.getByRole("button", { name: "Today", exact: true }).click();
+  await page.getByRole("navigation").getByRole("button", { name: "Today", exact: true }).click();
   await expect(page).toHaveURL(/\/today$/);
   await page.goBack();
   await expect(page).toHaveURL(/\/logs$/);
@@ -73,6 +73,23 @@ test("desktop Logs opens and closes the edit inspector", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "Edit logged food" })).toBeVisible();
   await page.getByRole("button", { name: "Close editor" }).click();
   await expect(page.getByRole("heading", { name: "Edit logged food" })).toHaveCount(0);
+});
+
+test("desktop Today keeps the review compact and opens AI export from the header", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await page.getByRole("button", { name: "Today", exact: true }).click();
+
+  const review = page.getByRole("region", { name: "Daily review" });
+  await expect(review.getByText("Calories", { exact: true })).toBeVisible();
+  await expect(review.getByText("Protein", { exact: true })).toBeVisible();
+  await expect(review.getByText("Exercise", { exact: true })).toBeVisible();
+
+  await page.getByRole("button", { name: "Export for AI" }).click();
+  const dialog = page.getByRole("dialog", { name: "Export today for AI" });
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByText("# AI-friendly nutrition log")).toBeVisible();
+  await dialog.getByRole("button", { name: "Close", exact: true }).click();
+  await expect(dialog).toHaveCount(0);
 });
 
 test("mobile Add Food sheet supports keyboard dismissal", async ({ page }) => {

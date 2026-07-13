@@ -1,11 +1,21 @@
-import { Activity, Beef, CheckCircle2, Flame, Footprints, Lightbulb, Plane, Target } from "lucide-react";
-import type { ReactNode } from "react";
+import { Activity, Beef, CheckCircle2, Flame, Footprints, Lightbulb, Plane } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import type { DailyStatus, DashboardData } from "@/lib/types";
 
 type DailyReviewProps = {
   dashboard: DashboardData | null;
   status: DailyStatus;
-  compact?: boolean;
+};
+
+type ReviewTone = "good" | "warn" | "neutral";
+
+type ReviewItem = {
+  label: string;
+  title: string;
+  detail: string;
+  value: string;
+  tone: ReviewTone;
+  Icon: LucideIcon;
 };
 
 function round(value: number): number {
@@ -19,122 +29,144 @@ function fatRange(target: number): { min: number; max: number } {
   };
 }
 
-function calorieGuidance(data: DashboardData): { title: string; body: string; tone: "good" | "warn" | "neutral" } {
+function calorieGuidance(data: DashboardData): ReviewItem {
   const remaining = data.remaining.calories;
   const goalType = data.status?.goalType ?? "maintain";
 
   if (goalType === "bulk") {
     return remaining <= 0
-      ? { title: "Bulk target reached", body: "You have cleared the calorie target. Keep the rest of the day simple and protein-forward.", tone: "good" }
-      : { title: "More fuel needed", body: `You still need about ${round(remaining)} kcal to match today's bulk target.`, tone: "warn" };
+      ? { label: "Calories", title: "Bulk target reached", detail: "Keep the rest of the day simple.", value: "Target met", tone: "good", Icon: Flame }
+      : { label: "Calories", title: "More fuel needed", detail: "Add a balanced meal or snack.", value: `${round(remaining)} kcal left`, tone: "warn", Icon: Flame };
   }
 
   if (remaining < 0) {
     return {
+      label: "Calories",
       title: goalType === "cut" ? "Cut target exceeded" : "Target exceeded",
-      body: "Keep the next meal light: lean protein, vegetables, and low added fat will limit extra drift.",
-      tone: "warn"
+      detail: "Keep the next choice light and protein-forward.",
+      value: `${Math.abs(round(remaining))} kcal over`,
+      tone: "warn",
+      Icon: Flame
     };
   }
 
   if (remaining <= 250) {
-    return { title: "Small buffer left", body: `You have about ${round(remaining)} kcal left. A controlled snack fits better than a full meal.`, tone: "neutral" };
+    return { label: "Calories", title: "Small buffer left", detail: "A controlled snack fits better than a full meal.", value: `${round(remaining)} kcal left`, tone: "neutral", Icon: Flame };
   }
 
-  return { title: "Room for a meal", body: `About ${round(remaining)} kcal remain. Build the next meal around protein first.`, tone: "good" };
+  return { label: "Calories", title: "Room for a meal", detail: "Build the next meal around protein first.", value: `${round(remaining)} kcal left`, tone: "good", Icon: Flame };
 }
 
-function proteinGuidance(data: DashboardData): { title: string; body: string; tone: "good" | "warn" } {
+function proteinGuidance(data: DashboardData): ReviewItem {
   const gap = data.remaining.protein;
 
-  return gap <= 0
-    ? { title: "Protein covered", body: `Protein is ${Math.abs(round(gap))}g above target. Calories and carbs matter more from here.`, tone: "good" }
-    : { title: "Protein still matters", body: `Aim for about ${round(gap)}g more protein before the day ends.`, tone: "warn" };
+  if (gap <= 0.5) {
+    return {
+      label: "Protein",
+      title: "Protein covered",
+      detail: gap < -0.5 ? `${Math.abs(round(gap))}g above target.` : "Target is effectively met.",
+      value: "Target met",
+      tone: "good",
+      Icon: Beef
+    };
+  }
+
+  return {
+    label: "Protein",
+    title: "Protein still matters",
+    detail: "Prioritize a lean protein source next.",
+    value: gap < 1 ? "<1g left" : `${round(gap)}g left`,
+    tone: "warn",
+    Icon: Beef
+  };
 }
 
-function macroGuardrail(data: DashboardData): string {
+function exerciseGuidance(data: DashboardData, status: DailyStatus): ReviewItem {
+  const stepGoal = data.exerciseStepGoal || 8000;
+  const exerciseDone = status.strengthSession || status.basketballMinutes > 0 || status.steps > stepGoal;
+
+  if (exerciseDone) {
+    return {
+      label: "Exercise",
+      title: "Exercise complete",
+      detail: "Completed through training, basketball, or steps.",
+      value: "Complete",
+      tone: "good",
+      Icon: Footprints
+    };
+  }
+
+  return {
+    label: "Exercise",
+    title: "Exercise still open",
+    detail: "Walk more or log today's training.",
+    value: `${Math.max(0, round(stepGoal + 1 - status.steps))} steps left`,
+    tone: "warn",
+    Icon: Footprints
+  };
+}
+
+function macroGuardrail(data: DashboardData): { message: string; tone: "good" | "warn" } {
   const fat = fatRange(data.targets.fat);
   const fatTotal = round(data.totals.fat);
   const carbRemaining = round(data.remaining.carbs);
 
   if (fatTotal < fat.min) {
-    return `Fat is low (${fatTotal}g). You can include a moderate-fat protein or eggs without breaking the model.`;
+    return { message: `Fat is low at ${fatTotal}g. A moderate-fat protein still fits.`, tone: "warn" };
   }
 
   if (fatTotal > fat.max) {
-    return `Fat is already high (${fatTotal}g). Prefer lean protein and simpler carbs next.`;
+    return { message: `Fat is high at ${fatTotal}g. Choose lean protein next.`, tone: "warn" };
   }
 
-  return carbRemaining >= 0 ? `Fat is in range. Carbs have about ${carbRemaining}g left.` : "Fat is in range, but carbs are already over target.";
-}
-
-function exerciseGuidance(data: DashboardData, status: DailyStatus): { title: string; body: string; tone: "good" | "warn" } {
-  const stepGoal = data.exerciseStepGoal || 8000;
-  const exerciseDone = status.strengthSession || status.basketballMinutes > 0 || status.steps > stepGoal;
-
-  if (exerciseDone) {
-    return { title: "Exercise checked", body: "Exercise habit is complete through lifting, basketball, or steps.", tone: "good" };
+  if (carbRemaining < 0) {
+    return { message: "Fat is in range, but carbs are over target.", tone: "warn" };
   }
 
-  return {
-    title: "Exercise still open",
-    body: `${Math.max(0, round(stepGoal + 1 - status.steps))} more steps would close it, or log lifting/basketball.`,
-    tone: "warn"
-  };
+  return { message: `Macros in range - ${carbRemaining}g carbs available.`, tone: "good" };
 }
 
-export function DailyReview({ dashboard, status, compact = false }: DailyReviewProps) {
+export function DailyReview({ dashboard, status }: DailyReviewProps) {
   if (!dashboard) {
-    return <section className={`border border-slate-200 bg-white p-4 shadow-sm ${compact ? "rounded-2xl" : "rounded-lg"}`}>Loading daily review...</section>;
+    return (
+      <section aria-label="Daily review" className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+        <div className="h-5 w-32 animate-pulse rounded bg-slate-100 dark:bg-slate-800" />
+        <div className="mt-4 h-36 animate-pulse rounded-lg bg-slate-50 dark:bg-slate-800/70" />
+      </section>
+    );
   }
 
   const effectiveStatus = { ...(dashboard.status ?? status), ...status };
-  const calorie = calorieGuidance(dashboard);
-  const protein = proteinGuidance(dashboard);
-  const exercise = exerciseGuidance(dashboard, effectiveStatus);
-  const mode = effectiveStatus.goalType ?? "maintain";
   const isTravelDay = effectiveStatus.isTravelDay;
+  const items = [calorieGuidance(dashboard), proteinGuidance(dashboard), exerciseGuidance(dashboard, effectiveStatus)];
+  const guardrail = macroGuardrail(dashboard);
 
   return (
-    <section className={`animate-enter border bg-white p-4 shadow-sm ${isTravelDay ? "border-sky-100" : "border-blue-100"} ${compact ? "rounded-2xl" : "rounded-lg"}`}>
-      <div className={`flex flex-col gap-3 ${compact ? "" : "lg:flex-row lg:items-start lg:justify-between"}`}>
-        <div>
-          <h2 className="inline-flex items-center gap-2 text-lg font-semibold">
-            <Lightbulb size={20} className="text-blue-700" />
-            Daily review
-          </h2>
-          <p className="mt-1 text-sm text-slate-500">
-            {isTravelDay ? "Travel day is excluded from adherence judgment." : "What the numbers say about the rest of today."}
-          </p>
-        </div>
-        <div className={`inline-flex w-fit items-center gap-2 rounded-full px-3 py-1.5 text-sm font-semibold capitalize ${isTravelDay ? "bg-sky-50 text-sky-700" : "bg-blue-50 text-blue-700"}`}>
-          {isTravelDay ? <Plane size={15} /> : <Target size={15} />}
-          {isTravelDay ? "travel day" : `${mode} mode`}
-        </div>
+    <section aria-labelledby="daily-review-title" className="animate-enter overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
+      <div className="px-4 pb-3 pt-4">
+        <h2 id="daily-review-title" className="inline-flex items-center gap-2 text-base font-semibold">
+          <Lightbulb size={18} className="text-blue-700 dark:text-blue-300" />
+          Daily review
+        </h2>
+        <p className="mt-1 text-xs text-slate-500">{isTravelDay ? "Travel day context" : "What still deserves attention today"}</p>
       </div>
 
       {isTravelDay ? (
-        <div className="mt-4 rounded-lg border border-sky-100 bg-sky-50/70 p-3 text-sm text-slate-600">
-          <p className="inline-flex items-center gap-2 font-semibold text-sky-800">
-            <Plane size={16} />
-            Travel mode
-          </p>
-          <p className="mt-1 leading-6">Food logs stay saved, but AI export and dashboard insights should not grade this date like a normal tracking day.</p>
+        <div className="mx-4 mb-4 flex gap-3 rounded-lg border border-sky-100 bg-sky-50/70 p-3 dark:border-sky-900/70 dark:bg-sky-950/30">
+          <Plane size={18} className="mt-0.5 shrink-0 text-sky-700 dark:text-sky-300" />
+          <div>
+            <p className="text-sm font-semibold text-sky-800 dark:text-sky-200">Travel day is not graded</p>
+            <p className="mt-1 text-xs leading-5 text-slate-600 dark:text-slate-400">Logs remain saved, while adherence and trend judgments ignore this date.</p>
+          </div>
         </div>
       ) : (
         <>
-          <div className={`mt-4 grid gap-3 ${compact ? "grid-cols-1" : "md:grid-cols-3"}`}>
-            <ReviewCard icon={<Flame size={18} />} title={calorie.title} body={calorie.body} tone={calorie.tone} />
-            <ReviewCard icon={<Beef size={18} />} title={protein.title} body={protein.body} tone={protein.tone} />
-            <ReviewCard icon={<Footprints size={18} />} title={exercise.title} body={exercise.body} tone={exercise.tone} />
+          <div className="divide-y divide-slate-100 border-y border-slate-100 dark:divide-slate-800 dark:border-slate-800">
+            {items.map((item) => <ReviewRow key={item.label} item={item} />)}
           </div>
-
-          <div className="mt-3 rounded-lg bg-slate-50 p-3 text-sm text-slate-600">
-            <p className="inline-flex items-center gap-2 font-semibold text-slate-800">
-              <Activity size={16} />
-              Macro guardrail
-            </p>
-            <p className="mt-1">{macroGuardrail(dashboard)}</p>
+          <div className={`flex items-start gap-2 px-4 py-3 text-xs ${guardrail.tone === "good" ? "text-emerald-700 dark:text-emerald-300" : "text-amber-700 dark:text-amber-300"}`}>
+            {guardrail.tone === "good" ? <CheckCircle2 size={15} className="mt-0.5 shrink-0" /> : <Activity size={15} className="mt-0.5 shrink-0" />}
+            <p className="leading-5">{guardrail.message}</p>
           </div>
         </>
       )}
@@ -142,30 +174,25 @@ export function DailyReview({ dashboard, status, compact = false }: DailyReviewP
   );
 }
 
-function ReviewCard({
-  icon,
-  title,
-  body,
-  tone
-}: {
-  icon: ReactNode;
-  title: string;
-  body: string;
-  tone: "good" | "warn" | "neutral";
-}) {
-  const styles = {
-    good: "border-emerald-100 bg-emerald-50/70 text-emerald-700",
-    warn: "border-amber-100 bg-amber-50/80 text-amber-700",
-    neutral: "border-blue-100 bg-blue-50/70 text-blue-700"
+function ReviewRow({ item }: { item: ReviewItem }) {
+  const styles: Record<ReviewTone, { icon: string; value: string }> = {
+    good: { icon: "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300", value: "text-emerald-700 dark:text-emerald-300" },
+    warn: { icon: "bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300", value: "text-amber-700 dark:text-amber-300" },
+    neutral: { icon: "bg-blue-50 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300", value: "text-blue-700 dark:text-blue-300" }
   };
+  const style = styles[item.tone];
 
   return (
-    <div className={`rounded-lg border p-3 ${styles[tone]}`}>
-      <div className="flex items-center gap-2">
-        {tone === "good" ? <CheckCircle2 size={18} /> : icon}
-        <p className="font-semibold">{title}</p>
+    <div className="flex min-w-0 items-center gap-3 px-4 py-3">
+      <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${style.icon}`}>
+        {item.tone === "good" ? <CheckCircle2 size={17} /> : <item.Icon size={17} />}
       </div>
-      <p className="mt-2 text-sm leading-5 text-slate-600">{body}</p>
+      <div className="min-w-0 flex-1">
+        <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{item.label}</p>
+        <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{item.title}</p>
+        <p className="truncate text-xs text-slate-500">{item.detail}</p>
+      </div>
+      <p className={`max-w-24 shrink-0 text-right text-xs font-semibold leading-4 ${style.value}`}>{item.value}</p>
     </div>
   );
 }

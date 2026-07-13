@@ -24,6 +24,12 @@ export function useModalAccessibility(isOpen: boolean, onClose: () => void) {
     document.body.style.overflow = "hidden";
 
     const dialog = dialogRef.current;
+    const backgroundElements = Array.from(document.body.children)
+      .filter((element): element is HTMLElement => element instanceof HTMLElement && Boolean(dialog) && !element.contains(dialog))
+      .map((element) => ({ element, wasInert: element.inert }));
+    backgroundElements.forEach(({ element }) => {
+      element.inert = true;
+    });
     dialog?.querySelector<HTMLElement>(focusableSelector)?.focus({ preventScroll: true });
 
     function handleKeyDown(event: KeyboardEvent) {
@@ -51,6 +57,9 @@ export function useModalAccessibility(isOpen: boolean, onClose: () => void) {
     return () => {
       document.removeEventListener("keydown", handleKeyDown);
       document.body.style.overflow = previousOverflow;
+      backgroundElements.forEach(({ element, wasInert }) => {
+        element.inert = wasInert;
+      });
       previousFocus?.focus({ preventScroll: true });
     };
   }, [isOpen]);

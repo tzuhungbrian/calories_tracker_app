@@ -3,7 +3,6 @@
 import { Activity, Beef, Flame, Footprints, Gauge, ListChecks, Plane } from "lucide-react";
 import { useMemo } from "react";
 import type { ReactNode } from "react";
-import { AiDietExport } from "@/components/ai_diet_export";
 import { DailyReview } from "@/components/daily_review";
 import { DailyStatusEditor } from "@/components/daily_status_editor";
 import { FoodLogComposer } from "@/components/food_log_composer";
@@ -162,7 +161,6 @@ export function TodayDesktopWorkbench({
           onSubmit={onDailyStatusSubmit}
         />
         <DailyReview dashboard={dashboard} status={dailyStatus} />
-        <AiDietExport today={today} dashboard={dashboard} logs={logs} status={dailyStatus} />
       </aside>
     </div>
   );

@@ -1,7 +1,10 @@
 "use client";
 
-import { Check, ChevronDown, Clipboard, Download, Sparkles } from "lucide-react";
+import { Check, Clipboard, Download, Sparkles, X } from "lucide-react";
 import { useMemo, useState } from "react";
+import { createPortal } from "react-dom";
+import { useModalAccessibility } from "@/components/use_modal_accessibility";
+import type { ToastInput } from "@/components/toast_viewport";
 import type { DailyStatus, DashboardData, FoodLog, NutritionTotals } from "@/lib/types";
 
 type AiDietExportProps = {
@@ -9,6 +12,7 @@ type AiDietExportProps = {
   dashboard: DashboardData | null;
   logs: FoodLog[];
   status: DailyStatus;
+  onNotify?: (toast: ToastInput) => void;
 };
 
 const nutrientLabels: Array<{ key: keyof NutritionTotals; label: string; unit: string }> = [
@@ -54,8 +58,7 @@ function buildFoodLines(logs: FoodLog[], dashboard: DashboardData | null): strin
   }
 
   return logs.map((log, index) => {
-    const calorieShare =
-      dashboard && dashboard.totals.calories > 0 ? `, ${Math.round((log.calories / dashboard.totals.calories) * 100)}% of today's calories` : "";
+    const calorieShare = dashboard && dashboard.totals.calories > 0 ? `, ${Math.round((log.calories / dashboard.totals.calories) * 100)}% of today's calories` : "";
     const aiFlag = log.isAiEstimated ? " [AI estimated]" : "";
     const notes = log.notes?.trim() ? `\n   Notes: ${log.notes.trim()}` : "";
 
@@ -68,8 +71,6 @@ function buildFoodLines(logs: FoodLog[], dashboard: DashboardData | null): strin
 function buildAiDietPrompt(today: string, dashboard: DashboardData | null, logs: FoodLog[], status: DailyStatus): string {
   const effectiveStatus = { ...(dashboard?.status ?? status), ...status };
   const exerciseStepGoal = dashboard?.exerciseStepGoal ?? 8000;
-  const foodLines = buildFoodLines(logs, dashboard);
-  const totalsLines = buildTotalsLines(dashboard);
   const isTravelDay = effectiveStatus.isTravelDay;
 
   return [
@@ -96,7 +97,7 @@ function buildAiDietPrompt(today: string, dashboard: DashboardData | null, logs:
     dashboard ? `- Dynamic TDEE: ${round(dashboard.dynamicTdee)} kcal` : "- Dynamic TDEE: loading/not available",
     "",
     "## Totals vs targets",
-    ...totalsLines,
+    ...buildTotalsLines(dashboard),
     "",
     "## Activity and habits",
     `- Steps: ${round(effectiveStatus.steps)} / exercise step goal ${round(exerciseStepGoal)}`,
@@ -105,7 +106,7 @@ function buildAiDietPrompt(today: string, dashboard: DashboardData | null, logs:
     `- Creatine taken: ${yesNo(effectiveStatus.creatineTaken)}`,
     "",
     "## Food logs",
-    ...foodLines,
+    ...buildFoodLines(logs, dashboard),
     "",
     "## Context",
     "- This log may include AI-estimated foods, so treat those entries as approximate.",
@@ -141,93 +142,98 @@ function copyTextFallback(content: string): boolean {
   }
 }
 
-export function AiDietExport({ today, dashboard, logs, status }: AiDietExportProps) {
+export function AiDietExport({ today, dashboard, logs, status, onNotify }: AiDietExportProps) {
+  const [isOpen, setIsOpen] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
-  const [copyError, setCopyError] = useState("");
-  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const todayLogs = useMemo(() => logs.filter((log) => log.date === today), [logs, today]);
   const exportText = useMemo(() => buildAiDietPrompt(today, dashboard, todayLogs, status), [dashboard, status, today, todayLogs]);
+  const dialogRef = useModalAccessibility(isOpen, closeDialog);
+
+  function closeDialog() {
+    setIsOpen(false);
+    setIsCopied(false);
+  }
 
   async function copyExportText() {
-    setCopyError("");
-
     try {
       await navigator.clipboard.writeText(exportText);
       setIsCopied(true);
-      window.setTimeout(() => setIsCopied(false), 1800);
+      onNotify?.({ tone: "success", title: "AI export copied", message: "Today's nutrition log is ready to paste." });
     } catch {
       if (copyTextFallback(exportText)) {
         setIsCopied(true);
-        window.setTimeout(() => setIsCopied(false), 1800);
+        onNotify?.({ tone: "success", title: "AI export copied", message: "Today's nutrition log is ready to paste." });
         return;
       }
 
-      setCopyError("Copy failed. You can still download the text file.");
+      onNotify?.({ tone: "error", title: "Could not copy AI export", message: "Download the text file instead." });
     }
   }
 
   function downloadExportText() {
     downloadTextFile(`nutrition-log-${today}.txt`, exportText);
+    onNotify?.({ tone: "info", title: "AI export downloaded", message: `nutrition-log-${today}.txt` });
   }
 
   return (
-    <section className="animate-enter-soft overflow-hidden rounded-lg border border-violet-100 bg-white shadow-sm dark:border-violet-900/70">
-      <div className="flex flex-col gap-2 px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex min-w-0 items-center gap-2.5">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-violet-50 text-violet-700 dark:bg-violet-950/60 dark:text-violet-200">
-            <Sparkles size={18} />
-          </div>
-          <div className="min-w-0">
-            <h2 className="truncate text-sm font-semibold">AI diet export</h2>
-            <p className="truncate text-xs text-slate-500">
-              {status.isTravelDay ? "Travel day marked - AI will ignore adherence" : `${todayLogs.length} food${todayLogs.length === 1 ? "" : "s"} today - AI-ready prompt`}
-            </p>
-            <p className="hidden truncate text-xs text-slate-500">
-              {todayLogs.length} food{todayLogs.length === 1 ? "" : "s"} today · AI-ready prompt
-            </p>
-          </div>
-        </div>
+    <>
+      <button
+        aria-haspopup="dialog"
+        className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-lg border border-violet-200 bg-violet-50 px-3 text-sm font-semibold text-violet-700 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-violet-300 hover:bg-violet-100 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2 dark:border-violet-900/80 dark:bg-violet-950/40 dark:text-violet-200 dark:hover:bg-violet-950/70"
+        title="Export today's food log for AI"
+        type="button"
+        onClick={() => setIsOpen(true)}
+      >
+        <Sparkles size={17} />
+        <span className="hidden xl:inline">Export for AI</span>
+        <span className="sr-only xl:hidden">Export for AI</span>
+      </button>
 
-        <div className="flex shrink-0 items-center gap-2">
-          <button
-            className="inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-ink px-3 text-sm font-semibold text-white shadow-sm hover:-translate-y-0.5 hover:shadow-md"
-            type="button"
-            onClick={copyExportText}
+      {isOpen && typeof document !== "undefined" ? createPortal(
+        <div className="fixed inset-0 z-[70] flex items-end justify-center sm:items-center sm:p-6">
+          <button aria-label="Close AI export" className="absolute inset-0 h-full w-full bg-slate-950/55 backdrop-blur-sm" type="button" onClick={closeDialog} />
+          <section
+            ref={dialogRef}
+            aria-labelledby="ai-export-title"
+            aria-modal="true"
+            className="mobile-sheet-enter relative z-10 flex max-h-[88dvh] w-full flex-col overflow-hidden rounded-t-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900 sm:max-w-2xl sm:animate-enter-soft sm:rounded-2xl"
+            role="dialog"
           >
-            {isCopied ? <Check size={16} /> : <Clipboard size={16} />}
-            {isCopied ? "Copied" : "Copy"}
-          </button>
-          <button
-            className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-slate-700 hover:-translate-y-0.5 hover:bg-white hover:shadow-sm dark:bg-slate-800 dark:hover:bg-slate-700"
-            type="button"
-            onClick={downloadExportText}
-          >
-            <Download size={16} />
-            <span className="hidden sm:inline">.txt</span>
-          </button>
-          <button
-            className="inline-flex h-9 items-center justify-center gap-1 rounded-lg border border-violet-100 bg-violet-50 px-3 text-xs font-semibold text-violet-700 hover:bg-violet-100 dark:border-violet-900/70 dark:bg-violet-950/40 dark:text-violet-200"
-            type="button"
-            aria-expanded={isPreviewOpen}
-            onClick={() => setIsPreviewOpen((current) => !current)}
-          >
-            Preview
-            <ChevronDown size={15} className={`transition-transform duration-200 ${isPreviewOpen ? "rotate-180" : ""}`} />
-          </button>
-        </div>
-      </div>
+            <header className="flex shrink-0 items-start justify-between gap-4 border-b border-slate-200 px-4 py-4 dark:border-slate-800 sm:px-5">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 text-violet-700 dark:text-violet-300">
+                  <Sparkles size={18} />
+                  <h2 id="ai-export-title" className="text-lg font-semibold text-slate-900 dark:text-slate-100">Export today for AI</h2>
+                </div>
+                <p className="mt-1 text-sm text-slate-500">
+                  {today} - {todayLogs.length} food{todayLogs.length === 1 ? "" : "s"}{status.isTravelDay ? " - Travel day" : ""}
+                </p>
+              </div>
+              <button aria-label="Close AI export" className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800" type="button" onClick={closeDialog}>
+                <X size={18} />
+              </button>
+            </header>
 
-      {copyError ? <p className="px-3 pb-2 text-sm font-medium text-red-600 dark:text-red-300">{copyError}</p> : null}
+            <div className="min-h-0 flex-1 overflow-y-auto bg-slate-50 p-4 dark:bg-slate-950/40 sm:p-5">
+              <pre className="min-h-64 whitespace-pre-wrap break-words rounded-lg border border-slate-200 bg-white p-4 text-xs leading-5 text-slate-600 shadow-inner dark:border-slate-700 dark:bg-slate-950 dark:text-slate-300">{exportText}</pre>
+            </div>
 
-      <div className={`grid transition-[grid-template-rows] duration-300 ease-out ${isPreviewOpen ? "grid-rows-[1fr]" : "grid-rows-[0fr]"}`}>
-        <div className="min-h-0 overflow-hidden">
-          <div className="border-t border-violet-100 bg-violet-50/50 p-3 dark:border-violet-900/70 dark:bg-violet-950/20">
-            <pre className="max-h-52 overflow-auto whitespace-pre-wrap rounded-lg border border-violet-100 bg-white/85 p-3 text-xs leading-5 text-slate-600 dark:border-violet-900/70 dark:bg-slate-900/70 dark:text-slate-300">
-              {exportText}
-            </pre>
-          </div>
-        </div>
-      </div>
-    </section>
+            <footer className="grid shrink-0 grid-cols-[1fr_1fr_auto] gap-2 border-t border-slate-200 bg-white px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-3 dark:border-slate-800 dark:bg-slate-900 sm:flex sm:justify-end sm:px-5 sm:pb-4">
+              <button className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-ink px-4 text-sm font-semibold text-white transition hover:bg-slate-800" type="button" onClick={copyExportText}>
+                {isCopied ? <Check size={17} /> : <Clipboard size={17} />}
+                {isCopied ? "Copied" : "Copy text"}
+              </button>
+              <button className="inline-flex h-11 items-center justify-center gap-2 rounded-lg border border-slate-200 px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800" type="button" onClick={downloadExportText}>
+                <Download size={17} />
+                <span className="hidden sm:inline">Download .txt</span>
+                <span className="sm:hidden">.txt</span>
+              </button>
+              <button className="h-11 rounded-lg border border-slate-200 px-4 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800" type="button" onClick={closeDialog}>Close</button>
+            </footer>
+          </section>
+        </div>,
+        document.body
+      ) : null}
+    </>
   );
 }

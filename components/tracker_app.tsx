@@ -543,9 +543,13 @@ export function TrackerApp({ initialTab = "stats" }: { initialTab?: AppTab }) {
               </div>
               <p className="mt-0.5 truncate text-sm text-slate-500">{tabDescriptions[activeTab]} · {today}</p>
             </div>
-            <div className={`inline-flex shrink-0 items-center gap-2 rounded-full border px-3 py-2 text-xs font-semibold shadow-sm transition sm:text-sm ${syncPill.className}`}>
-              <SyncIcon className={syncPill.spin ? "animate-spin" : ""} size={16} />
-              {syncPill.label}
+            <div className="flex shrink-0 items-center gap-2">
+              {activeTab === "dashboard" ? <AiDietExport today={today} dashboard={dashboard} logs={foodLogs} status={dailyStatus} onNotify={addToast} /> : null}
+              <div className={`inline-flex shrink-0 items-center gap-2 rounded-full border px-3 py-2 text-xs font-semibold shadow-sm transition sm:text-sm ${syncPill.className}`}>
+                <SyncIcon className={syncPill.spin ? "animate-spin" : ""} size={16} />
+                <span className="hidden sm:inline">{syncPill.label}</span>
+                <span className="sr-only sm:hidden">{syncPill.label}</span>
+              </div>
             </div>
           </header>
 
@@ -568,7 +572,6 @@ export function TrackerApp({ initialTab = "stats" }: { initialTab?: AppTab }) {
                   />
                 </section>
                 <DailyReview dashboard={dashboard} status={dailyStatus} />
-                <AiDietExport today={today} dashboard={dashboard} logs={foodLogs} status={dailyStatus} />
               </div>
 
               <TodayDesktopWorkbench

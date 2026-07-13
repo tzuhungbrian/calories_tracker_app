@@ -32,6 +32,14 @@ textarea {
   color: #172033;
 }
 
+@media (max-width: 1023px) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="button"]):not([type="submit"]):not([type="reset"]),
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
+
 .dark input,
 .dark select,
 .dark textarea {

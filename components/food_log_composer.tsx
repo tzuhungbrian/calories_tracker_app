@@ -441,15 +441,15 @@ export function FoodLogComposer({ foods, recentLogs = [], value, isSaving, onCha
     </section>
 
     {isMobileSheetOpen && typeof document !== "undefined" ? createPortal(
-      <div className="fixed inset-0 z-50 lg:hidden" role="dialog" aria-modal="true" aria-label="Add food">
+      <div className="fixed inset-0 z-50 overflow-hidden lg:hidden" role="dialog" aria-modal="true" aria-label="Add food">
         <button
           aria-label="Close add food"
           className="absolute inset-0 h-full w-full bg-slate-950/50 backdrop-blur-sm"
           type="button"
           onClick={() => setIsMobileSheetOpen(false)}
         />
-        <div ref={mobileDialogRef} className="mobile-sheet-enter absolute inset-x-0 bottom-0 flex max-h-[90vh] flex-col rounded-t-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900">
-          <div className="shrink-0 border-b border-slate-200 px-4 pb-3 pt-3 dark:border-slate-700">
+        <div ref={mobileDialogRef} className="mobile-sheet-enter absolute inset-x-0 bottom-0 flex max-h-[90dvh] w-full min-w-0 max-w-full flex-col overflow-x-hidden rounded-t-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900">
+          <div className="min-w-0 shrink-0 border-b border-slate-200 px-4 pb-3 pt-3 dark:border-slate-700">
             <div className="mx-auto mb-3 h-1.5 w-12 rounded-full bg-slate-200 dark:bg-slate-700" />
             <div className="flex items-center justify-between gap-3">
               <div>
@@ -479,9 +479,9 @@ export function FoodLogComposer({ foods, recentLogs = [], value, isSaving, onCha
             </div>
           </div>
 
-          <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
+          <div className="min-h-0 w-full min-w-0 max-w-full flex-1 overflow-x-hidden overflow-y-auto overscroll-contain px-4 py-4">
             {mobileStep === "Meal" ? (
-              <div className="grid gap-4">
+              <div className="grid min-w-0 max-w-full gap-4">
                 <label className="grid gap-1 text-sm font-medium text-slate-700">
                   Date
                   <input
@@ -516,17 +516,17 @@ export function FoodLogComposer({ foods, recentLogs = [], value, isSaving, onCha
             ) : null}
 
             {mobileStep === "Food" ? (
-              <div className="grid gap-4">
-                <div className="inline-grid w-full grid-cols-2 rounded-lg border border-slate-200 bg-slate-50 p-1">
+              <div className="grid min-w-0 max-w-full gap-4 overflow-x-hidden">
+                <div className="grid w-full min-w-0 grid-cols-[minmax(0,1fr)_minmax(0,1fr)] rounded-lg border border-slate-200 bg-slate-50 p-1">
                   <button
-                    className={`rounded-md px-4 py-2 text-sm font-semibold ${entryMode === "saved" ? "bg-ink text-white" : "text-slate-600"}`}
+                    className={`min-w-0 rounded-md px-4 py-2 text-sm font-semibold ${entryMode === "saved" ? "bg-ink text-white" : "text-slate-600"}`}
                     type="button"
                     onClick={() => switchMode("saved")}
                   >
                     Saved
                   </button>
                   <button
-                    className={`rounded-md px-4 py-2 text-sm font-semibold ${entryMode === "custom" ? "bg-ink text-white" : "text-slate-600"}`}
+                    className={`min-w-0 rounded-md px-4 py-2 text-sm font-semibold ${entryMode === "custom" ? "bg-ink text-white" : "text-slate-600"}`}
                     type="button"
                     onClick={() => switchMode("custom")}
                   >
@@ -536,30 +536,30 @@ export function FoodLogComposer({ foods, recentLogs = [], value, isSaving, onCha
 
                 {entryMode === "saved" ? (
                   <>
-                    <div className="rounded-lg border border-slate-200 bg-slate-50 p-2">
+                    <div className="min-w-0 max-w-full overflow-hidden rounded-lg border border-slate-200 bg-slate-50 p-2">
                       <div className="flex items-center justify-between gap-2">
                         <p className="text-xs font-semibold text-slate-600">Quick picks</p>
                         <div className="grid grid-cols-2 rounded-md bg-white p-1">
                           {(["recent", "frequent"] as const).map((mode) => <button key={mode} className={`rounded px-2 py-1 text-[11px] font-semibold capitalize ${quickPickMode === mode ? "bg-ink text-white" : "text-slate-500"}`} type="button" onClick={() => setQuickPickMode(mode)}>{mode}</button>)}
                         </div>
                       </div>
-                      <div className="mt-2 flex gap-2 overflow-x-auto pb-1">
+                      <div className="mt-2 flex w-full min-w-0 max-w-full gap-2 overflow-x-auto overscroll-x-contain pb-1">
                         {quickPickFoods.map((food) => <button key={food.id} className="shrink-0 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700" type="button" onClick={() => toggleSavedFood(food)}>{food.name}</button>)}
                       </div>
                     </div>
-                    <label className="grid gap-1 text-sm font-medium text-slate-700">
+                    <label className="grid min-w-0 gap-1 text-sm font-medium text-slate-700">
                       <span className="inline-flex items-center gap-1.5">
                         <Search size={16} />
                         Find food
                       </span>
                       <input
-                        className="rounded-md border border-slate-300 px-3 py-2 font-normal"
+                        className="w-full min-w-0 rounded-md border border-slate-300 px-3 py-2 text-base font-normal"
                         placeholder="Search saved foods"
                         value={query}
                         onChange={(event) => setQuery(event.target.value)}
                       />
                     </label>
-                    <div className="flex gap-2 overflow-x-auto pb-1">
+                    <div className="flex w-full min-w-0 max-w-full gap-2 overflow-x-auto overscroll-x-contain pb-1">
                       <button
                         className={`shrink-0 rounded-full border px-3 py-1.5 text-sm font-semibold ${!selectedCategory ? "border-blue-200 bg-blue-50 text-blue-700" : "border-slate-200 bg-white text-slate-600 dark:bg-slate-900"}`}
                         type="button"
@@ -580,19 +580,19 @@ export function FoodLogComposer({ foods, recentLogs = [], value, isSaving, onCha
                     </div>
                     <p className="text-xs font-semibold text-slate-500">{filteredFoods.length} results</p>
                     {selectedFoods.length > 0 ? (
-                      <div className="sticky top-0 z-10 rounded-xl border border-blue-100 bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-700 shadow-sm">
+                      <div className="sticky top-0 z-10 min-w-0 max-w-full overflow-hidden rounded-xl border border-blue-100 bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-700 shadow-sm">
                         <p>{selectedFoods.length} selected</p>
-                        <div className="mt-2 flex gap-1.5 overflow-x-auto pb-1">{selectedFoods.map((item) => <button key={item.food.id} className="shrink-0 rounded-full bg-white px-2.5 py-1 text-xs" type="button" onClick={() => toggleSavedFood(item.food)}>{item.food.name} ×</button>)}</div>
+                        <div className="mt-2 flex w-full min-w-0 max-w-full gap-1.5 overflow-x-auto overscroll-x-contain pb-1">{selectedFoods.map((item) => <button key={item.food.id} className="shrink-0 rounded-full bg-white px-2.5 py-1 text-xs" type="button" onClick={() => toggleSavedFood(item.food)}>{item.food.name} ×</button>)}</div>
                       </div>
                     ) : null}
-                    <div className="grid max-h-[42vh] gap-2 overflow-y-auto pr-1">
+                    <div className="grid min-w-0 max-w-full gap-2 overflow-y-auto pr-1 [max-height:42dvh]">
                       {filteredFoods.slice(0, 60).map((food) => {
                         const isSelected = selectedFoods.some((item) => item.food.id === food.id);
 
                         return (
                           <button
                             key={food.id}
-                            className={`rounded-xl border p-3 text-left transition ${isSelected ? "border-blue-200 bg-blue-50 shadow-sm" : "border-slate-200 bg-white dark:bg-slate-900"}`}
+                            className={`min-w-0 max-w-full overflow-hidden rounded-xl border p-3 text-left transition ${isSelected ? "border-blue-200 bg-blue-50 shadow-sm" : "border-slate-200 bg-white dark:bg-slate-900"}`}
                             type="button"
                             onClick={() => toggleSavedFood(food)}
                           >
@@ -614,32 +614,32 @@ export function FoodLogComposer({ foods, recentLogs = [], value, isSaving, onCha
                     </div>
                   </>
                 ) : (
-                  <div className="grid gap-3">
-                    <label className="grid gap-1 text-sm font-medium text-slate-700">
+                  <div className="grid min-w-0 max-w-full gap-3 overflow-x-hidden">
+                    <label className="grid min-w-0 gap-1 text-sm font-medium text-slate-700">
                       Custom food name
                       <input
-                        className="rounded-md border border-slate-300 px-3 py-2 font-normal"
+                        className="w-full min-w-0 rounded-md border border-slate-300 px-3 py-2 text-base font-normal"
                         placeholder="AI estimated chicken rice plate"
                         value={value.foodName}
                         onChange={(event) => updateCustomField("foodName", event.target.value)}
                       />
                     </label>
-                    <label className="grid gap-1 text-sm font-medium text-slate-700">
+                    <label className="grid min-w-0 gap-1 text-sm font-medium text-slate-700">
                       Amount / serving
                       <input
-                        className="rounded-md border border-slate-300 px-3 py-2 font-normal"
+                        className="w-full min-w-0 rounded-md border border-slate-300 px-3 py-2 text-base font-normal"
                         placeholder="1 plate"
                         value={value.amount}
                         onChange={(event) => updateCustomField("amount", event.target.value)}
                       />
                     </label>
-                    <div className="grid grid-cols-2 gap-2">
-                      <label className="inline-flex items-center gap-2 rounded-lg bg-slate-50 px-3 py-2 text-sm font-medium text-slate-700">
+                    <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-2">
+                      <label className="inline-flex min-w-0 flex-wrap items-center gap-2 rounded-lg bg-slate-50 px-3 py-2 text-sm font-medium text-slate-700">
                         <input checked={value.isAiEstimated ?? false} type="checkbox" onChange={(event) => updateCustomField("isAiEstimated", event.target.checked)} />
                         <Sparkles size={16} className="text-blue-700" />
                         AI estimated
                       </label>
-                      <label className="inline-flex items-center gap-2 rounded-lg bg-slate-50 px-3 py-2 text-sm font-medium text-slate-700">
+                      <label className="inline-flex min-w-0 flex-wrap items-center gap-2 rounded-lg bg-slate-50 px-3 py-2 text-sm font-medium text-slate-700">
                         <input checked={value.saveToDatabase ?? false} type="checkbox" onChange={(event) => updateCustomField("saveToDatabase", event.target.checked)} />
                         <Database size={16} />
                         Save food
@@ -659,7 +659,7 @@ export function FoodLogComposer({ foods, recentLogs = [], value, isSaving, onCha
             ) : null}
 
             {mobileStep === "Review" ? (
-              <div className="grid gap-4">
+              <div className="grid min-w-0 max-w-full gap-4 overflow-x-hidden">
                 <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
                   <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Ready to log</p>
                   <h3 className="mt-1 text-lg font-semibold">{selectedFoodSummary || "Choose a food"}</h3>
@@ -800,8 +800,8 @@ export function FoodLogComposer({ foods, recentLogs = [], value, isSaving, onCha
             ) : null}
           </div>
 
-          <div className="shrink-0 border-t border-slate-200 bg-white px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-3 dark:border-slate-700 dark:bg-slate-900">
-            <div className="grid grid-cols-[auto_1fr] gap-2">
+          <div className="min-w-0 shrink-0 border-t border-slate-200 bg-white px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-3 dark:border-slate-700 dark:bg-slate-900">
+            <div className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] gap-2">
               <button
                 className="inline-flex h-12 items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 text-sm font-semibold text-slate-600 disabled:opacity-40"
                 disabled={mobileStep === "Meal"}
