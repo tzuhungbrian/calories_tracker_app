@@ -75,6 +75,23 @@ test("desktop Logs opens and closes the edit inspector", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "Edit logged food" })).toHaveCount(0);
 });
 
+test("mobile Dashboard keeps nutrition cards compact", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+
+  const summary = page.getByRole("region", { name: "Today's nutrition summary" });
+  const mobileCards = summary.getByRole("group", { name: "Mobile nutrition cards" });
+  await expect(summary).toBeVisible();
+  await expect(page.getByText("Recent history", { exact: true })).toBeVisible();
+  await expect(mobileCards.getByText("Calories", { exact: true })).toBeVisible();
+  await expect(mobileCards.getByText("Protein", { exact: true })).toBeVisible();
+  await expect(mobileCards.getByText("Fat", { exact: true })).toBeVisible();
+  await expect(mobileCards.getByText("Carbs", { exact: true })).toBeVisible();
+  await expect(mobileCards.getByText("Dynamic today", { exact: true })).toBeVisible();
+
+  const hasHorizontalOverflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
+  expect(hasHorizontalOverflow).toBe(false);
+});
+
 test("desktop Today keeps the review compact and opens AI export from the header", async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 720 });
   await page.getByRole("button", { name: "Today", exact: true }).click();

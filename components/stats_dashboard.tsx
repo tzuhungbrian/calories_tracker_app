@@ -18,6 +18,12 @@ type EnergyMetric = "balance" | NutrientKey;
 const rangeOptions = [7, 14, 30];
 const energyRangeOptions = [30, 60, 90, 180] as const;
 const nutrientKeys: NutrientKey[] = ["calories", "protein", "fat", "carbs"];
+const nutrientLabels: Record<NutrientKey, string> = {
+  calories: "Calories",
+  protein: "Protein",
+  fat: "Fat",
+  carbs: "Carbs"
+};
 const nutrientIcons = {
   calories: Flame,
   protein: Beef,
@@ -229,8 +235,11 @@ export function StatsDashboard({ rows, dashboard, logs }: StatsDashboardProps) {
     <section className="grid gap-4">
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">Analysis window</p>
-          {travelDaysInRange > 0 ? <p className="truncate text-xs text-sky-700">Excluding {travelDaysInRange} travel day{travelDaysInRange === 1 ? "" : "s"}</p> : <p className="text-xs text-slate-500">Choose how much recent history to include.</p>}
+          <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">
+            <span className="sm:hidden">Recent history</span>
+            <span className="hidden sm:inline">Analysis window</span>
+          </p>
+          {travelDaysInRange > 0 ? <p className="truncate text-xs text-sky-700">Excluding {travelDaysInRange} travel day{travelDaysInRange === 1 ? "" : "s"}</p> : <p className="hidden text-xs text-slate-500 sm:block">Choose how much recent history to include.</p>}
         </div>
         <div className="grid shrink-0 grid-cols-3 rounded-lg border border-slate-200 bg-slate-50 p-1 dark:border-slate-700 dark:bg-slate-900">
           {rangeOptions.map((option) => (
@@ -315,15 +324,49 @@ function CompactNutritionSummary({ data }: { data: DashboardData | null }) {
   const isTravelDay = data.status?.isTravelDay ?? false;
 
   return (
-    <section className="animate-enter-soft rounded-lg border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+    <section aria-label="Today's nutrition summary" className="animate-enter-soft rounded-lg border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900">
       <div className="flex flex-wrap items-center gap-2 text-xs font-semibold">
-          <span className="rounded-full bg-slate-100 px-2.5 py-1 capitalize text-slate-600">{goalType} mode</span>
-          {isTravelDay ? <span className="rounded-full bg-sky-50 px-2.5 py-1 text-sky-700">Travel day</span> : null}
-          <span className="rounded-full bg-slate-100 px-2.5 py-1 text-slate-600">Target {round(data.targets.calories)} kcal</span>
-          <span className={`rounded-full px-2.5 py-1 ${tdeeBalance <= 0 ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>vs TDEE {signedCalories(tdeeBalance)} kcal</span>
+          <span className="rounded-full bg-slate-100 px-2.5 py-1 capitalize text-slate-600 dark:bg-slate-800 dark:text-slate-300">{goalType} mode</span>
+          {isTravelDay ? <span className="rounded-full bg-sky-50 px-2.5 py-1 text-sky-700 dark:bg-sky-950/50 dark:text-sky-300">Travel day</span> : null}
+          <span className="hidden rounded-full bg-slate-100 px-2.5 py-1 text-slate-600 dark:bg-slate-800 dark:text-slate-300 xl:inline-flex">Target {round(data.targets.calories)} kcal</span>
+          <span className={`rounded-full px-2.5 py-1 ${tdeeBalance <= 0 ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300" : "bg-amber-50 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300"}`}>vs TDEE {signedCalories(tdeeBalance)} kcal</span>
       </div>
 
-      <div className="mt-3 grid grid-cols-2 gap-2 xl:grid-cols-5">
+      <div aria-label="Mobile nutrition cards" className="mt-3 grid grid-cols-2 gap-2 xl:hidden" role="group">
+        {nutrientKeys.map((key) => {
+          const status = nutrientStatus(key, data);
+          const tone = {
+            good: "border-emerald-100 bg-emerald-50/60 text-emerald-700 dark:border-emerald-900/70 dark:bg-emerald-950/30 dark:text-emerald-300",
+            warn: "border-red-100 bg-red-50/60 text-red-700 dark:border-red-900/70 dark:bg-red-950/30 dark:text-red-300",
+            neutral: "border-blue-100 bg-blue-50/60 text-blue-700 dark:border-blue-900/70 dark:bg-blue-950/30 dark:text-blue-300"
+          }[status.tone];
+          const progressTarget = key === "fat" ? localFatRange(data.targets.fat).max : data.targets[key];
+          const progress = progressTarget > 0 ? clamp((data.totals[key] / progressTarget) * 100, 0, 100) : 0;
+
+          return (
+            <div key={key} className={`min-w-0 rounded-lg border p-3 ${tone}`}>
+              <div className="flex min-w-0 items-start justify-between gap-1.5">
+                <p className="truncate text-xs font-semibold">{nutrientLabels[key]}</p>
+                <span className="shrink-0 text-right text-[10px] font-bold uppercase leading-4">{status.message}</span>
+              </div>
+              <p className="mt-2 text-xl font-semibold tracking-tight text-ink dark:text-slate-100">{nutrientValue(key, data.totals[key])}</p>
+              <p className="mt-0.5 truncate text-[11px] text-slate-500 dark:text-slate-400">{status.detail}</p>
+              <div aria-hidden="true" className="mt-2 h-1 overflow-hidden rounded-full bg-slate-200/70 dark:bg-slate-800">
+                <div className={`h-full rounded-full ${status.tone === "warn" ? "bg-red-500 dark:bg-red-400" : status.tone === "neutral" ? "bg-blue-500 dark:bg-blue-400" : "bg-emerald-500 dark:bg-emerald-400"}`} style={{ width: `${progress}%` }} />
+              </div>
+            </div>
+          );
+        })}
+        <div className="col-span-2 flex min-w-0 items-center justify-between gap-3 rounded-lg border border-blue-100 bg-blue-50/60 px-3 py-2.5 text-blue-700 dark:border-blue-900 dark:bg-blue-950/40 dark:text-blue-200">
+          <div className="min-w-0">
+            <p className="text-sm font-semibold">TDEE</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400">Dynamic today</p>
+          </div>
+          <p className="shrink-0 text-lg font-semibold text-ink dark:text-slate-100">{round(data.dynamicTdee)} kcal</p>
+        </div>
+      </div>
+
+      <div className="mt-3 hidden gap-2 xl:grid xl:grid-cols-5">
         {nutrientKeys.map((key) => {
           const Icon = nutrientIcons[key];
           const status = nutrientStatus(key, data);
@@ -341,7 +384,7 @@ function CompactNutritionSummary({ data }: { data: DashboardData | null }) {
                     <Icon size={16} />
                   </span>
                   <div className="min-w-0">
-                    <p className="text-sm font-semibold capitalize">{key}</p>
+                    <p className="text-sm font-semibold">{nutrientLabels[key]}</p>
                     <p className="text-xs text-slate-500">{status.detail}</p>
                   </div>
                 </div>
