@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { TrackerApp, type AppTab } from "@/components/tracker_app";
+import { isDateKey } from "@/lib/date";
 
 const viewTabs: Record<string, AppTab> = {
   dashboard: "stats",
@@ -10,12 +11,18 @@ const viewTabs: Record<string, AppTab> = {
   settings: "settings"
 };
 
-export default function TrackerViewPage({ params }: { params: { view: string } }) {
+type TrackerViewPageProps = {
+  params: { view: string };
+  searchParams?: { date?: string | string[] };
+};
+
+export default function TrackerViewPage({ params, searchParams }: TrackerViewPageProps) {
   const initialTab = viewTabs[params.view];
+  const requestedDate = typeof searchParams?.date === "string" && isDateKey(searchParams.date) ? searchParams.date : "";
 
   if (!initialTab) {
     notFound();
   }
 
-  return <TrackerApp initialTab={initialTab} />;
+  return <TrackerApp initialTab={initialTab} initialLogDate={requestedDate} />;
 }

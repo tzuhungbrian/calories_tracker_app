@@ -16,7 +16,7 @@ import { ThemeToggle } from "@/components/theme_toggle";
 import { ToastViewport } from "@/components/toast_viewport";
 import { TodayDesktopWorkbench } from "@/components/today_desktop_workbench";
 import { useModalAccessibility } from "@/components/use_modal_accessibility";
-import { dateKey } from "@/lib/date";
+import { dateKey, isDateKey } from "@/lib/date";
 import type { ToastInput, AppToast } from "@/components/toast_viewport";
 import type { CommonFood, DailyStatus, DailySummary, DashboardData, FoodLog, FoodLogInput } from "@/lib/types";
 
@@ -62,6 +62,11 @@ function getTodayKey(): string {
   return dateKey();
 }
 
+function logDateFromSearch(search: string): string {
+  const requestedDate = new URLSearchParams(search).get("date") ?? "";
+  return isDateKey(requestedDate) ? requestedDate : "";
+}
+
 function createEmptyFoodLog(date: string): FoodLogInput {
   return {
     date,
@@ -99,9 +104,10 @@ function formatSyncTime(date: Date | null): string {
   return `Last synced ${date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
 }
 
-export function TrackerApp({ initialTab = "stats" }: { initialTab?: AppTab }) {
+export function TrackerApp({ initialTab = "stats", initialLogDate = "" }: { initialTab?: AppTab; initialLogDate?: string }) {
   const [today, setToday] = useState(() => getTodayKey());
   const [activeTab, setActiveTab] = useState<AppTab>(initialTab);
+  const [requestedLogDate, setRequestedLogDate] = useState(() => initialLogDate || getTodayKey());
   const [dashboard, setDashboard] = useState<DashboardData | null>(null);
   const [commonFoods, setCommonFoods] = useState<CommonFood[]>([]);
   const [foodLogs, setFoodLogs] = useState<FoodLog[]>([]);
@@ -124,7 +130,11 @@ export function TrackerApp({ initialTab = "stats" }: { initialTab?: AppTab }) {
 
   useEffect(() => {
     function handleHistoryChange() {
-      setActiveTab(tabFromPathname(window.location.pathname));
+      const nextTab = tabFromPathname(window.location.pathname);
+      setActiveTab(nextTab);
+      if (nextTab === "logs") {
+        setRequestedLogDate(logDateFromSearch(window.location.search) || getTodayKey());
+      }
       setIsMoreMenuOpen(false);
     }
 
@@ -471,12 +481,36 @@ export function TrackerApp({ initialTab = "stats" }: { initialTab?: AppTab }) {
   function selectTab(tabId: AppTab) {
     if (activeTab === "settings" && tabId !== "settings" && hasUnsavedSettings && !window.confirm("Discard unsaved settings changes?")) return;
     const nextRoute = tabRoutes[tabId];
-    if (window.location.pathname !== nextRoute) {
+    if (`${window.location.pathname}${window.location.search}` !== nextRoute) {
       window.history.pushState({ tab: tabId }, "", nextRoute);
+    }
+    if (tabId === "logs") {
+      setRequestedLogDate(today);
     }
     setActiveTab(tabId);
     setIsMoreMenuOpen(false);
     window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function openLogsForDate(date: string) {
+    if (activeTab === "settings" && hasUnsavedSettings && !window.confirm("Discard unsaved settings changes?")) return;
+    const nextRoute = `${tabRoutes.logs}?date=${encodeURIComponent(date)}`;
+    if (`${window.location.pathname}${window.location.search}` !== nextRoute) {
+      window.history.pushState({ tab: "logs", date }, "", nextRoute);
+    }
+    setRequestedLogDate(date);
+    setActiveTab("logs");
+    setIsMoreMenuOpen(false);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function updateLogsDate(date: string) {
+    setRequestedLogDate(date);
+    if (activeTab !== "logs") return;
+    const nextRoute = date ? `${tabRoutes.logs}?date=${encodeURIComponent(date)}` : tabRoutes.logs;
+    if (`${window.location.pathname}${window.location.search}` !== nextRoute) {
+      window.history.replaceState({ tab: "logs", date }, "", nextRoute);
+    }
   }
 
   const mobilePrimaryTabs = tabs.filter((tab) => mobilePrimaryTabIds.includes(tab.id));
@@ -594,11 +628,11 @@ export function TrackerApp({ initialTab = "stats" }: { initialTab?: AppTab }) {
             </div>
           ) : activeTab === "stats" ? (
             <div className="animate-enter" key="stats-tab">
-              <StatsDashboard dashboard={dashboard} logs={foodLogs} rows={summary} />
+              <StatsDashboard dashboard={dashboard} logs={foodLogs} rows={summary} today={today} onOpenLogs={openLogsForDate} />
             </div>
           ) : activeTab === "logs" ? (
             <div className="animate-enter" key="logs-tab">
-              <FoodLogManager foods={commonFoods} logs={foodLogs} today={today} onChanged={refreshData} onNotify={addToast} />
+              <FoodLogManager foods={commonFoods} logs={foodLogs} today={today} requestedDate={requestedLogDate} onChanged={refreshData} onDateChange={updateLogsDate} onNotify={addToast} />
             </div>
           ) : activeTab === "foods" ? (
             <div className="animate-enter" key="foods-tab">

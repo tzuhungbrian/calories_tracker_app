@@ -3,12 +3,15 @@
 import { Activity, BarChart3, Beef, CheckCircle2, ChevronDown, Flame, Footprints, Leaf, PieChart, Target, Trophy, Utensils, Wheat } from "lucide-react";
 import type { ReactNode } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { FoodLogCalendar } from "@/components/food_log_calendar";
 import type { DailySummary, DashboardData, FoodLog } from "@/lib/types";
 
 type StatsDashboardProps = {
   rows: DailySummary[];
   dashboard: DashboardData | null;
   logs: FoodLog[];
+  today: string;
+  onOpenLogs: (date: string) => void;
 };
 
 type HabitKey = "logged" | "protein" | "creatine" | "exercise";
@@ -187,7 +190,7 @@ function nutrientValue(label: NutrientKey, value: number): string {
   return `${round(value)}${label === "calories" ? " kcal" : "g"}`;
 }
 
-export function StatsDashboard({ rows, dashboard, logs }: StatsDashboardProps) {
+export function StatsDashboard({ rows, dashboard, logs, today, onOpenLogs }: StatsDashboardProps) {
   const [dayRange, setDayRange] = useState(14);
   const [showMoreInsights, setShowMoreInsights] = useState(false);
   const exerciseStepGoal = dashboard?.exerciseStepGoal ?? 8000;
@@ -257,24 +260,26 @@ export function StatsDashboard({ rows, dashboard, logs }: StatsDashboardProps) {
 
       <CompactNutritionSummary data={dashboard} />
 
-      <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
+      <div className="grid items-stretch gap-4 xl:grid-cols-[0.95fr_1.05fr]">
+        <FoodLogCalendar rows={rows} logs={logs} today={today} onOpenLogs={onOpenLogs} />
         <EnergyBalancePanel rows={recentSevenOrderedRows} />
-        <section className="animate-enter-soft rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <h2 className="text-lg font-semibold">Key signals</h2>
-              <p className="mt-1 text-sm text-slate-500">The checks that matter more than meal suggestions.</p>
-            </div>
-            <Target className="shrink-0 text-blue-700" size={22} />
-          </div>
-          <div className="mt-4 grid gap-3 sm:grid-cols-2">
-            <SignalCard icon={<Flame size={18} />} label="7-day avg vs TDEE" value={`${round(sevenDayBalance)} kcal/day`} sub={sevenDayBalance <= 0 ? "Below maintenance recently" : "Above maintenance recently"} tone={sevenDayBalance <= 0 ? "good" : "warn"} />
-            <SignalCard icon={<Beef size={18} />} label="Protein compliance" value={`${proteinCompliance}%`} sub={`${currentProteinStreak} day current streak`} tone={proteinCompliance >= 80 ? "good" : "warn"} />
-            <SignalCard icon={<Footprints size={18} />} label="Exercise consistency" value={`${exerciseConsistency}%`} sub={`${exerciseDays} exercise days, goal ${round(exerciseStepGoal)} steps`} tone={exerciseConsistency >= 70 ? "good" : "neutral"} />
-            <SignalCard icon={<Target size={18} />} label="Cut success" value={cutRows.length ? `${cutSuccessRate}%` : "No cut days"} sub={cutRows.length ? `${cutRows.length} logged cut days in range` : "Selected range has no cut days"} tone={!cutRows.length ? "neutral" : cutSuccessRate >= 70 ? "good" : "warn"} />
-          </div>
-        </section>
       </div>
+
+      <section className="animate-enter-soft rounded-lg border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-semibold">Key signals</h2>
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">The checks that matter more than meal suggestions.</p>
+          </div>
+          <Target className="shrink-0 text-blue-700 dark:text-blue-300" size={22} />
+        </div>
+        <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <SignalCard icon={<Flame size={18} />} label="7-day avg vs TDEE" value={`${round(sevenDayBalance)} kcal/day`} sub={sevenDayBalance <= 0 ? "Below maintenance recently" : "Above maintenance recently"} tone={sevenDayBalance <= 0 ? "good" : "warn"} />
+          <SignalCard icon={<Beef size={18} />} label="Protein compliance" value={`${proteinCompliance}%`} sub={`${currentProteinStreak} day current streak`} tone={proteinCompliance >= 80 ? "good" : "warn"} />
+          <SignalCard icon={<Footprints size={18} />} label="Exercise consistency" value={`${exerciseConsistency}%`} sub={`${exerciseDays} exercise days, goal ${round(exerciseStepGoal)} steps`} tone={exerciseConsistency >= 70 ? "good" : "neutral"} />
+          <SignalCard icon={<Target size={18} />} label="Cut success" value={cutRows.length ? `${cutSuccessRate}%` : "No cut days"} sub={cutRows.length ? `${cutRows.length} logged cut days in range` : "Selected range has no cut days"} tone={!cutRows.length ? "neutral" : cutSuccessRate >= 70 ? "good" : "warn"} />
+        </div>
+      </section>
 
       <section className="rounded-lg border border-slate-200 bg-white shadow-sm">
         <button

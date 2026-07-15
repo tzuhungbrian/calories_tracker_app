@@ -1,7 +1,7 @@
 "use client";
 
 import { CalendarDays, Clock3, Copy, ListChecks, Pencil, Save, Search, SlidersHorizontal, Trash2, Utensils, X } from "lucide-react";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { DecimalNumberInput } from "@/components/decimal_number_input";
 import { useModalAccessibility } from "@/components/use_modal_accessibility";
 import { mealOptions } from "@/lib/food_options";
@@ -12,7 +12,9 @@ type FoodLogManagerProps = {
   logs: FoodLog[];
   foods: CommonFood[];
   today: string;
+  requestedDate?: string;
   onChanged: () => Promise<void>;
+  onDateChange?: (date: string) => void;
   onNotify?: (toast: ToastInput) => void;
 };
 
@@ -157,10 +159,10 @@ function sortMealGroups(groups: MealGroup[]): MealGroup[] {
   });
 }
 
-export function FoodLogManager({ logs, foods, today, onChanged, onNotify }: FoodLogManagerProps) {
+export function FoodLogManager({ logs, foods, today, requestedDate, onChanged, onDateChange, onNotify }: FoodLogManagerProps) {
   const [selectedLog, setSelectedLog] = useState<FoodLog | null>(null);
   const [macroBaseline, setMacroBaseline] = useState<MacroBaseline | null>(null);
-  const [dateFilter, setDateFilter] = useState(today);
+  const [dateFilter, setDateFilter] = useState(requestedDate ?? today);
   const [mealFilter, setMealFilter] = useState("");
   const [query, setQuery] = useState("");
   const [sortMode, setSortMode] = useState<LogSortMode>("newest");
@@ -172,6 +174,17 @@ export function FoodLogManager({ logs, foods, today, onChanged, onNotify }: Food
   const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const suppressNextClickRef = useRef(false);
   const mobileActionDialogRef = useModalAccessibility(Boolean(mobileActionLog), () => setMobileActionLog(null));
+
+  useEffect(() => {
+    if (requestedDate !== undefined) {
+      setDateFilter(requestedDate);
+    }
+  }, [requestedDate]);
+
+  function changeDateFilter(date: string) {
+    setDateFilter(date);
+    onDateChange?.(date);
+  }
 
   const visibleLogs = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
@@ -508,14 +521,14 @@ export function FoodLogManager({ logs, foods, today, onChanged, onNotify }: Food
 
         <div className="sticky top-0 z-20 mt-4 rounded-lg border border-slate-200 bg-slate-50/95 p-2.5 backdrop-blur dark:border-slate-800 dark:bg-slate-950/90">
           <div className={`grid grid-cols-[minmax(0,1fr)_auto] gap-2 ${selectedLog ? "md:grid-cols-[170px_minmax(160px,1fr)_auto]" : "md:grid-cols-[170px_minmax(220px,1fr)_auto_auto]"}`}>
-            <input aria-label="Date" className="h-10 min-w-0 rounded-md border border-slate-300 bg-white px-3 text-sm dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100" type="date" value={dateFilter} onChange={(event) => setDateFilter(event.target.value)} />
+            <input aria-label="Date" className="h-10 min-w-0 rounded-md border border-slate-300 bg-white px-3 text-sm dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100" type="date" value={dateFilter} onChange={(event) => changeDateFilter(event.target.value)} />
             <label className="relative col-span-2 md:col-span-1">
               <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
               <input aria-label="Search" className="h-10 w-full rounded-md border border-slate-300 bg-white pl-9 pr-3 text-sm dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100" placeholder="Search food or notes" value={query} onChange={(event) => setQuery(event.target.value)} />
             </label>
             <div className={`${selectedLog ? "hidden" : "flex"} gap-1 rounded-md border border-slate-200 bg-white p-1 dark:border-slate-700 dark:bg-slate-900`}>
-              <button className={`rounded px-2.5 text-xs font-semibold ${dateFilter === today ? "bg-blue-50 text-blue-700 dark:bg-blue-950" : "text-slate-500"}`} type="button" onClick={() => setDateFilter(today)}>Today</button>
-              <button className={`rounded px-2.5 text-xs font-semibold ${!dateFilter ? "bg-blue-50 text-blue-700 dark:bg-blue-950" : "text-slate-500"}`} type="button" onClick={() => setDateFilter("")}>All</button>
+              <button className={`rounded px-2.5 text-xs font-semibold ${dateFilter === today ? "bg-blue-50 text-blue-700 dark:bg-blue-950" : "text-slate-500"}`} type="button" onClick={() => changeDateFilter(today)}>Today</button>
+              <button className={`rounded px-2.5 text-xs font-semibold ${!dateFilter ? "bg-blue-50 text-blue-700 dark:bg-blue-950" : "text-slate-500"}`} type="button" onClick={() => changeDateFilter("")}>All</button>
             </div>
             <button className={`inline-flex h-10 items-center justify-center gap-2 rounded-md border px-3 text-sm font-semibold ${isFiltersOpen || mealFilter ? "border-blue-200 bg-blue-50 text-blue-700" : "border-slate-200 bg-white text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300"}`} type="button" onClick={() => setIsFiltersOpen((current) => !current)}>
               <SlidersHorizontal size={16} /> Filters

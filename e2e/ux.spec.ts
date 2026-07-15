@@ -1,6 +1,11 @@
 import { expect, test, type Page } from "@playwright/test";
 
 const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Tokyo" }).format(new Date());
+
+function moveMonthKey(monthKey: string, offset: number): string {
+  const [year, month] = monthKey.split("-").map(Number);
+  return new Date(Date.UTC(year, month - 1 + offset, 1)).toISOString().slice(0, 7);
+}
 const foods = [
   { id: "food-1", name: "Chicken bowl", category: "Meal prep", serving: "1 portion", servingSize: "350 g", calories: 520, protein: 48, fat: 12, carbs: 56, notes: "" },
   { id: "food-2", name: "Greek yogurt", category: "Snacks", serving: "1 cup", servingSize: "200 g", calories: 140, protein: 20, fat: 0, carbs: 14, notes: "" },
@@ -90,6 +95,91 @@ test("mobile Dashboard keeps nutrition cards compact", async ({ page }) => {
 
   const hasHorizontalOverflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
   expect(hasHorizontalOverflow).toBe(false);
+});
+
+test("Dashboard calendar opens a daily review and deep-links the Logs date", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+
+  const calendar = page.getByRole("region", { name: "Food log calendar" });
+  await expect(calendar).toBeVisible();
+  await calendar.getByRole("button", { name: new RegExp(`${today}.*goal met`, "i") }).click();
+
+  const dialog = page.getByRole("dialog", { name: `Food logs for ${today}` });
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByText("Lunch", { exact: true })).toBeVisible();
+  await expect(dialog.getByText("Chicken bowl", { exact: true })).toBeVisible();
+  await expect(dialog.getByText("Snack", { exact: true })).toBeVisible();
+  await expect(dialog.getByText("Greek yogurt", { exact: true })).toBeVisible();
+
+  await dialog.getByRole("button", { name: "Open in Logs" }).click();
+  await expect(page).toHaveURL(new RegExp(`/logs\\?date=${today}$`));
+  await expect(page.getByLabel("Date")).toHaveValue(today);
+
+  await page.reload();
+  await expect(page).toHaveURL(new RegExp(`/logs\\?date=${today}$`));
+  await expect(page.getByLabel("Date")).toHaveValue(today);
+});
+
+test("Dashboard calendar distinguishes calorie adherence, travel, and missing logs", async ({ page }) => {
+  const currentMonth = today.slice(0, 7);
+  const statusMonth = Number(today.slice(-2)) >= 6 ? currentMonth : moveMonthKey(currentMonth, -1);
+  const dates = Array.from({ length: 6 }, (_, index) => `${statusMonth}-${String(index + 1).padStart(2, "0")}`);
+  const calendarLogs = dates.slice(0, 5).map((date, index) => ({
+    id: `calendar-log-${index}`,
+    date,
+    meal: "Dinner",
+    foodName: `Calendar meal ${index + 1}`,
+    amount: "1",
+    calories: [1800, 2200, 2300, 2500, 2200][index],
+    protein: 100,
+    fat: 60,
+    carbs: 200,
+    notes: "",
+    createdAt: `${date}T12:00:00.000Z`
+  }));
+  const calendarRows = [
+    { date: dates[0], calories: 1800, calorieTarget: 1900, dynamicTdee: 2200, goalType: "cut", isTravelDay: false },
+    { date: dates[1], calories: 2200, calorieTarget: 1900, dynamicTdee: 2200, goalType: "cut", isTravelDay: false },
+    { date: dates[2], calories: 2300, calorieTarget: 1900, dynamicTdee: 2200, goalType: "cut", isTravelDay: false },
+    { date: dates[3], calories: 2500, calorieTarget: 1900, dynamicTdee: 2200, goalType: "cut", isTravelDay: true },
+    { date: dates[4], calories: 2200, calorieTarget: 2500, dynamicTdee: 2200, goalType: "bulk", isTravelDay: false },
+    { date: dates[5], calories: 1800, calorieTarget: 1900, dynamicTdee: 2200, goalType: "maintain", isTravelDay: false }
+  ].map((row) => ({
+    ...row,
+    protein: 100,
+    proteinGoal: 125,
+    fat: 60,
+    fatGoal: 58,
+    carbs: 200,
+    carbsGoal: 230,
+    steps: 8000,
+    strengthSession: false,
+    creatineTaken: false,
+    basketballMinutes: 0
+  }));
+
+  await page.unroute("**/api/daily_log**");
+  await page.unroute("**/api/summary**");
+  await page.route("**/api/daily_log**", (route) => route.fulfill({ json: calendarLogs }));
+  await page.route("**/api/summary**", (route) => {
+    const requestUrl = route.request().url();
+    const includesStatusMonth = requestUrl.includes(`start=${statusMonth}`) || requestUrl.includes("days=30");
+    return route.fulfill({ json: includesStatusMonth ? calendarRows : [] });
+  });
+  await page.reload();
+
+  const calendar = page.getByRole("region", { name: "Food log calendar" });
+  await expect(calendar.getByRole("button", { name: "Next month" })).toBeDisabled();
+  if (statusMonth !== currentMonth) {
+    await calendar.getByRole("button", { name: "Previous month" }).click();
+  }
+
+  await expect(calendar.getByRole("button", { name: `${dates[0]}: Goal met, 1 logged item` })).toBeVisible();
+  await expect(calendar.getByRole("button", { name: `${dates[1]}: Partially on track, 1 logged item` })).toBeVisible();
+  await expect(calendar.getByRole("button", { name: `${dates[2]}: Goal missed, 1 logged item` })).toBeVisible();
+  await expect(calendar.getByRole("button", { name: `${dates[3]}: Travel day, 1 logged item` })).toBeVisible();
+  await expect(calendar.getByRole("button", { name: `${dates[4]}: Partially on track, 1 logged item` })).toBeVisible();
+  await expect(calendar.getByRole("button", { name: `${dates[5]}: No food logged, 0 logged items` })).toBeVisible();
 });
 
 test("desktop Today keeps the review compact and opens AI export from the header", async ({ page }) => {
