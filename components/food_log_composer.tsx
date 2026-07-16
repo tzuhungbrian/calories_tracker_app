@@ -479,7 +479,10 @@ export function FoodLogComposer({ foods, recentLogs = [], value, isSaving, onCha
             </div>
           </div>
 
-          <div className="min-h-0 w-full min-w-0 max-w-full flex-1 overflow-x-hidden overflow-y-auto overscroll-contain px-4 py-4">
+          <div
+            key={mobileStep}
+            className="min-h-0 w-full min-w-0 max-w-full flex-1 overflow-x-hidden overflow-y-auto overscroll-contain px-4 py-4"
+          >
             {mobileStep === "Meal" ? (
               <div className="grid min-w-0 max-w-full gap-4">
                 <label className="grid gap-1 text-sm font-medium text-slate-700">
@@ -585,7 +588,7 @@ export function FoodLogComposer({ foods, recentLogs = [], value, isSaving, onCha
                         <div className="mt-2 flex w-full min-w-0 max-w-full gap-1.5 overflow-x-auto overscroll-x-contain pb-1">{selectedFoods.map((item) => <button key={item.food.id} className="shrink-0 rounded-full bg-white px-2.5 py-1 text-xs" type="button" onClick={() => toggleSavedFood(item.food)}>{item.food.name} ×</button>)}</div>
                       </div>
                     ) : null}
-                    <div className="grid min-w-0 max-w-full gap-2 overflow-y-auto pr-1 [max-height:42dvh]">
+                    <div className="grid min-w-0 max-w-full gap-2 pr-1">
                       {filteredFoods.slice(0, 60).map((food) => {
                         const isSelected = selectedFoods.some((item) => item.food.id === food.id);
 

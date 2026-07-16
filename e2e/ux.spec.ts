@@ -9,7 +9,19 @@ function moveMonthKey(monthKey: string, offset: number): string {
 const foods = [
   { id: "food-1", name: "Chicken bowl", category: "Meal prep", serving: "1 portion", servingSize: "350 g", calories: 520, protein: 48, fat: 12, carbs: 56, notes: "" },
   { id: "food-2", name: "Greek yogurt", category: "Snacks", serving: "1 cup", servingSize: "200 g", calories: 140, protein: 20, fat: 0, carbs: 14, notes: "" },
-  { id: "food-3", name: "Banana", category: "Fruit", serving: "1 fruit", servingSize: "120 g", calories: 105, protein: 1.3, fat: 0.4, carbs: 27, notes: "" }
+  { id: "food-3", name: "Banana", category: "Fruit", serving: "1 fruit", servingSize: "120 g", calories: 105, protein: 1.3, fat: 0.4, carbs: 27, notes: "" },
+  ...Array.from({ length: 15 }, (_, index) => ({
+    id: `food-extra-${index + 1}`,
+    name: `Saved food ${index + 1}`,
+    category: "Snacks",
+    serving: "1 serving",
+    servingSize: "100 g",
+    calories: 100 + index,
+    protein: 10,
+    fat: 4,
+    carbs: 12,
+    notes: ""
+  }))
 ];
 
 let logs = [
@@ -286,4 +298,29 @@ test("mobile Add Food sheet supports keyboard dismissal", async ({ page }) => {
   await expect(page.getByRole("dialog", { name: "Add food" })).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(page.getByRole("dialog", { name: "Add food" })).toHaveCount(0);
+});
+
+test("mobile Add Food keeps saved food results in one vertical scroll flow", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByRole("button", { name: "Today", exact: true }).click();
+  await page.getByRole("button", { name: "Add food", exact: true }).click();
+
+  const dialog = page.getByRole("dialog", { name: "Add food" });
+  await dialog.getByRole("button", { name: "Lunch", exact: true }).click();
+  await dialog.getByRole("button", { name: "Continue", exact: true }).click();
+  await expect(dialog.getByText("18 results", { exact: true })).toBeVisible();
+
+  const results = dialog.getByText("18 results", { exact: true }).locator("xpath=following-sibling::div[1]");
+  await expect(results).toHaveCSS("overflow-y", "visible");
+
+  const cards = results.getByRole("button");
+  const firstBox = await cards.nth(0).boundingBox();
+  const secondBox = await cards.nth(1).boundingBox();
+  expect(firstBox).not.toBeNull();
+  expect(secondBox).not.toBeNull();
+  expect(firstBox!.height).toBeGreaterThanOrEqual(72);
+  expect(secondBox!.y).toBeGreaterThanOrEqual(firstBox!.y + firstBox!.height);
+
+  const hasHorizontalOverflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
+  expect(hasHorizontalOverflow).toBe(false);
 });
