@@ -133,7 +133,6 @@ export function FoodLogCalendar({ rows, logs, today, onOpenLogs }: FoodLogCalend
   const [monthCache, setMonthCache] = useState<Record<string, DailySummary[]>>({});
   const [loadingMonth, setLoadingMonth] = useState<string | null>(null);
   const [monthError, setMonthError] = useState("");
-  const [highlightedDate, setHighlightedDate] = useState(today);
   const [detailDate, setDetailDate] = useState<string | null>(null);
   const detailDialogRef = useModalAccessibility(Boolean(detailDate), () => setDetailDate(null));
 
@@ -182,10 +181,6 @@ export function FoodLogCalendar({ rows, logs, today, onOpenLogs }: FoodLogCalend
 
   const summaryByDate = useMemo(() => new Map(monthRows.map((row) => [row.date, row])), [monthRows]);
   const calendarDates = useMemo(() => monthGridDates(displayedMonth), [displayedMonth]);
-  const highlightedLogs = logsByDate.get(highlightedDate) ?? [];
-  const highlightedSummary = summaryByDate.get(highlightedDate);
-  const highlightedTone = calorieDayTone(highlightedSummary, highlightedLogs.length > 0);
-  const highlightedTotals = logTotals(highlightedLogs);
   const detailLogs = useMemo(() => detailDate ? logsByDate.get(detailDate) ?? [] : [], [detailDate, logsByDate]);
   const detailSummary = detailDate ? summaryByDate.get(detailDate) : undefined;
   const detailTone = calorieDayTone(detailSummary, detailLogs.length > 0);
@@ -212,13 +207,9 @@ export function FoodLogCalendar({ rows, logs, today, onOpenLogs }: FoodLogCalend
     if (nextMonth > currentMonth) return;
     setMonthDirection(offset > 0 ? "forward" : "backward");
     setDisplayedMonth(nextMonth);
-
-    const monthLogDates = Array.from(logsByDate.keys()).filter((date) => date.startsWith(nextMonth) && date <= today).sort().reverse();
-    setHighlightedDate(monthLogDates[0] ?? monthBounds(nextMonth).end);
   }
 
   function openDate(date: string) {
-    setHighlightedDate(date);
     setDetailDate(date);
   }
 
@@ -350,14 +341,12 @@ export function FoodLogCalendar({ rows, logs, today, onOpenLogs }: FoodLogCalend
               const dateLogs = logsByDate.get(date) ?? [];
               const tone = calorieDayTone(summaryByDate.get(date), dateLogs.length > 0);
               const isToday = date === today;
-              const isHighlighted = date === highlightedDate;
               const disabled = !isDisplayedMonth || isFuture;
               return (
                 <button
                   key={date}
                   aria-label={`${date}: ${toneLabels[tone]}, ${dateLogs.length} logged item${dateLogs.length === 1 ? "" : "s"}`}
-                  aria-pressed={isHighlighted}
-                  className={`relative aspect-square min-w-0 rounded-md border text-sm font-semibold transition hover:-translate-y-0.5 hover:shadow-sm disabled:pointer-events-none disabled:opacity-25 ${toneClasses[tone]} ${isToday ? "ring-2 ring-blue-500 ring-offset-1 dark:ring-offset-slate-900" : ""} ${isHighlighted && !isToday ? "border-blue-400 shadow-sm dark:border-blue-500" : ""}`}
+                  className={`relative aspect-square min-w-0 rounded-md border text-sm font-semibold transition hover:-translate-y-0.5 hover:shadow-sm disabled:pointer-events-none disabled:opacity-25 ${toneClasses[tone]} ${isToday ? "ring-2 ring-blue-500 ring-offset-1 dark:ring-offset-slate-900" : ""}`}
                   disabled={disabled}
                   type="button"
                   onClick={() => openDate(date)}
@@ -380,19 +369,6 @@ export function FoodLogCalendar({ rows, logs, today, onOpenLogs }: FoodLogCalend
 
         {monthError ? <p className="mt-3 rounded-md bg-red-50 px-3 py-2 text-xs font-semibold text-red-700 dark:bg-red-950/50 dark:text-red-200">{monthError} Existing log markers are still available.</p> : null}
 
-        <button className="mt-4 flex min-h-14 w-full items-center justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-left hover:border-blue-200 hover:bg-blue-50 dark:border-slate-800 dark:bg-slate-950/70 dark:hover:border-blue-900 dark:hover:bg-blue-950/30" type="button" onClick={() => openDate(highlightedDate)}>
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2">
-              <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{formatLongDate(highlightedDate)}</p>
-              <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${toneClasses[highlightedTone]}`}>{toneLabels[highlightedTone]}</span>
-            </div>
-            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{highlightedLogs.length} item{highlightedLogs.length === 1 ? "" : "s"}</p>
-          </div>
-          <div className="flex shrink-0 items-center gap-2">
-            <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">{Math.round(highlightedTotals.calories)} kcal</span>
-            <ChevronRight className="text-slate-400" size={16} />
-          </div>
-        </button>
       </section>
       {detailDialog}
     </>

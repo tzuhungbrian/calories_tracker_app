@@ -107,6 +107,7 @@ test("Dashboard calendar opens a daily review and deep-links the Logs date", asy
 
   const calendar = page.getByRole("region", { name: "Food log calendar" });
   await expect(calendar).toBeVisible();
+  await expect(calendar.getByText(/^\d+ items?$/)).toHaveCount(0);
   await calendar.getByRole("button", { name: new RegExp(`${today}.*goal met`, "i") }).click();
 
   const dialog = page.getByRole("dialog", { name: `Food logs for ${today}` });
