@@ -2,6 +2,7 @@
 
 import { ArrowRight, CalendarDays, ChevronLeft, ChevronRight, LoaderCircle, Plane, Utensils, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import type { CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import { mealOptions } from "@/lib/food_options";
 import type { DailySummary, FoodLog, NutritionTotals } from "@/lib/types";
@@ -16,6 +17,13 @@ type FoodLogCalendarProps = {
 
 type DayTone = "empty" | "logged" | "met" | "partial" | "missed" | "travel";
 type MonthDirection = "forward" | "backward";
+type RingTone = "green" | "amber" | "red";
+
+type RingProgress = {
+  progress: number | null;
+  percentage: number | null;
+  tone: RingTone | null;
+};
 
 const weekdayLabels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const mealOrder = new Map<string, number>(mealOptions.map((meal, index) => [meal, index]));
@@ -38,13 +46,10 @@ const toneClasses: Record<DayTone, string> = {
   travel: "border-sky-200 bg-sky-50 text-sky-800 dark:border-sky-900 dark:bg-sky-950/60 dark:text-sky-200"
 };
 
-const toneDotClasses: Record<DayTone, string> = {
-  empty: "border border-slate-300 bg-transparent dark:border-slate-600",
-  logged: "bg-slate-500",
-  met: "bg-emerald-500",
-  partial: "bg-amber-500",
-  missed: "bg-red-500",
-  travel: "bg-sky-500"
+const ringStrokeClasses: Record<RingTone, string> = {
+  green: "stroke-emerald-500 dark:stroke-emerald-400",
+  amber: "stroke-amber-500 dark:stroke-amber-400",
+  red: "stroke-red-400 dark:stroke-red-400"
 };
 
 function parseDateKey(date: string): Date {
@@ -92,7 +97,7 @@ function calorieDayTone(summary: DailySummary | undefined, hasLogs: boolean): Da
   if (!hasLogs) {
     return "empty";
   }
-  if (!summary || summary.calorieTarget <= 0) {
+  if (!summary || !isPositiveFinite(summary.calorieTarget) || !isPositiveFinite(summary.dynamicTdee)) {
     return "logged";
   }
 
@@ -107,6 +112,69 @@ function calorieDayTone(summary: DailySummary | undefined, hasLogs: boolean): Da
   }
 
   return summary.calories <= summary.calorieTarget ? "met" : "missed";
+}
+
+function isPositiveFinite(value: number): boolean {
+  return Number.isFinite(value) && value > 0;
+}
+
+function percentageProgress(value: number, target: number): { progress: number | null; percentage: number | null } {
+  if (!Number.isFinite(value) || !isPositiveFinite(target)) {
+    return { progress: null, percentage: null };
+  }
+
+  const rawPercentage = Math.max(0, (value / target) * 100);
+  return { progress: Math.min(rawPercentage, 100), percentage: Math.round(rawPercentage * 10) / 10 };
+}
+
+function calorieRing(summary: DailySummary): RingProgress {
+  const ratio = percentageProgress(summary.calories, summary.dynamicTdee);
+  if (ratio.progress === null || !isPositiveFinite(summary.calorieTarget) || !isPositiveFinite(summary.dynamicTdee)) {
+    return { ...ratio, tone: null };
+  }
+
+  if (summary.goalType === "bulk") {
+    return {
+      ...ratio,
+      tone: summary.calories >= summary.calorieTarget ? "green" : summary.calories >= summary.dynamicTdee ? "amber" : "red"
+    };
+  }
+
+  if (summary.goalType === "cut") {
+    return {
+      ...ratio,
+      tone: summary.calories <= summary.calorieTarget ? "green" : summary.calories <= summary.dynamicTdee ? "amber" : "red"
+    };
+  }
+
+  return { ...ratio, tone: summary.calories <= summary.calorieTarget ? "green" : "red" };
+}
+
+function proteinRing(summary: DailySummary): RingProgress {
+  const ratio = percentageProgress(summary.protein, summary.proteinGoal);
+  if (ratio.progress === null) {
+    return { ...ratio, tone: null };
+  }
+
+  return {
+    ...ratio,
+    tone: ratio.progress >= 100 ? "green" : ratio.progress >= 80 ? "amber" : "red"
+  };
+}
+
+function dayAccessibleLabel(date: string, summary: DailySummary | undefined, hasLogs: boolean, logCount: number): string {
+  const itemLabel = `${logCount} logged item${logCount === 1 ? "" : "s"}`;
+  const tone = calorieDayTone(summary, hasLogs);
+
+  if (!hasLogs || !summary || summary.isTravelDay) {
+    return `${date}: ${toneLabels[tone]}, ${itemLabel}`;
+  }
+
+  const calories = calorieRing(summary);
+  const protein = proteinRing(summary);
+  const calorieLabel = calories.tone === null ? "Calories unavailable" : `Calories ${calories.percentage}% of TDEE`;
+  const proteinLabel = protein.percentage === null ? "Protein goal unavailable" : `Protein ${protein.percentage}% of goal`;
+  return `${date}: ${toneLabels[tone]}, ${calorieLabel}, ${proteinLabel}, ${itemLabel}`;
 }
 
 function addLogTotals(total: NutritionTotals, log: FoodLog): NutritionTotals {
@@ -315,7 +383,7 @@ export function FoodLogCalendar({ rows, logs, today, onOpenLogs }: FoodLogCalend
               <CalendarDays className="text-blue-700 dark:text-blue-300" size={20} />
               Food log calendar
             </h2>
-            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Daily calorie adherence at a glance.</p>
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Calories and protein at a glance.</p>
           </div>
           {loadingMonth === displayedMonth ? <LoaderCircle aria-label="Loading month" className="mt-1 shrink-0 animate-spin text-blue-600" size={18} /> : null}
         </div>
@@ -339,20 +407,23 @@ export function FoodLogCalendar({ rows, logs, today, onOpenLogs }: FoodLogCalend
               const isDisplayedMonth = date.startsWith(displayedMonth);
               const isFuture = date > today;
               const dateLogs = logsByDate.get(date) ?? [];
-              const tone = calorieDayTone(summaryByDate.get(date), dateLogs.length > 0);
+              const summary = summaryByDate.get(date);
+              const hasLogs = dateLogs.length > 0;
+              const tone = calorieDayTone(summary, hasLogs);
               const isToday = date === today;
               const disabled = !isDisplayedMonth || isFuture;
               return (
                 <button
                   key={date}
-                  aria-label={`${date}: ${toneLabels[tone]}, ${dateLogs.length} logged item${dateLogs.length === 1 ? "" : "s"}`}
-                  className={`relative aspect-square min-w-0 rounded-md border text-sm font-semibold transition hover:-translate-y-0.5 hover:shadow-sm disabled:pointer-events-none disabled:opacity-25 ${toneClasses[tone]} ${isToday ? "ring-2 ring-blue-500 ring-offset-1 dark:ring-offset-slate-900" : ""}`}
+                  aria-label={dayAccessibleLabel(date, summary, hasLogs, dateLogs.length)}
+                  className={`relative aspect-square min-w-0 rounded-md border text-sm font-semibold text-slate-700 transition hover:-translate-y-0.5 hover:border-slate-300 hover:bg-slate-50 hover:shadow-sm disabled:pointer-events-none disabled:opacity-25 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-slate-700 dark:hover:bg-slate-800 ${tone === "travel" ? toneClasses.travel : "border-slate-200 bg-white"} ${isToday ? "ring-2 ring-blue-500 ring-offset-1 dark:ring-offset-slate-900" : ""}`}
                   disabled={disabled}
                   type="button"
                   onClick={() => openDate(date)}
                 >
-                  <span>{Number(date.slice(-2))}</span>
-                  {tone === "travel" ? <Plane className="absolute bottom-1 left-1/2 -translate-x-1/2" size={10} /> : <span className={`absolute bottom-1 left-1/2 h-1.5 w-1.5 -translate-x-1/2 rounded-full ${toneDotClasses[tone]}`} />}
+                  {isDisplayedMonth && !isFuture && tone !== "travel" ? <DayProgressRings summary={summary} hasLogs={hasLogs} /> : null}
+                  <span className="relative z-10">{Number(date.slice(-2))}</span>
+                  {tone === "travel" ? <Plane className="absolute bottom-1 left-1/2 -translate-x-1/2" size={10} /> : null}
                 </button>
               );
             })}
@@ -360,11 +431,16 @@ export function FoodLogCalendar({ rows, logs, today, onOpenLogs }: FoodLogCalend
         </div>
 
         <div className="mt-3 flex flex-wrap items-center justify-center gap-x-3 gap-y-1.5 text-[11px] font-semibold text-slate-500 dark:text-slate-400">
+          <RingLegend label="Calories" ring="outer" />
+          <RingLegend label="Protein" ring="inner" />
           <LegendDot className="bg-emerald-500" label="Met" />
-          <LegendDot className="bg-amber-500" label="Partial" />
-          <LegendDot className="bg-red-500" label="Missed" />
-          <LegendDot className="border border-slate-300 dark:border-slate-600" label="No log" />
+          <LegendDot className="bg-amber-500" label="Close" />
+          <LegendDot className="bg-red-400" label="Needs attention" />
           <span className="inline-flex items-center gap-1"><Plane className="text-sky-500" size={11} />Travel</span>
+        </div>
+        <div className="mt-1.5 text-center text-[10px] leading-4 text-slate-400 dark:text-slate-500">
+          <p>Protein: red &lt;80%, amber 80–99%, green ≥100%.</p>
+          <p>Calories: Cut ≤ target green, target–TDEE amber, &gt;TDEE red; Bulk ≥ target green, TDEE–target amber, &lt;TDEE red; Maintain ≤ target green.</p>
         </div>
 
         {monthError ? <p className="mt-3 rounded-md bg-red-50 px-3 py-2 text-xs font-semibold text-red-700 dark:bg-red-950/50 dark:text-red-200">{monthError} Existing log markers are still available.</p> : null}
@@ -372,6 +448,66 @@ export function FoodLogCalendar({ rows, logs, today, onOpenLogs }: FoodLogCalend
       </section>
       {detailDialog}
     </>
+  );
+}
+
+function DayProgressRings({ summary, hasLogs }: { summary: DailySummary | undefined; hasLogs: boolean }) {
+  const calories = summary && hasLogs ? calorieRing(summary) : null;
+  const protein = summary && hasLogs ? proteinRing(summary) : null;
+
+  return (
+    <svg aria-hidden="true" className="pointer-events-none absolute inset-1 h-[calc(100%-0.5rem)] w-[calc(100%-0.5rem)]" viewBox="0 0 48 48">
+      <ProgressRing metric="calories" radius={20} strokeWidth={3} ring={calories} />
+      <ProgressRing metric="protein" radius={15.5} strokeWidth={3} ring={protein} />
+    </svg>
+  );
+}
+
+function ProgressRing({ metric, radius, strokeWidth, ring }: { metric: "calories" | "protein"; radius: number; strokeWidth: number; ring: RingProgress | null }) {
+  const circumference = 2 * Math.PI * radius;
+  const progress = ring?.progress ?? null;
+  const offset = progress === null ? circumference : circumference * (1 - progress / 100);
+
+  return (
+    <>
+      <circle
+        className="stroke-slate-200 dark:stroke-slate-700"
+        cx="24"
+        cy="24"
+        data-calendar-ring-track={metric}
+        fill="none"
+        r={radius}
+        strokeWidth={strokeWidth}
+      />
+      {progress !== null && ring?.tone ? (
+        <circle
+          className={`calendar-progress-ring ${ringStrokeClasses[ring.tone]}`}
+          cx="24"
+          cy="24"
+          data-calendar-ring={metric}
+          data-progress={Number(progress.toFixed(2))}
+          data-tone={ring.tone}
+          fill="none"
+          r={radius}
+          strokeDasharray={circumference}
+          strokeDashoffset={offset}
+          strokeLinecap="round"
+          strokeWidth={strokeWidth}
+          style={{ "--ring-circumference": circumference, "--ring-offset": offset } as CSSProperties}
+        />
+      ) : null}
+    </>
+  );
+}
+
+function RingLegend({ label, ring }: { label: string; ring: "outer" | "inner" }) {
+  return (
+    <span className="inline-flex items-center gap-1">
+      <svg aria-hidden="true" className="h-3.5 w-3.5" viewBox="0 0 16 16">
+        <circle className="stroke-slate-500 dark:stroke-slate-400" cx="8" cy="8" fill="none" r={ring === "outer" ? 6 : 4} strokeWidth="1.75" />
+      </svg>
+      {label}
+    </span>
   );
 }
 
