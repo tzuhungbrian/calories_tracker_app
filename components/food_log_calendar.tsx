@@ -296,7 +296,7 @@ export function FoodLogCalendar({ rows, logs, today, onOpenLogs }: FoodLogCalend
           ref={detailDialogRef}
           aria-label={`Food logs for ${detailDate}`}
           aria-modal="true"
-          className="daily-log-preview-enter relative z-10 flex max-h-[88dvh] w-full flex-col overflow-hidden rounded-t-2xl border border-slate-200 bg-white shadow-2xl sm:max-w-2xl sm:rounded-xl dark:border-slate-700 dark:bg-slate-900"
+          className="daily-log-preview-enter relative z-10 flex max-h-[88dvh] w-full min-w-0 max-w-full flex-col overflow-hidden rounded-t-2xl border border-slate-200 bg-white shadow-2xl sm:max-w-2xl sm:rounded-xl dark:border-slate-700 dark:bg-slate-900"
           role="dialog"
         >
           <div className="flex items-start justify-between gap-4 border-b border-slate-200 px-4 py-4 sm:px-5 dark:border-slate-800">
@@ -314,7 +314,7 @@ export function FoodLogCalendar({ rows, logs, today, onOpenLogs }: FoodLogCalend
             </button>
           </div>
 
-          <div className="min-h-0 overflow-y-auto px-4 py-4 sm:px-5">
+          <div className="min-h-0 min-w-0 overflow-x-hidden overflow-y-auto px-4 py-4 sm:px-5">
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
               <MacroStat label="Calories" value={`${Math.round(detailTotals.calories)} kcal`} />
               <MacroStat label="Protein" value={`${formatValue(detailTotals.protein)}g`} />
@@ -327,9 +327,9 @@ export function FoodLogCalendar({ rows, logs, today, onOpenLogs }: FoodLogCalend
                 {detailMealGroups.map(([meal, mealLogs]) => {
                   const mealTotals = logTotals(mealLogs);
                   return (
-                    <section key={meal} className="rounded-lg border border-slate-200 bg-slate-50/70 p-3 dark:border-slate-800 dark:bg-slate-950/60">
-                      <div className="flex items-center justify-between gap-3">
-                        <h3 className="inline-flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-slate-100">
+                    <section key={meal} className="min-w-0 rounded-lg border border-slate-200 bg-slate-50/70 p-3 dark:border-slate-800 dark:bg-slate-950/60">
+                      <div className="flex min-w-0 items-center justify-between gap-3">
+                        <h3 className="inline-flex min-w-0 items-center gap-2 text-sm font-semibold text-slate-900 dark:text-slate-100">
                           <Utensils className="text-blue-700 dark:text-blue-300" size={15} />
                           {meal}
                         </h3>
@@ -337,14 +337,14 @@ export function FoodLogCalendar({ rows, logs, today, onOpenLogs }: FoodLogCalend
                       </div>
                       <div className="mt-2 divide-y divide-slate-200 dark:divide-slate-800">
                         {mealLogs.map((log) => (
-                          <div key={log.id} className="flex items-start justify-between gap-3 py-2.5 first:pt-1 last:pb-0">
+                          <div key={log.id} className="min-w-0 py-2.5 first:pt-1 last:pb-0 sm:flex sm:items-start sm:justify-between sm:gap-3">
                             <div className="min-w-0">
-                              <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{log.foodName}</p>
-                              <p className="mt-0.5 truncate text-xs text-slate-500 dark:text-slate-400">{log.amount || "1 serving"}</p>
+                              <p className="break-words text-sm font-semibold text-slate-900 sm:truncate dark:text-slate-100">{log.foodName}</p>
+                              <p className="mt-0.5 break-words text-xs text-slate-500 sm:truncate dark:text-slate-400">{log.amount || "1 serving"}</p>
                             </div>
-                            <div className="shrink-0 text-right">
-                              <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">{Math.round(log.calories)} kcal</p>
-                              <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">P {formatValue(log.protein)} / F {formatValue(log.fat)} / C {formatValue(log.carbs)}</p>
+                            <div className="mt-1 flex min-w-0 flex-wrap items-baseline justify-between gap-x-3 gap-y-1 sm:mt-0 sm:block sm:shrink-0 sm:text-right">
+                              <p className="shrink-0 text-sm font-semibold text-slate-700 dark:text-slate-200">{Math.round(log.calories)} kcal</p>
+                              <p className="min-w-0 break-words text-[11px] text-slate-500 sm:mt-0.5 dark:text-slate-400">P {formatValue(log.protein)} / F {formatValue(log.fat)} / C {formatValue(log.carbs)}</p>
                             </div>
                           </div>
                         ))}

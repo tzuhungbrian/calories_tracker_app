@@ -104,6 +104,26 @@ test("Dashboard nutrition summary keeps only essential copy", async ({ page }) =
 
 test("Dashboard calendar opens a daily review and deep-links the Logs date", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
+  const reviewLogs = [
+    ...logs,
+    {
+      id: "log-wide",
+      date: today,
+      meal: "Dinner",
+      foodId: "food-wide",
+      foodName: "Extra long meal name that must remain inside the mobile review",
+      amount: "1 oversized serving",
+      calories: 1234,
+      protein: 1234.5,
+      fat: 1234.5,
+      carbs: 1234.5,
+      notes: "",
+      createdAt: `${today}T19:00:00.000Z`
+    }
+  ];
+  await page.unroute("**/api/daily_log**");
+  await page.route("**/api/daily_log**", (route) => route.fulfill({ json: reviewLogs }));
+  await page.reload();
 
   const calendar = page.getByRole("region", { name: "Food log calendar" });
   await expect(calendar).toBeVisible();
@@ -116,6 +136,10 @@ test("Dashboard calendar opens a daily review and deep-links the Logs date", asy
   await expect(dialog.getByText("Chicken bowl", { exact: true })).toBeVisible();
   await expect(dialog.getByText("Snack", { exact: true })).toBeVisible();
   await expect(dialog.getByText("Greek yogurt", { exact: true })).toBeVisible();
+  const reviewScroller = dialog.locator(".overflow-y-auto");
+  await expect(reviewScroller).toBeVisible();
+  expect(await reviewScroller.evaluate((element) => element.scrollWidth > element.clientWidth)).toBe(false);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth)).toBe(false);
 
   await dialog.getByRole("button", { name: "Open in Logs" }).click();
   await expect(page).toHaveURL(new RegExp(`/logs\\?date=${today}$`));
