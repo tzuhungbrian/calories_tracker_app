@@ -80,18 +80,23 @@ test("desktop Logs opens and closes the edit inspector", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "Edit logged food" })).toHaveCount(0);
 });
 
-test("mobile Dashboard keeps nutrition cards compact", async ({ page }) => {
+test("Dashboard nutrition summary keeps only essential copy", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
 
   const summary = page.getByRole("region", { name: "Today's nutrition summary" });
   const mobileCards = summary.getByRole("group", { name: "Mobile nutrition cards" });
   await expect(summary).toBeVisible();
-  await expect(page.getByText("Recent history", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "14D", exact: true })).toBeVisible();
   await expect(mobileCards.getByText("Calories", { exact: true })).toBeVisible();
   await expect(mobileCards.getByText("Protein", { exact: true })).toBeVisible();
   await expect(mobileCards.getByText("Fat", { exact: true })).toBeVisible();
   await expect(mobileCards.getByText("Carbs", { exact: true })).toBeVisible();
-  await expect(mobileCards.getByText("Dynamic today", { exact: true })).toBeVisible();
+  await expect(page.getByText("Recent history", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("Analysis window", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("Choose how much recent history to include.", { exact: true })).toHaveCount(0);
+  await expect(summary.getByText(/(?:kcal|g) (?:left|to go)/i)).toHaveCount(0);
+  await expect(summary.getByText(/\d+-\d+g range/i)).toHaveCount(0);
+  await expect(summary.getByText("Dynamic today", { exact: true })).toHaveCount(0);
 
   const hasHorizontalOverflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
   expect(hasHorizontalOverflow).toBe(false);

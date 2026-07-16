@@ -149,20 +149,20 @@ function macroRatio(rows: DailySummary[]): { protein: number; fat: number; carbs
   };
 }
 
-function nutrientStatus(label: NutrientKey, data: DashboardData): { tone: "good" | "warn" | "neutral"; message: string; detail: string } {
+function nutrientStatus(label: NutrientKey, data: DashboardData): { tone: "good" | "warn" | "neutral"; message: string } {
   const total = data.totals[label];
   const target = data.targets[label];
   const remaining = data.remaining[label];
   const goalType = data.status?.goalType ?? "maintain";
 
   if (data.status?.isTravelDay) {
-    return { tone: "neutral", message: "Travel", detail: "excluded from adherence" };
+    return { tone: "neutral", message: "Travel" };
   }
 
   if (label === "protein") {
     return total >= target
-      ? { tone: "good", message: "Hit", detail: `target ${round(target)}g` }
-      : { tone: "warn", message: "Low", detail: `${round(Math.max(target - total, 0))}g to go` };
+      ? { tone: "good", message: "Hit" }
+      : { tone: "warn", message: "Low" };
   }
 
   if (label === "fat") {
@@ -170,20 +170,19 @@ function nutrientStatus(label: NutrientKey, data: DashboardData): { tone: "good"
     const inRange = total >= range.min && total <= range.max;
     return {
       tone: inRange ? "good" : "warn",
-      message: inRange ? "In range" : total < range.min ? "Low" : "High",
-      detail: `${range.min}-${range.max}g range`
+      message: inRange ? "In range" : total < range.min ? "Low" : "High"
     };
   }
 
   if (goalType === "bulk") {
     return remaining <= 0
-      ? { tone: "good", message: "Hit", detail: `${round(Math.abs(remaining))}${label === "calories" ? " kcal" : "g"} over` }
-      : { tone: "warn", message: "Needs more", detail: `${round(remaining)}${label === "calories" ? " kcal" : "g"} left` };
+      ? { tone: "good", message: "Hit" }
+      : { tone: "warn", message: "Needs more" };
   }
 
   return remaining >= 0
-    ? { tone: "good", message: "On target", detail: `${round(remaining)}${label === "calories" ? " kcal" : "g"} left` }
-    : { tone: "warn", message: "Over", detail: `${round(Math.abs(remaining))}${label === "calories" ? " kcal" : "g"} over` };
+    ? { tone: "good", message: "On target" }
+    : { tone: "warn", message: "Over" };
 }
 
 function nutrientValue(label: NutrientKey, value: number): string {
@@ -202,7 +201,6 @@ export function StatsDashboard({ rows, dashboard, logs, today, onOpenLogs }: Sta
   const recentSevenOrderedRows = useMemo(() => [...recentSevenAnalysisRows].reverse(), [recentSevenAnalysisRows]);
   const scopedDateSet = useMemo(() => new Set(analysisRows.map((row) => row.date)), [analysisRows]);
   const scopedLogs = useMemo(() => logs.filter((log) => scopedDateSet.has(log.date)), [logs, scopedDateSet]);
-  const travelDaysInRange = scopedRows.length - analysisRows.length;
   const exerciseDays = analysisRows.filter((row) => row.strengthSession || row.basketballMinutes > 0 || row.steps > exerciseStepGoal).length;
   const currentProteinStreak = proteinStreak(analysisRows);
   const cutRows = analysisRows.filter((row) => row.goalType === "cut" && row.calories > 0);
@@ -236,15 +234,8 @@ export function StatsDashboard({ rows, dashboard, logs, today, onOpenLogs }: Sta
 
   return (
     <section className="grid gap-4">
-      <div className="flex items-center justify-between gap-3">
-        <div className="min-w-0">
-          <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">
-            <span className="sm:hidden">Recent history</span>
-            <span className="hidden sm:inline">Analysis window</span>
-          </p>
-          {travelDaysInRange > 0 ? <p className="truncate text-xs text-sky-700">Excluding {travelDaysInRange} travel day{travelDaysInRange === 1 ? "" : "s"}</p> : <p className="hidden text-xs text-slate-500 sm:block">Choose how much recent history to include.</p>}
-        </div>
-        <div className="grid shrink-0 grid-cols-3 rounded-lg border border-slate-200 bg-slate-50 p-1 dark:border-slate-700 dark:bg-slate-900">
+      <div className="flex justify-end">
+        <div aria-label="Analysis range" className="grid shrink-0 grid-cols-3 rounded-lg border border-slate-200 bg-slate-50 p-1 dark:border-slate-700 dark:bg-slate-900" role="group">
           {rangeOptions.map((option) => (
             <button
               key={option}
@@ -355,7 +346,6 @@ function CompactNutritionSummary({ data }: { data: DashboardData | null }) {
                 <span className="shrink-0 text-right text-[10px] font-bold uppercase leading-4">{status.message}</span>
               </div>
               <p className="mt-2 text-xl font-semibold tracking-tight text-ink dark:text-slate-100">{nutrientValue(key, data.totals[key])}</p>
-              <p className="mt-0.5 truncate text-[11px] text-slate-500 dark:text-slate-400">{status.detail}</p>
               <div aria-hidden="true" className="mt-2 h-1 overflow-hidden rounded-full bg-slate-200/70 dark:bg-slate-800">
                 <div className={`h-full rounded-full ${status.tone === "warn" ? "bg-red-500 dark:bg-red-400" : status.tone === "neutral" ? "bg-blue-500 dark:bg-blue-400" : "bg-emerald-500 dark:bg-emerald-400"}`} style={{ width: `${progress}%` }} />
               </div>
@@ -365,7 +355,6 @@ function CompactNutritionSummary({ data }: { data: DashboardData | null }) {
         <div className="col-span-2 flex min-w-0 items-center justify-between gap-3 rounded-lg border border-blue-100 bg-blue-50/60 px-3 py-2.5 text-blue-700 dark:border-blue-900 dark:bg-blue-950/40 dark:text-blue-200">
           <div className="min-w-0">
             <p className="text-sm font-semibold">TDEE</p>
-            <p className="text-xs text-slate-500 dark:text-slate-400">Dynamic today</p>
           </div>
           <p className="shrink-0 text-lg font-semibold text-ink dark:text-slate-100">{round(data.dynamicTdee)} kcal</p>
         </div>
@@ -390,7 +379,6 @@ function CompactNutritionSummary({ data }: { data: DashboardData | null }) {
                   </span>
                   <div className="min-w-0">
                     <p className="text-sm font-semibold">{nutrientLabels[key]}</p>
-                    <p className="text-xs text-slate-500">{status.detail}</p>
                   </div>
                 </div>
                 <span className="rounded-full bg-white/80 px-2 py-0.5 text-[11px] font-semibold dark:bg-slate-900/80">{status.message}</span>
@@ -407,7 +395,6 @@ function CompactNutritionSummary({ data }: { data: DashboardData | null }) {
             <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-white/80 dark:bg-slate-900/80"><Activity size={16} /></span>
             <div>
               <p className="text-sm font-semibold">TDEE</p>
-              <p className="text-xs text-slate-500">Dynamic today</p>
             </div>
           </div>
           <p className="mt-2 text-xl font-semibold text-ink dark:text-slate-100">{round(data.dynamicTdee)} kcal</p>
