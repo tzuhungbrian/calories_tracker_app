@@ -182,6 +182,8 @@ test("Dashboard calendar visualizes calorie and protein progress rings", async (
 
   const calendar = page.getByRole("region", { name: "Food log calendar" });
   await expect(calendar.getByRole("button", { name: "Next month" })).toBeDisabled();
+  await expect(calendar.getByText(/Protein: red/i)).toHaveCount(0);
+  await expect(calendar.getByText(/Calories: Cut/i)).toHaveCount(0);
   if (statusMonth !== currentMonth) {
     await calendar.getByRole("button", { name: "Previous month" }).click();
   }

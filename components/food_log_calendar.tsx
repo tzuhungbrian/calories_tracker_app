@@ -438,11 +438,6 @@ export function FoodLogCalendar({ rows, logs, today, onOpenLogs }: FoodLogCalend
           <LegendDot className="bg-red-400" label="Needs attention" />
           <span className="inline-flex items-center gap-1"><Plane className="text-sky-500" size={11} />Travel</span>
         </div>
-        <div className="mt-1.5 text-center text-[10px] leading-4 text-slate-400 dark:text-slate-500">
-          <p>Protein: red &lt;80%, amber 80–99%, green ≥100%.</p>
-          <p>Calories: Cut ≤ target green, target–TDEE amber, &gt;TDEE red; Bulk ≥ target green, TDEE–target amber, &lt;TDEE red; Maintain ≤ target green.</p>
-        </div>
-
         {monthError ? <p className="mt-3 rounded-md bg-red-50 px-3 py-2 text-xs font-semibold text-red-700 dark:bg-red-950/50 dark:text-red-200">{monthError} Existing log markers are still available.</p> : null}
 
       </section>
